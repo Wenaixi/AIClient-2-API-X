@@ -275,34 +275,63 @@
                     <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型</small>
                 </div>
 
-                <!-- Per-Provider 自定义间隔列表 -->
-                <div id="scheduledHealthCheckProviderList" class="provider-custom-intervals">
-                    <!-- 动态渲染已添加的自定义间隔 -->
-                </div>
+                <!-- Per-Provider 自定义间隔配置 -->
+                <div class="custom-intervals-section">
+                    <label data-i18n="config.healthCheck.customIntervals">自定义间隔配置</label>
 
-                <!-- 添加自定义间隔 -->
-                <div class="add-custom-interval-form">
-                    <div class="form-group">
-                        <label data-i18n="config.healthCheck.addCustomInterval">添加自定义间隔</label>
-                        <div class="add-interval-row">
-                            <select id="addIntervalProviderSelect" class="form-control">
-                                <option value="">-- 选择供应商 --</option>
-                            </select>
-                            <div class="time-input-group">
-                                <div class="time-input-unit">
-                                    <input type="number" id="addIntervalHours" class="form-control" min="0" max="23" value="0" placeholder="0">
-                                    <label data-i18n="config.healthCheck.hours">时</label>
-                                </div>
-                                <div class="time-input-unit">
-                                    <input type="number" id="addIntervalMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
-                                    <label data-i18n="config.healthCheck.minutes">分</label>
-                                </div>
-                                <div class="time-input-unit">
-                                    <input type="number" id="addIntervalSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
-                                    <label data-i18n="config.healthCheck.seconds">秒</label>
+                    <!-- 已添加的自定义间隔表格 -->
+                    <div class="custom-intervals-table-wrapper">
+                        <table class="custom-intervals-table" id="customIntervalsTable">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="config.healthCheck.provider">供应商</th>
+                                    <th data-i18n="config.healthCheck.interval">间隔时间</th>
+                                    <th data-i18n="common.actions">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customIntervalsTableBody">
+                                <!-- 动态渲染 -->
+                            </tbody>
+                        </table>
+                        <div id="noCustomIntervalsMsg" class="no-data-message" data-i18n="config.healthCheck.noCustomIntervals">
+                            暂无自定义间隔配置
+                        </div>
+                    </div>
+
+                    <!-- 添加/编辑表单 -->
+                    <div class="custom-interval-form" id="customIntervalForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label data-i18n="config.healthCheck.selectProvider">选择供应商</label>
+                                <select id="customIntervalProvider" class="form-control">
+                                    <option value="">-- 请选择 --</option>
+                                </select>
+                            </div>
+                            <div class="form-group time-group">
+                                <label data-i18n="config.healthCheck.interval">间隔时间</label>
+                                <div class="time-inputs">
+                                    <div class="time-input-unit">
+                                        <input type="number" id="customIntervalHours" class="form-control" min="0" max="23" value="0">
+                                        <span data-i18n="config.healthCheck.hours">时</span>
+                                    </div>
+                                    <div class="time-input-unit">
+                                        <input type="number" id="customIntervalMinutes" class="form-control" min="0" max="59" value="10">
+                                        <span data-i18n="config.healthCheck.minutes">分</span>
+                                    </div>
+                                    <div class="time-input-unit">
+                                        <input type="number" id="customIntervalSeconds" class="form-control" min="0" max="59" value="0">
+                                        <span data-i18n="config.healthCheck.seconds">秒</span>
+                                    </div>
                                 </div>
                             </div>
-                            <button type="button" id="addIntervalBtn" class="btn btn-primary" data-i18n="config.healthCheck.add">添加</button>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="saveCustomIntervalBtn" class="btn btn-primary" data-i18n="common.save">
+                                <i class="fas fa-save"></i> 保存
+                            </button>
+                            <button type="button" id="cancelEditIntervalBtn" class="btn btn-secondary" style="display: none;" data-i18n="common.cancel">
+                                <i class="fas fa-times"></i> 取消
+                            </button>
                         </div>
                     </div>
                 </div>
