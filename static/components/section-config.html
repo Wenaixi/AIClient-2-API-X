@@ -274,40 +274,36 @@
                     </div>
                     <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型</small>
                 </div>
-                <div id="scheduledHealthCheckProviderList" class="provider-custom-intervals">
-                    <!-- 动态渲染：点击供应商标签弹出编辑弹窗 -->
-                </div>
-            </div>
 
-            <!-- Per-Provider 间隔编辑 Modal -->
-            <div id="providerIntervalModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 id="modalProviderName">Provider Name</h3>
-                        <span class="modal-close">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label data-i18n="config.healthCheck.customInterval">自定义间隔</label>
+                <!-- Per-Provider 自定义间隔列表 -->
+                <div id="scheduledHealthCheckProviderList" class="provider-custom-intervals">
+                    <!-- 动态渲染已添加的自定义间隔 -->
+                </div>
+
+                <!-- 添加自定义间隔 -->
+                <div class="add-custom-interval-form">
+                    <div class="form-group">
+                        <label data-i18n="config.healthCheck.addCustomInterval">添加自定义间隔</label>
+                        <div class="add-interval-row">
+                            <select id="addIntervalProviderSelect" class="form-control">
+                                <option value="">-- 选择供应商 --</option>
+                            </select>
                             <div class="time-input-group">
                                 <div class="time-input-unit">
-                                    <input type="number" id="modalIntervalHours" class="form-control" min="0" max="23" value="0" placeholder="0">
+                                    <input type="number" id="addIntervalHours" class="form-control" min="0" max="23" value="0" placeholder="0">
                                     <label data-i18n="config.healthCheck.hours">时</label>
                                 </div>
                                 <div class="time-input-unit">
-                                    <input type="number" id="modalIntervalMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                                    <input type="number" id="addIntervalMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
                                     <label data-i18n="config.healthCheck.minutes">分</label>
                                 </div>
                                 <div class="time-input-unit">
-                                    <input type="number" id="modalIntervalSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                                    <input type="number" id="addIntervalSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
                                     <label data-i18n="config.healthCheck.seconds">秒</label>
                                 </div>
                             </div>
+                            <button type="button" id="addIntervalBtn" class="btn btn-primary" data-i18n="config.healthCheck.add">添加</button>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" id="modalUseDefault" class="btn btn-secondary" data-i18n="config.healthCheck.useDefault">使用全局默认</button>
-                        <button type="button" id="modalSave" class="btn btn-primary" data-i18n="config.healthCheck.save">保存</button>
                     </div>
                 </div>
             </div>

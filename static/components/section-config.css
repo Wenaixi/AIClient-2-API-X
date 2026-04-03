@@ -126,8 +126,67 @@ textarea.form-control {
     font-size: 0.875rem;
 }
 
+.provider-interval-tag .provider-interval-value {
+    color: #666;
+    font-size: 0.875rem;
+}
+
 .provider-interval-tag .provider-interval-value.is-default {
     font-style: italic;
+}
+
+.provider-interval-tag .remove-interval-btn {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 0.125rem 0.375rem;
+    font-size: 0.875rem;
+}
+
+.provider-interval-tag .remove-interval-btn:hover {
+    color: #dc3545;
+}
+
+/* Add custom interval form */
+.add-custom-interval-form {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 0.5rem;
+    border: 1px dashed #ccc;
+}
+
+.add-interval-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.add-interval-row select {
+    min-width: 160px;
+}
+
+.add-interval-row .time-input-group {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.add-interval-row .time-input-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.add-interval-row .time-input-unit input {
+    width: 60px;
+    text-align: center;
+}
+
+.add-interval-row .time-input-unit label {
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
 }
 
 /* Modal styles */
