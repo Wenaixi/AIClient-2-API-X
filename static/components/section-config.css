@@ -125,11 +125,6 @@ textarea.form-control {
     flex: 1;
 }
 
-.provider-interval-item .clear-interval-btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-}
-
 .config-form {
     max-width: 800px;
     margin: 0 auto;

@@ -146,7 +146,6 @@ function renderScheduledHealthCheckIntervalOverrides(data) {
     listContainer.innerHTML = selectedProviders.map(providerType => {
         const overrideMs = overrides[providerType];
         const hms = msToHms(overrideMs || defaultInterval);
-        const hasOverride = overrideMs !== undefined && overrideMs !== null;
         const name = providerNames[providerType] || providerType;
 
         return `
@@ -154,44 +153,21 @@ function renderScheduledHealthCheckIntervalOverrides(data) {
                 <span class="provider-name">${name}</span>
                 <div class="time-input-group">
                     <div class="time-input-unit">
-                        <input type="number" class="form-control interval-hours" min="0" max="23" value="${hms.hours}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <input type="number" class="form-control interval-hours" min="0" max="23" value="${hms.hours}" placeholder="0">
                         <label data-i18n="config.healthCheck.hours">时</label>
                     </div>
                     <div class="time-input-unit">
-                        <input type="number" class="form-control interval-minutes" min="0" max="59" value="${hms.minutes}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <input type="number" class="form-control interval-minutes" min="0" max="59" value="${hms.minutes}" placeholder="0">
                         <label data-i18n="config.healthCheck.minutes">分</label>
                     </div>
                     <div class="time-input-unit">
-                        <input type="number" class="form-control interval-seconds" min="0" max="59" value="${hms.seconds}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <input type="number" class="form-control interval-seconds" min="0" max="59" value="${hms.seconds}" placeholder="0">
                         <label data-i18n="config.healthCheck.seconds">秒</label>
                     </div>
                 </div>
-                <button type="button" class="btn btn-sm ${hasOverride ? 'btn-primary' : 'btn-outline-secondary'} clear-interval-btn">
-                    ${hasOverride ? '✓' : '○'}
-                </button>
             </div>
         `;
     }).join('');
-
-    // 绑定事件
-    listContainer.querySelectorAll('.provider-interval-item').forEach(item => {
-        const providerType = item.getAttribute('data-provider');
-        const hoursEl = item.querySelector('.interval-hours');
-        const minutesEl = item.querySelector('.interval-minutes');
-        const secondsEl = item.querySelector('.interval-seconds');
-        const clearBtn = item.querySelector('.clear-interval-btn');
-
-        // 点击清除/启用按钮
-        clearBtn.addEventListener('click', () => {
-            const isEnabled = !clearBtn.classList.contains('btn-primary');
-            hoursEl.disabled = isEnabled;
-            minutesEl.disabled = isEnabled;
-            secondsEl.disabled = isEnabled;
-            clearBtn.classList.toggle('btn-primary', isEnabled);
-            clearBtn.classList.toggle('btn-outline-secondary', !isEnabled);
-            clearBtn.textContent = isEnabled ? '✓' : '○';
-        });
-    });
 }
 
 /**
@@ -545,17 +521,14 @@ async function saveConfiguration() {
             const hoursEl = item.querySelector('.interval-hours');
             const minutesEl = item.querySelector('.interval-minutes');
             const secondsEl = item.querySelector('.interval-seconds');
-            const clearBtn = item.querySelector('.clear-interval-btn');
 
-            // 只有当按钮是启用状态（btn-primary）时才保存 override
-            if (clearBtn && clearBtn.classList.contains('btn-primary')) {
-                const h = parseInt(hoursEl?.value) || 0;
-                const m = parseInt(minutesEl?.value) || 0;
-                const s = parseInt(secondsEl?.value) || 0;
-                const ms = hmsToMs(h, m, s);
-                if (ms >= 1000) {
-                    overrides[providerType] = ms;
-                }
+            // 检查输入是否有有效值（>= 1000ms）
+            const h = parseInt(hoursEl?.value) || 0;
+            const m = parseInt(minutesEl?.value) || 0;
+            const s = parseInt(secondsEl?.value) || 0;
+            const ms = hmsToMs(h, m, s);
+            if (ms >= 1000) {
+                overrides[providerType] = ms;
             }
         });
     }
