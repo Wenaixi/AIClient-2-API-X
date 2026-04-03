@@ -9,6 +9,30 @@ import { t } from './i18n.js';
 let currentProviderConfigs = null;
 
 /**
+ * 将毫秒转换为时:分:秒
+ * @param {number} ms - 毫秒
+ * @returns {{hours: number, minutes: number, seconds: number}}
+ */
+function msToHms(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return { hours, minutes, seconds };
+}
+
+/**
+ * 将时:分:秒转换为毫秒
+ * @param {number} hours - 小时
+ * @param {number} minutes - 分钟
+ * @param {number} seconds - 秒
+ * @returns {number} 毫秒
+ */
+function hmsToMs(hours, minutes, seconds) {
+    return (hours * 3600 + minutes * 60 + seconds) * 1000;
+}
+
+/**
  * 更新提供商配置并重新渲染配置页面的提供商选择标签
  * @param {Array} configs - 提供商配置列表
  */
@@ -79,6 +103,93 @@ function renderProviderTags(container, configs, isRequired) {
             
             // 切换选中状态
             tag.classList.toggle('selected');
+
+            // 如果是在定时健康检查的 provider-tags 容器中，重新渲染 interval overrides
+            if (container.id === 'scheduledHealthCheckProviders') {
+                window.apiClient.get('/config').then(data => {
+                    renderScheduledHealthCheckIntervalOverrides(data);
+                });
+            }
+        });
+    });
+}
+
+/**
+ * 渲染定时健康检查的 per-provider interval overrides
+ * @param {Object} data - 配置数据
+ */
+function renderScheduledHealthCheckIntervalOverrides(data) {
+    const container = document.getElementById('scheduledHealthCheckIntervals');
+    const listContainer = document.getElementById('scheduledHealthCheckIntervalList');
+    if (!container || !listContainer) return;
+
+    const selectedProviders = data.SCHEDULED_HEALTH_CHECK?.providerTypes || [];
+    const overrides = data.SCHEDULED_HEALTH_CHECK?.overrides || {};
+    const defaultInterval = data.SCHEDULED_HEALTH_CHECK?.interval || 600000;
+
+    if (selectedProviders.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+
+    // 获取 provider 名称映射
+    const providerNames = {};
+    const tags = document.querySelectorAll('#scheduledHealthCheckProviders .provider-tag');
+    tags.forEach(tag => {
+        const value = tag.getAttribute('data-value');
+        const name = tag.querySelector('span')?.textContent || value;
+        providerNames[value] = name;
+    });
+
+    listContainer.innerHTML = selectedProviders.map(providerType => {
+        const overrideMs = overrides[providerType];
+        const hms = msToHms(overrideMs || defaultInterval);
+        const hasOverride = overrideMs !== undefined && overrideMs !== null;
+        const name = providerNames[providerType] || providerType;
+
+        return `
+            <div class="provider-interval-item" data-provider="${providerType}">
+                <span class="provider-name">${name}</span>
+                <div class="time-input-group">
+                    <div class="time-input-unit">
+                        <input type="number" class="form-control interval-hours" min="0" max="23" value="${hms.hours}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <label data-i18n="config.healthCheck.hours">时</label>
+                    </div>
+                    <div class="time-input-unit">
+                        <input type="number" class="form-control interval-minutes" min="0" max="59" value="${hms.minutes}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <label data-i18n="config.healthCheck.minutes">分</label>
+                    </div>
+                    <div class="time-input-unit">
+                        <input type="number" class="form-control interval-seconds" min="0" max="59" value="${hms.seconds}" placeholder="0" ${hasOverride ? '' : 'disabled'}>
+                        <label data-i18n="config.healthCheck.seconds">秒</label>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm ${hasOverride ? 'btn-primary' : 'btn-outline-secondary'} clear-interval-btn">
+                    ${hasOverride ? '✓' : '○'}
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    // 绑定事件
+    listContainer.querySelectorAll('.provider-interval-item').forEach(item => {
+        const providerType = item.getAttribute('data-provider');
+        const hoursEl = item.querySelector('.interval-hours');
+        const minutesEl = item.querySelector('.interval-minutes');
+        const secondsEl = item.querySelector('.interval-seconds');
+        const clearBtn = item.querySelector('.clear-interval-btn');
+
+        // 点击清除/启用按钮
+        clearBtn.addEventListener('click', () => {
+            const isEnabled = !clearBtn.classList.contains('btn-primary');
+            hoursEl.disabled = isEnabled;
+            minutesEl.disabled = isEnabled;
+            secondsEl.disabled = isEnabled;
+            clearBtn.classList.toggle('btn-primary', isEnabled);
+            clearBtn.classList.toggle('btn-outline-secondary', !isEnabled);
+            clearBtn.textContent = isEnabled ? '✓' : '○';
         });
     });
 }
@@ -246,16 +357,24 @@ async function loadConfiguration() {
         // 定时健康检查配置
         const scheduledHealthCheckEnabledEl = document.getElementById('scheduledHealthCheckEnabled');
         const scheduledHealthCheckStartupRunEl = document.getElementById('scheduledHealthCheckStartupRun');
-        const scheduledHealthCheckIntervalEl = document.getElementById('scheduledHealthCheckInterval');
-        
+        const scheduledHealthCheckHoursEl = document.getElementById('scheduledHealthCheckHours');
+        const scheduledHealthCheckMinutesEl = document.getElementById('scheduledHealthCheckMinutes');
+        const scheduledHealthCheckSecondsEl = document.getElementById('scheduledHealthCheckSeconds');
+
         if (data.SCHEDULED_HEALTH_CHECK) {
             if (scheduledHealthCheckEnabledEl) scheduledHealthCheckEnabledEl.checked = data.SCHEDULED_HEALTH_CHECK.enabled === true;
             if (scheduledHealthCheckStartupRunEl) scheduledHealthCheckStartupRunEl.checked = data.SCHEDULED_HEALTH_CHECK.startupRun !== false;
-            if (scheduledHealthCheckIntervalEl) scheduledHealthCheckIntervalEl.value = data.SCHEDULED_HEALTH_CHECK.interval || 600000;
+            // 将毫秒转换为时:分:秒
+            const hms = msToHms(data.SCHEDULED_HEALTH_CHECK.interval || 600000);
+            if (scheduledHealthCheckHoursEl) scheduledHealthCheckHoursEl.value = hms.hours;
+            if (scheduledHealthCheckMinutesEl) scheduledHealthCheckMinutesEl.value = hms.minutes;
+            if (scheduledHealthCheckSecondsEl) scheduledHealthCheckSecondsEl.value = hms.seconds;
         } else {
             if (scheduledHealthCheckEnabledEl) scheduledHealthCheckEnabledEl.checked = true;
             if (scheduledHealthCheckStartupRunEl) scheduledHealthCheckStartupRunEl.checked = true;
-            if (scheduledHealthCheckIntervalEl) scheduledHealthCheckIntervalEl.value = 600000;
+            if (scheduledHealthCheckHoursEl) scheduledHealthCheckHoursEl.value = 0;
+            if (scheduledHealthCheckMinutesEl) scheduledHealthCheckMinutesEl.value = 10;
+            if (scheduledHealthCheckSecondsEl) scheduledHealthCheckSecondsEl.value = 0;
         }
         
         // 加载定时健康检查的供应商选择
@@ -272,18 +391,23 @@ async function loadConfiguration() {
                 }
             });
         }
-        
+
+        // 渲染 per-provider interval overrides
+        renderScheduledHealthCheckIntervalOverrides(data);
+
         // 定时健康检查间隔快捷按钮（防止重复绑定）
-        const intervalQuickBtns = document.querySelectorAll('#scheduledHealthCheckInterval + .quick-select-btns button');
+        const intervalQuickBtns = document.querySelectorAll('.time-input-group + .quick-select-btns button');
         intervalQuickBtns.forEach(btn => {
             if (btn.dataset.listenerAttached) return; // 防止重复绑定
             btn.dataset.listenerAttached = 'true';
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const value = parseInt(btn.getAttribute('data-value'));
-                if (scheduledHealthCheckIntervalEl) {
-                    scheduledHealthCheckIntervalEl.value = value;
-                }
+                const hours = parseInt(btn.getAttribute('data-hours')) || 0;
+                const minutes = parseInt(btn.getAttribute('data-minutes')) || 0;
+                const seconds = parseInt(btn.getAttribute('data-seconds')) || 0;
+                if (scheduledHealthCheckHoursEl) scheduledHealthCheckHoursEl.value = hours;
+                if (scheduledHealthCheckMinutesEl) scheduledHealthCheckMinutesEl.value = minutes;
+                if (scheduledHealthCheckSecondsEl) scheduledHealthCheckSecondsEl.value = seconds;
             });
         });
         
@@ -404,16 +528,44 @@ async function saveConfiguration() {
         ? Array.from(scheduledHealthCheckProvidersEl.querySelectorAll('.provider-tag.selected'))
             .map(tag => tag.getAttribute('data-value'))
         : [];
-    
-    // 验证并规范化 interval 值
-    const rawInterval = parseInt(document.getElementById('scheduledHealthCheckInterval')?.value);
-    const validatedInterval = isNaN(rawInterval) ? 600000 : Math.max(60000, Math.min(3600000, rawInterval));
-    
+
+    // 将时:分:秒转换为毫秒并验证范围（最小1秒，最大24小时）
+    const hours = parseInt(document.getElementById('scheduledHealthCheckHours')?.value) || 0;
+    const minutes = parseInt(document.getElementById('scheduledHealthCheckMinutes')?.value) || 0;
+    const seconds = parseInt(document.getElementById('scheduledHealthCheckSeconds')?.value) || 0;
+    const rawMs = hmsToMs(hours, minutes, seconds);
+    const validatedInterval = Math.max(1000, Math.min(86400000, rawMs));
+
+    // 收集 per-provider interval overrides
+    const overrides = {};
+    const intervalListEl = document.getElementById('scheduledHealthCheckIntervalList');
+    if (intervalListEl) {
+        intervalListEl.querySelectorAll('.provider-interval-item').forEach(item => {
+            const providerType = item.getAttribute('data-provider');
+            const hoursEl = item.querySelector('.interval-hours');
+            const minutesEl = item.querySelector('.interval-minutes');
+            const secondsEl = item.querySelector('.interval-seconds');
+            const clearBtn = item.querySelector('.clear-interval-btn');
+
+            // 只有当按钮是启用状态（btn-primary）时才保存 override
+            if (clearBtn && clearBtn.classList.contains('btn-primary')) {
+                const h = parseInt(hoursEl?.value) || 0;
+                const m = parseInt(minutesEl?.value) || 0;
+                const s = parseInt(secondsEl?.value) || 0;
+                const ms = hmsToMs(h, m, s);
+                if (ms >= 1000) {
+                    overrides[providerType] = ms;
+                }
+            }
+        });
+    }
+
     config.SCHEDULED_HEALTH_CHECK = {
         enabled: document.getElementById('scheduledHealthCheckEnabled')?.checked !== false,
         startupRun: document.getElementById('scheduledHealthCheckStartupRun')?.checked !== false,
         interval: validatedInterval,
-        providerTypes: scheduledHealthCheckProviderTypes
+        providerTypes: scheduledHealthCheckProviderTypes,
+        overrides: Object.keys(overrides).length > 0 ? overrides : {}
     };
 
     try {

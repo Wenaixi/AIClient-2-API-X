@@ -242,16 +242,30 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="scheduledHealthCheckInterval" data-i18n="config.healthCheck.interval">检查间隔</label>
+                    <label data-i18n="config.healthCheck.interval">检查间隔</label>
                     <div class="input-with-quick-select">
-                        <input type="number" id="scheduledHealthCheckInterval" class="form-control" min="60000" max="3600000" step="60000" value="600000" placeholder="毫秒">
+                        <div class="time-input-group">
+                            <div class="time-input-unit">
+                                <input type="number" id="scheduledHealthCheckHours" class="form-control" min="0" max="23" value="0" placeholder="0">
+                                <label data-i18n="config.healthCheck.hours">时</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="scheduledHealthCheckMinutes" class="form-control" min="0" max="59" value="10" placeholder="0">
+                                <label data-i18n="config.healthCheck.minutes">分</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="scheduledHealthCheckSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                                <label data-i18n="config.healthCheck.seconds">秒</label>
+                            </div>
+                        </div>
                         <div class="quick-select-btns">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="300000">5分钟</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="600000">10分钟</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="1800000">30分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-hours="0" data-minutes="5" data-seconds="0">5分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-hours="0" data-minutes="10" data-seconds="0">10分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-hours="0" data-minutes="30" data-seconds="0">30分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-hours="1" data-minutes="0" data-seconds="0">1小时</button>
                         </div>
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">单位毫秒，最小60000ms(1分钟)，最大3600000ms(1小时)</small>
+                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">设置定时健康检查的执行间隔，范围：1秒 ~ 24小时</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="config.healthCheck.providerTypes">定时检查的供应商</label>
@@ -259,6 +273,10 @@
                         <!-- 由 config-manager.js updateConfigProviderConfigs 动态渲染，勿在此处硬编码 -->
                     </div>
                     <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型</small>
+                </div>
+                <div id="scheduledHealthCheckIntervals" class="provider-interval-overrides" style="display: none;">
+                    <label data-i18n="config.healthCheck.intervalOverride">自定义间隔（留空使用全局默认）</label>
+                    <div id="scheduledHealthCheckIntervalList"></div>
                 </div>
             </div>
 

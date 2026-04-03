@@ -7,8 +7,7 @@ import { initializeAPIManagement } from './api-manager.js';
 import { createRequestHandler } from '../handlers/request-handler.js';
 import { discoverPlugins, getPluginManager } from '../core/plugin-manager.js';
 import { getTLSSidecar } from '../utils/tls-sidecar.js';
-import { HEALTH_CHECK } from '../utils/constants.js';
-import { startHealthCheckTimer, stopHealthCheckTimer, reloadHealthCheckTimer, runStartupHealthCheck, getHealthCheckTimerStatus } from './health-check-timer.js';
+import { startHealthCheckTimer, stopHealthCheckTimer, reloadHealthCheckTimer, runStartupHealthCheck, getHealthCheckTimerStatus, updateHealthCheckTimers } from './health-check-timer.js';
 
 /**
  * @license
@@ -366,22 +365,14 @@ async function startServer() {
         // 定时健康检查
         const scheduledConfig = CONFIG.SCHEDULED_HEALTH_CHECK;
         {
-            const DEFAULT_INTERVAL = CONFIG.CRON_NEAR_MINUTES * 60 * 1000;
-
             if (scheduledConfig?.enabled) {
-                let interval = scheduledConfig.interval;
-                if (typeof interval !== 'number' || interval < HEALTH_CHECK.MIN_INTERVAL_MS) {
-                    logger.warn(`[ScheduledHealthCheck] Invalid interval ${interval}, using default ${DEFAULT_INTERVAL}`);
-                    interval = DEFAULT_INTERVAL;
-                }
-
-                // 启动时运行健康检查
+                // 启动时运行健康检查（所有类型）
                 if (scheduledConfig.startupRun !== false) {
                     await runStartupHealthCheck();
                 }
 
-                // 设置定时任务
-                startHealthCheckTimer(interval);
+                // 使用 per-type 定时器
+                updateHealthCheckTimers(scheduledConfig);
             }
         }
 

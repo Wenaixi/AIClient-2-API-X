@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">5.38% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/167</span>
+                <span class='fraction'>0/167</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.03% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/33</span>
+                <span class='fraction'>0/33</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">5.52% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/163</span>
+                <span class='fraction'>0/163</span>
             </div>
         
             
@@ -524,7 +524,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -534,13 +534,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -958,7 +958,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -973,8 +973,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * 支持控制台和文件输出，自动添加请求ID和时间戳
  */
 class Logger {
-    constructor() {
-        this.config = {
+<span class="fstat-no" title="function not covered" >    co</span>nstructor() {
+<span class="cstat-no" title="statement not covered" >        this.config = {</span>
             enabled: true,
             outputMode: 'all', // 'console', 'file', 'all', 'none'
             logDir: 'logs',
@@ -984,13 +984,13 @@ class Logger {
             maxFileSize: 10 * 1024 * 1024, // 10MB
             maxFiles: 10
         };
-        this.currentLogFile = null;
-        this.logStream = null;
-        this.asyncStorage = new AsyncLocalStorage(); // 使用 AsyncLocalStorage 存储请求上下文
-        this.requestContext = new Map(); // 存储请求上下文
-        this.contextTTL = 5 * 60 * 1000; // 请求上下文 TTL：5 分钟
-        this._contextCleanupTimer = null;
-        this.levels = {
+<span class="cstat-no" title="statement not covered" >        this.currentLogFile = null;</span>
+<span class="cstat-no" title="statement not covered" >        this.logStream = null;</span>
+<span class="cstat-no" title="statement not covered" >        this.asyncStorage = new AsyncLocalStorage(); </span>// 使用 AsyncLocalStorage 存储请求上下文
+<span class="cstat-no" title="statement not covered" >        this.requestContext = new Map(); </span>// 存储请求上下文
+<span class="cstat-no" title="statement not covered" >        this.contextTTL = 5 * 60 * 1000; </span>// 请求上下文 TTL：5 分钟
+<span class="cstat-no" title="statement not covered" >        this._contextCleanupTimer = null;</span>
+<span class="cstat-no" title="statement not covered" >        this.levels = {</span>
             debug: 0,
             info: 1,
             warn: 2,
@@ -1408,7 +1408,7 @@ class Logger {
 }
 &nbsp;
 // 创建单例实例
-const logger = new Logger();
+const logger = <span class="cstat-no" title="statement not covered" >new Logger();</span>
 &nbsp;
 // 导出实例和类
 export default logger;
@@ -1420,7 +1420,7 @@ export { Logger };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-02T19:28:19.519Z
+                at 2026-04-03T03:53:01.476Z
             </div>
         <script src="../prettify.js"></script>
         <script>

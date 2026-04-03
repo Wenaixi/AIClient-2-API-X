@@ -66,6 +66,70 @@ textarea.form-control {
     font-size: 0.75rem;
 }
 
+/* 时分秒输入组 */
+.time-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.time-input-unit {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.time-input-unit .form-control {
+    width: 70px;
+    text-align: center;
+}
+
+.time-input-unit label {
+    margin: 0;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: #666;
+}
+
+/* Provider interval overrides */
+.provider-interval-overrides {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 0.5rem;
+}
+
+.provider-interval-overrides label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.provider-interval-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: white;
+    border-radius: 0.25rem;
+}
+
+.provider-interval-item .provider-name {
+    min-width: 120px;
+    font-weight: 500;
+}
+
+.provider-interval-item .time-input-group {
+    flex: 1;
+}
+
+.provider-interval-item .clear-interval-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
 .config-form {
     max-width: 800px;
     margin: 0 auto;
