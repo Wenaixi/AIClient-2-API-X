@@ -96,16 +96,16 @@ textarea.form-control {
 .custom-intervals-section {
     margin-top: 1.5rem;
     padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 0.5rem;
-    border: 1px solid #e9ecef;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
 }
 
 .custom-intervals-section > label {
     display: block;
     font-weight: 600;
     margin-bottom: 0.75rem;
-    color: #333;
+    color: var(--text-primary);
 }
 
 /* Custom intervals table */
@@ -116,8 +116,8 @@ textarea.form-control {
 .custom-intervals-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
-    border-radius: 0.375rem;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
     overflow: hidden;
 }
 
@@ -125,18 +125,18 @@ textarea.form-control {
 .custom-intervals-table td {
     padding: 0.75rem 1rem;
     text-align: left;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .custom-intervals-table th {
-    background: #e9ecef;
+    background: var(--bg-tertiary);
     font-weight: 600;
     font-size: 0.875rem;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .custom-intervals-table tr:hover {
-    background: #f8f9fa;
+    background: var(--bg-secondary);
 }
 
 .custom-intervals-table td:last-child {
@@ -147,19 +147,19 @@ textarea.form-control {
 .no-data-message {
     padding: 1.5rem;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-tertiary);
     font-style: italic;
-    background: white;
-    border-radius: 0.375rem;
-    border: 1px dashed #dee2e6;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--border-color);
 }
 
 /* Custom interval form */
 .custom-interval-form {
     padding: 1rem;
-    background: white;
-    border-radius: 0.375rem;
-    border: 1px solid #dee2e6;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .custom-interval-form .form-row {
@@ -201,7 +201,7 @@ textarea.form-control {
 
 .custom-interval-form .time-inputs span {
     font-size: 0.875rem;
-    color: #666;
+    color: var(--text-secondary);
 }
 
 .custom-interval-form .form-actions {
