@@ -258,6 +258,7 @@ function initCustomIntervalManager() {
 
         try {
             const config = await window.apiClient.get('/config');
+            console.log('Current config:', JSON.stringify(config.SCHEDULED_HEALTH_CHECK, null, 2));
 
             if (!config.SCHEDULED_HEALTH_CHECK) {
                 config.SCHEDULED_HEALTH_CHECK = {};
@@ -267,7 +268,9 @@ function initCustomIntervalManager() {
             }
 
             const targetProvider = editingProvider || providerType;
+            console.log('Target provider:', targetProvider, 'ms:', ms);
             config.SCHEDULED_HEALTH_CHECK.overrides[targetProvider] = ms;
+            console.log('Config to save:', JSON.stringify(config.SCHEDULED_HEALTH_CHECK, null, 2));
 
             await window.apiClient.post('/config', config);
             showToast(t('common.success'), editingProvider ? t('config.healthCheck.intervalUpdated') : t('config.healthCheck.intervalAdded'));
