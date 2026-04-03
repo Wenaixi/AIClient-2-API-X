@@ -213,6 +213,11 @@ function renderCustomIntervalsTable(data) {
  * 初始化自定义间隔管理功能
  */
 function initCustomIntervalManager() {
+    if (initCustomIntervalManager.initialized) {
+        console.log("initCustomIntervalManager already initialized");
+        return;
+    }
+    initCustomIntervalManager.initialized = true;
     console.log('initCustomIntervalManager called');
     const saveBtn = document.getElementById('saveCustomIntervalBtn');
     const cancelBtn = document.getElementById('cancelEditIntervalBtn');
