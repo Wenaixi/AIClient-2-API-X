@@ -213,12 +213,21 @@ function renderCustomIntervalsTable(data) {
  * 初始化自定义间隔管理功能
  */
 function initCustomIntervalManager() {
+    console.log('initCustomIntervalManager called');
     const saveBtn = document.getElementById('saveCustomIntervalBtn');
     const cancelBtn = document.getElementById('cancelEditIntervalBtn');
     const tbody = document.getElementById('customIntervalsTableBody');
 
+    console.log('Elements found:', { saveBtn: !!saveBtn, cancelBtn: !!cancelBtn, tbody: !!tbody });
+
+    if (!saveBtn) {
+        console.error('saveCustomIntervalBtn not found!');
+        return;
+    }
+
     // 保存按钮
-    saveBtn?.addEventListener('click', async () => {
+    saveBtn.addEventListener('click', async () => {
+        console.log('Save button clicked!');
         const providerSelect = document.getElementById('customIntervalProvider');
         const hoursEl = document.getElementById('customIntervalHours');
         const minutesEl = document.getElementById('customIntervalMinutes');
