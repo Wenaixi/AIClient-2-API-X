@@ -147,25 +147,43 @@ function renderCustomIntervalsTable(data) {
     const table = document.getElementById('customIntervalsTable');
     const noDataMsg = document.getElementById('noCustomIntervalsMsg');
 
-    if (!tbody || !table || !noDataMsg) return;
+    if (!tbody || !table || !noDataMsg) {
+        console.log('renderCustomIntervalsTable: missing elements', { tbody, table, noDataMsg });
+        return;
+    }
 
     const overrides = data.SCHEDULED_HEALTH_CHECK?.overrides || {};
     const providerTypes = Object.keys(overrides);
 
-    // 获取 provider 名称映射
+    console.log('renderCustomIntervalsTable:', { overrides, providerTypes });
+
+    // 获取 provider 名称映射（从 providerConfigs 全局变量或页面标签）
     const providerNames = {};
+    if (typeof currentProviderConfigs !== 'undefined' && currentProviderConfigs) {
+        currentProviderConfigs.forEach(c => {
+            providerNames[c.id] = c.name;
+        });
+    }
+    // 备选：从页面标签获取
     document.querySelectorAll('#scheduledHealthCheckProviders .provider-tag').forEach(tag => {
         const value = tag.getAttribute('data-value');
         const name = tag.querySelector('span')?.textContent || value;
-        providerNames[value] = name;
+        if (!providerNames[value]) {
+            providerNames[value] = name;
+        }
     });
 
+    console.log('renderCustomIntervalsTable: providerTypes count =', providerTypes.length);
+
     if (providerTypes.length === 0) {
+        console.log('renderCustomIntervalsTable: no data, hiding table');
         table.style.display = 'none';
         noDataMsg.style.display = 'block';
+        tbody.innerHTML = '';
         return;
     }
 
+    console.log('renderCustomIntervalsTable: showing table with', providerTypes.length, 'rows');
     table.style.display = 'table';
     noDataMsg.style.display = 'none';
 
@@ -311,8 +329,11 @@ function populateCustomIntervalProviderSelect(data) {
     const overrides = data.SCHEDULED_HEALTH_CHECK?.overrides || {};
     const addedProviders = Object.keys(overrides);
 
-    // 获取所有可用 provider
+    // 获取已选中的 provider（只在定时检查中选择的）
     const providerNames = {};
+    const selectedProviders = data.SCHEDULED_HEALTH_CHECK?.providerTypes || [];
+
+    // 从 provider tags 获取名称映射
     document.querySelectorAll('#scheduledHealthCheckProviders .provider-tag').forEach(tag => {
         const value = tag.getAttribute('data-value');
         const name = tag.querySelector('span')?.textContent || value;
@@ -331,9 +352,9 @@ function populateCustomIntervalProviderSelect(data) {
         selectEl.appendChild(opt);
     }
 
-    // 添加未使用的 provider 选项
-    Object.keys(providerNames).forEach(value => {
-        if (!addedProviders.includes(value)) {
+    // 只添加已选中且未添加自定义间隔的 provider 选项
+    selectedProviders.forEach(value => {
+        if (!addedProviders.includes(value) && providerNames[value]) {
             const opt = document.createElement('option');
             opt.value = value;
             opt.textContent = providerNames[value];
