@@ -263,6 +263,7 @@ function initCustomIntervalManager() {
 
             // 刷新表格和下拉选项
             const data = await window.apiClient.get('/config');
+            console.log('Saved config, received data:', JSON.stringify(data.SCHEDULED_HEALTH_CHECK, null, 2));
             renderCustomIntervalsTable(data);
             populateCustomIntervalProviderSelect(data);
 
