@@ -275,9 +275,6 @@ textarea.form-control {
     padding: 1rem 1.25rem;
     border-top: 1px solid #dee2e6;
 }
-    max-width: 800px;
-    margin: 0 auto;
-}
 
 /* 密码输入框样式 */
 .password-input-group {
@@ -692,4 +689,140 @@ input:checked + .toggle-slider:before {
 [data-theme="dark"] .restart-instructions {
     background: var(--bg-secondary);
     border-color: var(--border-color);
+}
+
+/* ==================== 自定义间隔列表 ==================== */
+.custom-interval-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.custom-interval-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.custom-interval-item .provider-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.custom-interval-item .provider-info i {
+    color: var(--primary-color);
+}
+
+.custom-interval-item .provider-name {
+    font-weight: 500;
+}
+
+.custom-interval-item .interval-badge {
+    background: var(--primary-color);
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.custom-interval-item .item-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.custom-interval-item .item-actions button {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* ==================== 自定义间隔弹出框 ==================== */
+.custom-interval-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 340px;
+    max-width: 90vw;
+    z-index: 10000;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+
+.custom-interval-popup .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.custom-interval-popup .popup-header .provider-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text-primary);
+}
+
+.custom-interval-popup .popup-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.custom-interval-popup .popup-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.custom-interval-popup .popup-body label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.custom-interval-popup .popup-body .time-input-group {
+    margin-bottom: 12px;
+}
+
+.custom-interval-popup .popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 弹出框遮罩层 */
+body:has(.custom-interval-popup:not([style*="display: none"]))::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
 }

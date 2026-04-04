@@ -8,13 +8,29 @@
  * 4. 健康检查方法调用
  */
 
-import { describe, test, expect } from '@jest/globals';
+import { describe, test, expect, beforeAll } from '@jest/globals';
 import { fetch } from 'undici';
 
 const TEST_SERVER_BASE_URL = process.env.TEST_SERVER_BASE_URL || 'http://localhost:3000';
-const TEST_API_KEY = process.env.TEST_API_KEY || '123456';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || 'admin123';
+
+// Global token obtained via login
+let authToken = '';
 
 describe('Security Fixes Integration Tests', () => {
+
+    beforeAll(async () => {
+        // Login once to get a valid auth token
+        const loginResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: TEST_PASSWORD })
+        });
+        const loginData = await loginResponse.json();
+        if (loginData.token) {
+            authToken = loginData.token;
+        }
+    });
 
     describe('XSS Protection', () => {
         test('should remove script tags from customName', async () => {
@@ -23,7 +39,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -36,6 +52,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).not.toContain('<script>');
             expect(data.provider.customName).not.toContain('</script>');
             expect(data.provider.customName).toContain('TestProvider');
@@ -47,7 +64,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -60,6 +77,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).toBe('');
         });
 
@@ -69,7 +87,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -82,6 +100,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).toBe('');
         });
 
@@ -91,7 +110,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -104,6 +123,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).not.toContain('onerror');
             expect(data.provider.customName).not.toContain('<img');
         });
@@ -114,7 +134,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -127,6 +147,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).not.toContain('&lt;');
             expect(data.provider.customName).not.toContain('&gt;');
         });
@@ -137,7 +158,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     providerType: 'openai-custom',
@@ -150,6 +171,7 @@ describe('Security Fixes Integration Tests', () => {
             });
 
             const data = await response.json();
+            expect(data.provider).toBeDefined();
             expect(data.provider.customName).toBe(normalName);
         });
     });
@@ -161,7 +183,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     SYSTEM_PROMPT_FILE_PATH: maliciousPath
@@ -172,7 +194,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -185,7 +207,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     SYSTEM_PROMPT_FILE_PATH: validPath
@@ -196,7 +218,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -210,7 +232,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     SCHEDULED_HEALTH_CHECK: {
@@ -226,7 +248,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -240,7 +262,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     SCHEDULED_HEALTH_CHECK: {
@@ -254,7 +276,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -268,7 +290,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     SERVER_PORT: 99999
@@ -279,7 +301,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -291,7 +313,7 @@ describe('Security Fixes Integration Tests', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     REQUEST_MAX_RETRIES: 999
@@ -302,7 +324,7 @@ describe('Security Fixes Integration Tests', () => {
 
             const getResponse = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await getResponse.json();
@@ -312,7 +334,7 @@ describe('Security Fixes Integration Tests', () => {
         test('should mask API key in response', async () => {
             const response = await fetch(`${TEST_SERVER_BASE_URL}/api/config`, {
                 headers: {
-                    'Authorization': `Bearer ${TEST_API_KEY}`
+                    'Authorization': `Bearer ${authToken}`
                 }
             });
             const config = await response.json();

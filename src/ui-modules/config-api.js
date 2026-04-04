@@ -9,7 +9,7 @@ import { initApiService } from '../services/service-manager.js';
 import { getRequestBody } from '../utils/common.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { HEALTH_CHECK, PASSWORD, NETWORK, RETRY } from '../utils/constants.js';
-import { reloadHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus, updateHealthCheckTimers } from '../services/health-check-timer.js';
+import { reloadHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } from '../services/health-check-timer.js';
 
 /**
  * 重载配置文件
@@ -221,20 +221,9 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 return isNaN(val) ? HEALTH_CHECK.DEFAULT_INTERVAL_MS : Math.max(HEALTH_CHECK.MIN_INTERVAL_MS, Math.min(HEALTH_CHECK.MAX_INTERVAL_MS, val));
             })();
 
-            // 解析 per-provider interval overrides
-            const newOverrides = {};
-            if (incoming?.overrides && typeof incoming.overrides === 'object') {
-                for (const [key, val] of Object.entries(incoming.overrides)) {
-                    const numVal = Number(val);
-                    if (!isNaN(numVal) && numVal >= HEALTH_CHECK.MIN_INTERVAL_MS) {
-                        newOverrides[key] = Math.min(HEALTH_CHECK.MAX_INTERVAL_MS, numVal);
-                    }
-                }
-            }
-
             // 获取当前计时器状态用于比较
             const currentStatus = getHealthCheckTimerStatus();
-            const oldInterval = currentStatus.intervals || {};
+            const oldInterval = currentStatus.interval;
 
             // 更新配置
             currentConfig.SCHEDULED_HEALTH_CHECK = {
@@ -242,15 +231,21 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 startupRun: incoming?.startupRun !== false,
                 interval: newInterval,
                 providerTypes: Array.isArray(incoming?.providerTypes) ? incoming.providerTypes : [],
-                overrides: newOverrides
+                customIntervals: incoming?.customIntervals || {}
             };
 
             // 处理 timer 状态变化
-            if (nowEnabled) {
-                // 使用新的 updateHealthCheckTimers 管理 per-type timers
-                updateHealthCheckTimers(currentConfig.SCHEDULED_HEALTH_CHECK);
-            } else {
+            // 当 enabled 从 true -> false 时，清除 timer
+            if (wasEnabled && !nowEnabled) {
                 stopHealthCheckTimer();
+            }
+            // 当 enabled 从 false -> true 时，启动 timer
+            else if (!wasEnabled && nowEnabled) {
+                reloadHealthCheckTimer(newInterval);
+            }
+            // 当 enabled=true 且 interval 变化时，重启 timer
+            else if (nowEnabled && newInterval !== oldInterval) {
+                reloadHealthCheckTimer(newInterval);
             }
         }
 
