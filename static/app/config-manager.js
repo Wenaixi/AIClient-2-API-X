@@ -628,10 +628,13 @@ function setupProviderLongPressHandlers() {
     const container = document.getElementById('scheduledHealthCheckProviders');
     if (!container) return;
 
-    let pressTimer = null;
-    let isLongPress = false;
+    // 防止重复绑定
+    if (container.dataset.longPressSetup) return;
+    container.dataset.longPressSetup = 'true';
 
     container.querySelectorAll('.provider-tag').forEach(tag => {
+        let pressTimer = null;
+
         // 右键菜单
         tag.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -645,17 +648,15 @@ function setupProviderLongPressHandlers() {
 
         // 长按（触摸设备）
         tag.addEventListener('touchstart', (e) => {
-            isLongPress = false;
+            tag.dataset.isLongPress = 'false';
             pressTimer = setTimeout(() => {
-                isLongPress = true;
+                tag.dataset.isLongPress = 'true';
                 const providerType = tag.getAttribute('data-value');
                 if (!tag.classList.contains('selected')) {
                     showToast('请先选中该供应商', 'warning');
                     return;
                 }
-                // 长按时触发编辑
                 showCustomIntervalPopup(providerType);
-                // 阻止后续的 click 事件
                 e.preventDefault();
             }, 500);
         }, { passive: false });
@@ -702,16 +703,16 @@ function showCustomIntervalPopup(providerType) {
 
     nameSpan.textContent = providerName;
 
-    // 绑定快捷按钮事件
+    // 绑定快捷按钮事件（每次都重新绑定，防止覆盖）
     const quickBtns = popup.querySelectorAll('.quick-select-btns button');
     quickBtns.forEach(btn => {
-        btn.onclick = () => {
+        btn.addEventListener('click', () => {
             const ms = parseInt(btn.getAttribute('data-ms'));
             const { hours: h, minutes: m, seconds: s } = msToHms(ms);
             document.getElementById('popupHours').value = h;
             document.getElementById('popupMinutes').value = m;
             document.getElementById('popupSeconds').value = s;
-        };
+        });
     });
 
     popup.style.display = 'block';

@@ -42,14 +42,15 @@ async function executeHealthCheck() {
     const providerTypes = config.providerTypes || [];
     const now = Date.now();
 
-    for (const providerType of providerTypes) {
+    // 并行执行各类型健康检查
+    const checkPromises = providerTypes.map(async (providerType) => {
         const customInterval = customIntervals[providerType];
         const effectiveInterval = customInterval ?? globalInterval;
 
         const lastTime = lastCheckTimes.get(providerType) || 0;
         if (now - lastTime < effectiveInterval) {
             logger.debug(`[HealthCheckTimer] Skipping ${providerType} - not yet due (last: ${lastTime}, interval: ${effectiveInterval}ms)`);
-            continue;
+            return;
         }
 
         logger.info(`[HealthCheckTimer] Executing health check for ${providerType} (custom interval: ${customInterval ? customInterval + 'ms' : 'using global ' + globalInterval + 'ms'})`);
@@ -59,7 +60,9 @@ async function executeHealthCheck() {
         } catch (error) {
             logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:`, error);
         }
-    }
+    });
+
+    await Promise.all(checkPromises);
 }
 
 /**
@@ -128,6 +131,19 @@ export function getHealthCheckTimerStatus() {
         isRunning: state.isRunning,
         interval: state.activeInterval
     };
+}
+
+/**
+ * 更新健康检查计时器（根据配置对象启动或重启）
+ * @param {Object} scheduledConfig - SCHEDULED_HEALTH_CHECK 配置对象
+ */
+export function updateHealthCheckTimers(scheduledConfig) {
+    if (!scheduledConfig?.enabled) {
+        stopHealthCheckTimer();
+        return;
+    }
+    const interval = scheduledConfig.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
+    startHealthCheckTimer(interval);
 }
 
 /**

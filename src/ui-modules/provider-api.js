@@ -65,24 +65,11 @@ let _fileLockChain = Promise.resolve();
 
 // 超时包装函数：防止操作永久挂起导致锁链阻塞
 function withTimeout(promise, ms = 30000) {
-    const ac = new AbortController();
-    const timeoutId = setTimeout(() => {
-        ac.abort();
-    }, ms);
-
     return Promise.race([
-        promise.then(result => {
-            clearTimeout(timeoutId);
-            return result;
-        }).catch(err => {
-            clearTimeout(timeoutId);
-            throw err;
-        }),
-        new Promise((_, reject) => {
-            ac.signal.addEventListener('abort', () => {
-                reject(new Error(`Operation timeout after ${ms}ms`));
-            });
-        })
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Operation timeout after ${ms}ms`)), ms)
+        )
     ]);
 }
 
