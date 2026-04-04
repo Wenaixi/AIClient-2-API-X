@@ -50,6 +50,38 @@ export const qwenOAuth2Events = new EventEmitter();
 
 // --- Helper Functions ---
 
+/**
+ * Qwen 默认系统提示词
+ */
+const QWEN_DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. You are Qwen, a large language model trained by Alibaba.";
+
+/**
+ * 应用 Qwen 默认系统提示词逻辑
+ * @param {Object} requestBody - OpenAI 格式的请求体
+ * @returns {Object} 处理后的请求体
+ */
+function applyQwenDefaultSystemPrompt(requestBody) {
+    if (!requestBody || !requestBody.messages || !Array.isArray(requestBody.messages)) {
+        return requestBody;
+    }
+
+    // 检查是否已有系统提示词 (role 为 system 或 developer)
+    const hasSystemPrompt = requestBody.messages.some(msg => 
+        msg.role === 'system' || msg.role === 'developer'
+    );
+
+    // 如果没有系统提示词，则在消息列表最前面插入默认提示词
+    if (!hasSystemPrompt) {
+        requestBody.messages.unshift({
+            role: 'system',
+            content: QWEN_DEFAULT_SYSTEM_PROMPT
+        });
+        logger.info('[Qwen Auth] 已应用默认系统提示词');
+    }
+
+    return requestBody;
+}
+
 // 封装公共的 await fetch 方法
 async function commonFetch(url, options = {}, useSystemProxy = false) {
     const defaultOptions = {
@@ -230,7 +262,7 @@ export class QwenApiService {
         }
         
         // 配置自定义代理
-        configureAxiosProxy(axiosConfig, this.config, 'openai-qwen-oauth');
+        configureAxiosProxy(axiosConfig, this.config, this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API);
         
         this.currentAxiosInstance = axios.create(axiosConfig);
 
@@ -239,7 +271,7 @@ export class QwenApiService {
     }
 
     _applySidecar(axiosConfig) {
-        return configureTLSSidecar(axiosConfig, this.config, MODEL_PROVIDER.QWEN_API, this.baseUrl);
+        return configureTLSSidecar(axiosConfig, this.config, this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API, this.baseUrl);
     }
 
     /**
@@ -278,7 +310,7 @@ export class QwenApiService {
             if (forceRefresh || (credentials && credentials.access_token)) {
                 const poolManager = getProviderPoolManager();
                 if (poolManager && this.uuid) {
-                    poolManager.resetProviderRefreshStatus(MODEL_PROVIDER.QWEN_API, this.uuid);
+                    poolManager.resetProviderRefreshStatus(this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API, this.uuid);
                 }
             }
         } catch (error) {
@@ -331,7 +363,7 @@ export class QwenApiService {
                 // 认证成功，重置状态
                 const poolManager = getProviderPoolManager();
                 if (poolManager && this.uuid) {
-                    poolManager.resetProviderRefreshStatus(MODEL_PROVIDER.QWEN_API, this.uuid);
+                    poolManager.resetProviderRefreshStatus(this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API, this.uuid);
                 }
             }
         }
@@ -575,12 +607,12 @@ export class QwenApiService {
             }
             
             // 配置自定义代理
-            configureAxiosProxy(axiosConfig, this.config, 'openai-qwen-oauth');
+            configureAxiosProxy(axiosConfig, this.config, this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API);
             
             this.currentAxiosInstance = axios.create(axiosConfig);
 
             // Process message content before sending the request
-            const processedBody = body;//this.processMessageContent(body);
+            const processedBody = applyQwenDefaultSystemPrompt(body);
 
             // Check if model in body is in QWEN_MODEL_LIST, if not, use the first model's id
             if (processedBody.model && !QWEN_MODEL_LIST.some(model => model.id === processedBody.model)) {
@@ -629,7 +661,7 @@ export class QwenApiService {
                 const poolManager = getProviderPoolManager();
                 if (poolManager && this.uuid) {
                     logger.info(`[Qwen] Marking credential ${this.uuid} as needs refresh. Reason: Auth Error ${status}`);
-                    poolManager.markProviderNeedRefresh(MODEL_PROVIDER.QWEN_API, {
+                    poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API, {
                         uuid: this.uuid
                     });
                     error.credentialMarkedUnhealthy = true;
@@ -677,7 +709,7 @@ export class QwenApiService {
             const poolManager = getProviderPoolManager();
             if (poolManager && this.uuid) {
                 logger.info(`[Qwen] Token is near expiry, marking credential ${this.uuid} for refresh`);
-                poolManager.markProviderNeedRefresh(MODEL_PROVIDER.QWEN_API, {
+                poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.QWEN_API, {
                     uuid: this.uuid
                 });
             }

@@ -40,6 +40,7 @@ const ANTIGRAVITY_SYSTEM_PROMPT = `You are Antigravity, a powerful agentic AI co
 // Thinking 配置相关常量
 const DEFAULT_THINKING_MIN = 1024;
 const DEFAULT_THINKING_MAX = 100000;
+const FALLBACK_THINKING_SIGNATURE = "skip_thought_signature_validator_fallback";
 
 // 获取 Antigravity 模型列表
 const ANTIGRAVITY_MODELS = getProviderModels(MODEL_PROVIDER.ANTIGRAVITY);
@@ -199,16 +200,16 @@ function normalizeAntigravityThinking(modelName, payload, isClaudeModel) {
     
     let normalizedBudget = normalizeThinkingBudget(modelName, budget);
     
-    // 对于 Claude 模型，确保 thinking budget < max_tokens
+    // 确保 thinking budget < max_tokens (对所有模型生效，不仅是 Claude)
+    const maxTokens = payload?.request?.generationConfig?.maxOutputTokens || payload?.request?.generationConfig?.max_output_tokens;
+    if (maxTokens && maxTokens > 0 && normalizedBudget >= maxTokens) {
+        normalizedBudget = Math.max(0, maxTokens - 1);
+    }
+    
+    // 如果是 Claude 模型，检查最小 budget
     if (isClaudeModel) {
-        const maxTokens = payload?.request?.generationConfig?.maxOutputTokens;
-        if (maxTokens && maxTokens > 0 && normalizedBudget >= maxTokens) {
-            normalizedBudget = maxTokens - 1;
-        }
-        
-        // 检查最小 budget
         const minBudget = DEFAULT_THINKING_MIN;
-        if (normalizedBudget >= 0 && normalizedBudget < minBudget) {
+        if (normalizedBudget >= 0 && normalizedBudget < minBudget && normalizedBudget !== -1) {
             // Budget 低于最小值，移除 thinking 配置
             delete payload.request.generationConfig.thinkingConfig;
             return payload;
@@ -599,7 +600,7 @@ function toGeminiApiResponse(antigravityResponse) {
 }
 
 /**
- * 确保请求体中的内容部分都有角色属性
+ * 确保请求体中的内容部分都有角色属性，并修复历史记录中的思考签名
  * @param {Object} requestBody - 请求体
  * @returns {Object} 处理后的请求体
  */
@@ -674,6 +675,24 @@ function ensureRolesInContents(requestBody, modelName) {
             if (!content.role) {
                 content.role = 'user';
             }
+            
+            // [FIX] 修复历史记录中的思考块，确保有签名 (messages.1.content.0.thinking.signature 报错修复)
+            if (content.parts && Array.isArray(content.parts)) {
+                content.parts.forEach(part => {
+                    if (part && part.thought === true) {
+                        if (!part.thoughtSignature && !part.thought_signature) {
+                            part.thoughtSignature = FALLBACK_THINKING_SIGNATURE;
+                        }
+                        
+                        // [FIX] 额外增加一个 'thinking' 对象以适配某些 Antigravity 内部验证逻辑
+                        if (!part.thinking) {
+                            part.thinking = {
+                                signature: part.thoughtSignature || part.thought_signature || FALLBACK_THINKING_SIGNATURE
+                            };
+                        }
+                    }
+                });
+            }
         });
     }
 
@@ -696,25 +715,6 @@ export class AntigravityApiService {
             timeout: 120000,
         });
 
-        // 检查是否需要使用代理
-        const proxyConfig = getGoogleAuthProxyConfig(config, 'gemini-antigravity');
-
-        // 配置 OAuth2Client 使用自定义的 HTTP agent
-        const oauth2Options = {
-            clientId: OAUTH_CLIENT_ID,
-            clientSecret: OAUTH_CLIENT_SECRET,
-        };
-
-        if (proxyConfig) {
-            oauth2Options.transporterOptions = proxyConfig;
-            logger.info('[Antigravity] Using proxy for OAuth2Client');
-        } else {
-            oauth2Options.transporterOptions = {
-                agent: this.httpsAgent,
-            };
-        }
-
-        this.authClient = new OAuth2Client(oauth2Options);
         this.availableModels = [];
         this.isInitialized = false;
 
@@ -729,11 +729,37 @@ export class AntigravityApiService {
         this.baseURLs = this.getBaseURLFallbackOrder(config);
 
         // 保存代理配置供后续使用
-        this.proxyConfig = getProxyConfigForProvider(config, 'gemini-antigravity');
+        this.proxyConfig = getProxyConfigForProvider(config, config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY);
+
+        // 检查是否需要使用代理
+        const proxyConfig = getGoogleAuthProxyConfig(config, config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY);
+
+        // 配置 OAuth2Client 使用自定义的 HTTP agent
+        const oauth2Options = {
+            clientId: OAUTH_CLIENT_ID,
+            clientSecret: OAUTH_CLIENT_SECRET,
+        };
+
+        if (proxyConfig) {
+            oauth2Options.transporterOptions = proxyConfig;
+            logger.info('[Antigravity] Using proxy for OAuth2Client');
+        } else {
+            // 根据 base URL 判断使用 http 还是 https agent
+            const firstBaseURL = this.baseURLs && this.baseURLs.length > 0 ? this.baseURLs[0] : '';
+            const useHttp = firstBaseURL.startsWith('http://');
+            oauth2Options.transporterOptions = {
+                agent: useHttp ? this.httpAgent : this.httpsAgent,
+            };
+            if (useHttp) {
+                logger.info('[Antigravity] Using HTTP agent for OAuth2Client');
+            }
+        }
+
+        this.authClient = new OAuth2Client(oauth2Options);
     }
 
     _applySidecar(requestOptions) {
-        return configureTLSSidecar(requestOptions, this.config, MODEL_PROVIDER.ANTIGRAVITY);
+        return configureTLSSidecar(requestOptions, this.config, this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY);
     }
 
     /**
@@ -821,7 +847,7 @@ export class AntigravityApiService {
                     // 刷新成功，重置 PoolManager 中的刷新状态并标记为健康
                     const poolManager = getProviderPoolManager();
                     if (poolManager && this.uuid) {
-                        poolManager.resetProviderRefreshStatus(MODEL_PROVIDER.ANTIGRAVITY, this.uuid);
+                        poolManager.resetProviderRefreshStatus(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, this.uuid);
                     }
                 } else {
                     logger.info(`[Antigravity Auth] No access token or refresh token. Starting new authentication flow...`);
@@ -832,7 +858,7 @@ export class AntigravityApiService {
                     // 认证成功，重置状态
                     const poolManager = getProviderPoolManager();
                     if (poolManager && this.uuid) {
-                        poolManager.resetProviderRefreshStatus(MODEL_PROVIDER.ANTIGRAVITY, this.uuid);
+                        poolManager.resetProviderRefreshStatus(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, this.uuid);
                     }
                 }
             } catch (error) {
@@ -1109,7 +1135,7 @@ export class AntigravityApiService {
                 const poolManager = getProviderPoolManager();
                 if (poolManager && this.uuid) {
                     logger.info(`[Antigravity] Marking credential ${this.uuid} as needs refresh. Reason: 401/400 Unauthorized`);
-                    poolManager.markProviderNeedRefresh(MODEL_PROVIDER.ANTIGRAVITY, {
+                    poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, {
                         uuid: this.uuid
                     });
                     error.credentialMarkedUnhealthy = true;
@@ -1212,7 +1238,7 @@ export class AntigravityApiService {
                 const poolManager = getProviderPoolManager();
                 if (poolManager && this.uuid) {
                     logger.info(`[Antigravity] Marking credential ${this.uuid} as needs refresh. Reason: 401/400 Unauthorized in stream`);
-                    poolManager.markProviderNeedRefresh(MODEL_PROVIDER.ANTIGRAVITY, {
+                    poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, {
                         uuid: this.uuid
                     });
                     error.credentialMarkedUnhealthy = true;
@@ -1315,7 +1341,7 @@ export class AntigravityApiService {
             const poolManager = getProviderPoolManager();
             if (poolManager && this.uuid) {
                 logger.info(`[Antigravity] Token is near expiry, marking credential ${this.uuid} for refresh`);
-                poolManager.markProviderNeedRefresh(MODEL_PROVIDER.ANTIGRAVITY, {
+                poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, {
                     uuid: this.uuid
                 });
             }
@@ -1393,7 +1419,7 @@ export class AntigravityApiService {
             const poolManager = getProviderPoolManager();
             if (poolManager && this.uuid) {
                 logger.info(`[Antigravity] Token is near expiry, marking credential ${this.uuid} for refresh`);
-                poolManager.markProviderNeedRefresh(MODEL_PROVIDER.ANTIGRAVITY, {
+                poolManager.markProviderNeedRefresh(this.config.MODEL_PROVIDER || MODEL_PROVIDER.ANTIGRAVITY, {
                     uuid: this.uuid
                 });
             }
@@ -1442,13 +1468,6 @@ export class AntigravityApiService {
     async getUsageLimits() {
         if (!this.isInitialized) await this.initialize();
         
-        // 注意：V2 架构下不再在 getUsageLimits 中同步刷新 token
-        // 如果 token 过期，PoolManager 后台会自动处理
-        // if (this.isExpiryDateNear()) {
-        //     logger.info('[Antigravity] Token is near expiry, refreshing before getUsageLimits request...');
-        //     await this.initializeAuth(true);
-        // }
-
         try {
             const modelsWithQuotas = await this.getModelsWithQuotas();
             return modelsWithQuotas;
@@ -1487,15 +1506,12 @@ export class AntigravityApiService {
 
                     this._applySidecar(requestOptions);
                     const res = await this.authClient.request(requestOptions);
-                    // logger.info(`[Antigravity] fetchAvailableModels success: ${JSON.stringify(res.data)}`);
                     if (res.data) {
-
                         if (res.data.models) {
                             const modelsData = res.data.models;
                             
                             // 遍历模型数据，提取配额信息
                             for (const [modelId, modelData] of Object.entries(modelsData)) {
-                                // 参考 fetchAvailableModels 的逻辑修复 modelName2Alias 不存在的问题
                                 if (!modelId || (!ANTIGRAVITY_MODELS.includes(modelId) && !modelId.startsWith('claude-'))) {
                                     continue;
                                 }
