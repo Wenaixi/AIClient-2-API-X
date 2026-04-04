@@ -4,24 +4,28 @@
  */
 
 import logger from '../utils/logger.js';
-import { getProviderPoolManager } from '../providers/adapter.js';
+import { getProviderPoolManager } from './service-manager.js';
 import { HEALTH_CHECK } from '../utils/constants.js';
 
-/**
- * 健康检查计时器状态
- */
-class HealthCheckTimerState {
-    constructor() {
-        this.isRunning = false;
-        this.timerId = null;
-        this.activeInterval = null;
+// 健康检查计时器状态存储在 globalThis 上以支持热更新后状态恢复
+const _getState = () => {
+    if (!globalThis._healthCheckTimerState) {
+        globalThis._healthCheckTimerState = {
+            isRunning: false,
+            timerId: null,
+            activeInterval: null
+        };
     }
-}
+    return globalThis._healthCheckTimerState;
+};
 
-const state = new HealthCheckTimerState();
-
-// 记录每个 providerType 上次检查时间（毫秒）
-const lastCheckTimes = new Map();
+// 记录每个 providerType 上次检查时间（毫秒）- 使用 globalThis 存储
+const _getLastCheckTimes = () => {
+    if (!globalThis._healthCheckLastCheckTimes) {
+        globalThis._healthCheckLastCheckTimes = new Map();
+    }
+    return globalThis._healthCheckLastCheckTimes;
+};
 
 /**
  * 执行健康检查
@@ -41,6 +45,7 @@ async function executeHealthCheck() {
     const customIntervals = config.customIntervals || {};
     const providerTypes = config.providerTypes || [];
     const now = Date.now();
+    const lastCheckTimes = _getLastCheckTimes();
 
     // 并行执行各类型健康检查
     const checkPromises = providerTypes.map(async (providerType) => {
@@ -74,6 +79,8 @@ export function startHealthCheckTimer(interval) {
     // 停止现有计时器
     stopHealthCheckTimer();
 
+    const state = _getState();
+
     // 重置运行状态
     state.isRunning = false;
 
@@ -104,6 +111,7 @@ export function startHealthCheckTimer(interval) {
  * 停止健康检查计时器
  */
 export function stopHealthCheckTimer() {
+    const state = _getState();
     if (state.timerId) {
         clearInterval(state.timerId);
         state.timerId = null;
@@ -126,6 +134,7 @@ export function reloadHealthCheckTimer(newInterval) {
  * @returns {Object} 计时器状态信息
  */
 export function getHealthCheckTimerStatus() {
+    const state = _getState();
     return {
         isActive: state.timerId !== null,
         isRunning: state.isRunning,

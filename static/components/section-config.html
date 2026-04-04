@@ -165,8 +165,21 @@
                         <input type="number" id="requestMaxRetries" class="form-control" min="0" max="10" value="3">
                     </div>
                     <div class="form-group">
-                        <label for="requestBaseDelay" data-i18n="config.advanced.baseDelay">重试基础延迟(毫秒)</label>
-                        <input type="number" id="requestBaseDelay" class="form-control" min="0" step="100" value="1000">
+                        <label for="requestBaseDelay" data-i18n="config.advanced.baseDelay">重试基础延迟</label>
+                        <div class="time-input-group" id="requestBaseDelayGroup">
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelayHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                                <label for="requestBaseDelayHours">时</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelayMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                                <label for="requestBaseDelayMinutes">分</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelaySeconds" class="form-control" min="0" max="59" value="10" placeholder="0">
+                                <label for="requestBaseDelaySeconds">秒</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-row">
@@ -216,9 +229,22 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="loginExpiry" data-i18n="config.advanced.loginExpiry">登录过期时间(秒)</label>
-                    <input type="number" id="loginExpiry" class="form-control" min="60" value="3600">
-                    <small class="form-text" data-i18n="config.advanced.loginExpiryNote">管理后台登录后的 Token 有效期，默认 3600 秒 (1小时)</small>
+                    <label for="loginExpiry" data-i18n="config.advanced.loginExpiry">登录过期时间</label>
+                    <div class="time-input-group" id="loginExpiryGroup">
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpiryHours" class="form-control" min="0" max="24" value="1" placeholder="0">
+                            <label for="loginExpiryHours">时</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpiryMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="loginExpiryMinutes">分</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpirySeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="loginExpirySeconds">秒</label>
+                        </div>
+                    </div>
+                    <small class="form-text" data-i18n="config.advanced.loginExpiryNote">管理后台登录后的 Token 有效期</small>
                 </div>
             </div>
 
@@ -262,7 +288,7 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="1800000">30分钟</button>
                         </div>
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">范围：1秒 ~ 24小时。快捷按钮自动填充时/分/秒输入框</small>
+                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">范围：60秒 ~ 48小时。快捷按钮自动填充时/分/秒输入框</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="config.healthCheck.providerTypes">定时检查的供应商</label>

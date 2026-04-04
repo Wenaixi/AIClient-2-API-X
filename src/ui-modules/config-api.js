@@ -225,8 +225,9 @@ export async function handleUpdateConfig(req, res, currentConfig) {
             const currentStatus = getHealthCheckTimerStatus();
             const oldInterval = currentStatus.interval;
 
-            // 更新配置
+            // 更新配置 - 使用深度合并避免丢失其他字段
             currentConfig.SCHEDULED_HEALTH_CHECK = {
+                ...currentConfig.SCHEDULED_HEALTH_CHECK,
                 enabled: nowEnabled,
                 startupRun: incoming?.startupRun !== false,
                 interval: newInterval,

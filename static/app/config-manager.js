@@ -176,15 +176,38 @@ async function loadConfiguration() {
         if (promptLogBaseNameEl) promptLogBaseNameEl.value = data.PROMPT_LOG_BASE_NAME || 'prompt_log';
         if (promptLogModeEl) promptLogModeEl.value = data.PROMPT_LOG_MODE || 'none';
         if (requestMaxRetriesEl) requestMaxRetriesEl.value = data.REQUEST_MAX_RETRIES || 3;
-        if (requestBaseDelayEl) requestBaseDelayEl.value = data.REQUEST_BASE_DELAY || 1000;
-        
+
+        // 加载重试基础延迟（毫秒转换为时/分/秒）
+        const requestBaseDelayMs = data.REQUEST_BASE_DELAY || 1000;
+        const requestBaseDelay = msToHms(requestBaseDelayMs);
+        const requestBaseDelayHoursEl = document.getElementById('requestBaseDelayHours');
+        const requestBaseDelayMinutesEl = document.getElementById('requestBaseDelayMinutes');
+        const requestBaseDelaySecondsEl = document.getElementById('requestBaseDelaySeconds');
+        if (requestBaseDelayHoursEl) requestBaseDelayHoursEl.value = requestBaseDelay.hours;
+        if (requestBaseDelayMinutesEl) requestBaseDelayMinutesEl.value = requestBaseDelay.minutes;
+        if (requestBaseDelaySecondsEl) requestBaseDelaySecondsEl.value = requestBaseDelay.seconds;
+
         // 坏凭证切换最大重试次数
         const credentialSwitchMaxRetriesEl = document.getElementById('credentialSwitchMaxRetries');
         if (credentialSwitchMaxRetriesEl) credentialSwitchMaxRetriesEl.value = data.CREDENTIAL_SWITCH_MAX_RETRIES || 5;
         
         if (cronNearMinutesEl) cronNearMinutesEl.value = data.CRON_NEAR_MINUTES || 1;
         if (cronRefreshTokenEl) cronRefreshTokenEl.checked = data.CRON_REFRESH_TOKEN || false;
-        if (loginExpiryEl) loginExpiryEl.value = data.LOGIN_EXPIRY || 3600;
+
+        // 加载登录过期时间（秒转换为时/分/秒）
+        const loginExpirySeconds = data.LOGIN_EXPIRY || 3600;
+        const loginExpiryHms = {
+            hours: Math.floor(loginExpirySeconds / 3600),
+            minutes: Math.floor((loginExpirySeconds % 3600) / 60),
+            seconds: loginExpirySeconds % 60
+        };
+        const loginExpiryHoursEl = document.getElementById('loginExpiryHours');
+        const loginExpiryMinutesEl = document.getElementById('loginExpiryMinutes');
+        const loginExpirySecondsEl = document.getElementById('loginExpirySeconds');
+        if (loginExpiryHoursEl) loginExpiryHoursEl.value = loginExpiryHms.hours;
+        if (loginExpiryMinutesEl) loginExpiryMinutesEl.value = loginExpiryHms.minutes;
+        if (loginExpirySecondsEl) loginExpirySecondsEl.value = loginExpiryHms.seconds;
+
         if (providerPoolsFilePathEl) providerPoolsFilePathEl.value = data.PROVIDER_POOLS_FILE_PATH || '';
         if (maxErrorCountEl) maxErrorCountEl.value = data.MAX_ERROR_COUNT || 10;
         if (warmupTargetEl) warmupTargetEl.value = data.WARMUP_TARGET || 0;
@@ -370,11 +393,23 @@ async function saveConfiguration() {
     config.PROMPT_LOG_BASE_NAME = document.getElementById('promptLogBaseName')?.value || '';
     config.PROMPT_LOG_MODE = document.getElementById('promptLogMode')?.value || '';
     config.REQUEST_MAX_RETRIES = parseInt(document.getElementById('requestMaxRetries')?.value || 3);
-    config.REQUEST_BASE_DELAY = parseInt(document.getElementById('requestBaseDelay')?.value || 1000);
+
+    // 保存重试基础延迟（时/分/秒转换为毫秒）
+    const requestBaseDelayHours = parseInt(document.getElementById('requestBaseDelayHours')?.value) || 0;
+    const requestBaseDelayMinutes = parseInt(document.getElementById('requestBaseDelayMinutes')?.value) || 0;
+    const requestBaseDelaySeconds = parseInt(document.getElementById('requestBaseDelaySeconds')?.value) || 0;
+    config.REQUEST_BASE_DELAY = hmsToMs(requestBaseDelayHours, requestBaseDelayMinutes, requestBaseDelaySeconds);
+
     config.CREDENTIAL_SWITCH_MAX_RETRIES = parseInt(document.getElementById('credentialSwitchMaxRetries')?.value || 5);
     config.CRON_NEAR_MINUTES = parseInt(document.getElementById('cronNearMinutes')?.value || 1);
     config.CRON_REFRESH_TOKEN = document.getElementById('cronRefreshToken')?.checked || false;
-    config.LOGIN_EXPIRY = parseInt(document.getElementById('loginExpiry')?.value || 3600);
+
+    // 保存登录过期时间（时/分/秒转换为秒）
+    const loginExpiryHours = parseInt(document.getElementById('loginExpiryHours')?.value) || 0;
+    const loginExpiryMinutes = parseInt(document.getElementById('loginExpiryMinutes')?.value) || 0;
+    const loginExpirySeconds = parseInt(document.getElementById('loginExpirySeconds')?.value) || 0;
+    config.LOGIN_EXPIRY = (loginExpiryHours * 3600) + (loginExpiryMinutes * 60) + loginExpirySeconds;
+
     config.PROVIDER_POOLS_FILE_PATH = document.getElementById('providerPoolsFilePath')?.value || '';
     config.MAX_ERROR_COUNT = parseInt(document.getElementById('maxErrorCount')?.value || 10);
     config.WARMUP_TARGET = parseInt(document.getElementById('warmupTarget')?.value || 0);
@@ -453,8 +488,8 @@ async function saveConfiguration() {
     const healthCheckMinutes = parseInt(document.getElementById('healthCheckMinutes')?.value) || 0;
     const healthCheckSeconds = parseInt(document.getElementById('healthCheckSeconds')?.value) || 0;
     const rawInterval = hmsToMs(healthCheckHours, healthCheckMinutes, healthCheckSeconds);
-    // 验证范围：最小 1000ms (1秒)，最大 86400000ms (24小时)
-    const validatedInterval = Math.max(1000, Math.min(86400000, rawInterval));
+    // 验证范围：最小 60000ms (60秒)，最大 172800000ms (48小时)
+    const validatedInterval = Math.max(60000, Math.min(172800000, rawInterval));
 
     config.SCHEDULED_HEALTH_CHECK = {
         enabled: document.getElementById('scheduledHealthCheckEnabled')?.checked !== false,
