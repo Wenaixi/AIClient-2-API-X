@@ -108,7 +108,7 @@ export async function handleGetProviders(req, res, currentConfig, providerPoolMa
         }));
     }
     
-    // 3. 补全号池配置文件中的所有组
+    // 3. 补全号池配置文件中的所有组，以及文件中有但内存中缺失的凭据
     const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
     try {
         if (existsSync(filePath)) {
@@ -118,6 +118,19 @@ export async function handleGetProviders(req, res, currentConfig, providerPoolMa
                 if (!providerStatus[type]) {
                     providerStatus[type] = [];
                 }
+                // 如果文件中有该类型的凭据但内存中没有，从文件补充（用于 UI 列表展示未加载的凭据）
+                const fileProviders = poolsData[type] || [];
+                const memoryUuids = new Set((providerStatus[type] || []).map(p => p.uuid));
+                fileProviders.forEach(fileProvider => {
+                    if (!memoryUuids.has(fileProvider.uuid)) {
+                        // 从文件补充时，使用文件的初始运行时值（initializeProviderStatus 会正确恢复这些值）
+                        providerStatus[type].push({
+                            ...fileProvider,
+                            activeRequests: 0,
+                            waitingRequests: 0
+                        });
+                    }
+                });
             });
         }
     } catch (error) {

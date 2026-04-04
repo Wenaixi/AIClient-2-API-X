@@ -635,30 +635,34 @@ export class ProviderPoolManager {
                 this._selectionLocks[providerType] = Promise.resolve();
             }
             this.providerPools[providerType].forEach((providerConfig) => {
-                // 尝试从旧状态中恢复活跃请求计数和队列，避免重载配置时重置并发限制
+                // 尝试从旧状态中恢复运行时数据，避免重载配置时重置累计值
                 const existing = oldStatus.find(p => p.uuid === providerConfig.uuid);
 
                 // Ensure initial health and usage stats are present in the config
-                providerConfig.isHealthy = providerConfig.isHealthy !== undefined ? providerConfig.isHealthy : true;
-                providerConfig.isDisabled = providerConfig.isDisabled !== undefined ? providerConfig.isDisabled : false;
-                providerConfig.lastUsed = providerConfig.lastUsed !== undefined ? providerConfig.lastUsed : null;
-                providerConfig.usageCount = providerConfig.usageCount !== undefined ? providerConfig.usageCount : 0;
-                providerConfig.errorCount = providerConfig.errorCount !== undefined ? providerConfig.errorCount : 0;
-                
+                // 优先从内存中的 existing 恢复运行时累计值，其次使用磁盘初始值
+                providerConfig.isHealthy = existing ? existing.config.isHealthy : (providerConfig.isHealthy !== undefined ? providerConfig.isHealthy : true);
+                providerConfig.isDisabled = existing ? existing.config.isDisabled : (providerConfig.isDisabled !== undefined ? providerConfig.isDisabled : false);
+                providerConfig.lastUsed = existing ? existing.config.lastUsed : (providerConfig.lastUsed !== undefined ? providerConfig.lastUsed : null);
+                providerConfig.usageCount = existing ? existing.config.usageCount : (providerConfig.usageCount !== undefined ? providerConfig.usageCount : 0);
+                providerConfig.errorCount = existing ? existing.config.errorCount : (providerConfig.errorCount !== undefined ? providerConfig.errorCount : 0);
+
                 // --- V2: 刷新监控字段 ---
-                providerConfig.needsRefresh = providerConfig.needsRefresh !== undefined ? providerConfig.needsRefresh : false;
-                providerConfig.refreshCount = providerConfig.refreshCount !== undefined ? providerConfig.refreshCount : 0;
-                
+                providerConfig.needsRefresh = existing ? existing.config.needsRefresh : (providerConfig.needsRefresh !== undefined ? providerConfig.needsRefresh : false);
+                providerConfig.refreshCount = existing ? existing.config.refreshCount : (providerConfig.refreshCount !== undefined ? providerConfig.refreshCount : 0);
+                providerConfig.lastRefreshTime = existing ? existing.config.lastRefreshTime : (providerConfig.lastRefreshTime !== undefined ? providerConfig.lastRefreshTime : null);
+
                 // 优化2: 简化 lastErrorTime 处理逻辑
-                providerConfig.lastErrorTime = providerConfig.lastErrorTime instanceof Date
+                providerConfig.lastErrorTime = existing ? existing.config.lastErrorTime : (providerConfig.lastErrorTime instanceof Date
                     ? providerConfig.lastErrorTime.toISOString()
-                    : (providerConfig.lastErrorTime || null);
-                
+                    : (providerConfig.lastErrorTime || null));
+
                 // 健康检测相关字段
-                providerConfig.lastHealthCheckTime = providerConfig.lastHealthCheckTime || null;
-                providerConfig.lastHealthCheckModel = providerConfig.lastHealthCheckModel || null;
-                providerConfig.lastErrorMessage = providerConfig.lastErrorMessage || null;
-                providerConfig.customName = providerConfig.customName || null;
+                providerConfig.lastHealthCheckTime = existing ? existing.config.lastHealthCheckTime : (providerConfig.lastHealthCheckTime || null);
+                providerConfig.lastHealthCheckModel = existing ? existing.config.lastHealthCheckModel : (providerConfig.lastHealthCheckModel || null);
+                providerConfig.lastErrorMessage = existing ? existing.config.lastErrorMessage : (providerConfig.lastErrorMessage || null);
+                providerConfig.customName = existing ? existing.config.customName : (providerConfig.customName || null);
+                providerConfig._lastSelectionSeq = existing ? existing.config._lastSelectionSeq : (providerConfig._lastSelectionSeq || 0);
+                providerConfig.scheduledRecoveryTime = existing ? existing.config.scheduledRecoveryTime : (providerConfig.scheduledRecoveryTime || null);
 
                 this.providerStatus[providerType].push({
                     config: providerConfig,
@@ -1361,15 +1365,7 @@ export class ProviderPoolManager {
         if (provider) {
             const wasHealthy = provider.config.isHealthy;
             const now = Date.now();
-            const lastErrorTime = provider.config.lastErrorTime ? new Date(provider.config.lastErrorTime).getTime() : 0;
-            const errorWindowMs = 10000; // 10 秒窗口期
-
-            // 如果距离上次错误超过窗口期，重置错误计数
-            if (now - lastErrorTime > errorWindowMs) {
-                provider.config.errorCount = 1;
-            } else {
-                provider.config.errorCount++;
-            }
+            provider.config.errorCount++;
 
             provider.config.lastErrorTime = new Date().toISOString();
             // 更新 lastUsed 时间，避免因 LRU 策略导致失败节点被重复选中
@@ -1758,12 +1754,11 @@ export class ProviderPoolManager {
                         if (!providerStatus.config.isHealthy) {
                             // Provider was unhealthy but is now healthy
                             // 恢复健康时不重置使用计数，保持原有值
-                            this.markProviderHealthy(providerType, providerConfig, true, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
                             this._log('info', `Health check for ${providerConfig.uuid} (${providerType}): Marked Healthy (actual check)`);
                         } else {
                             // Provider was already healthy and still is
-                            // 只在初始化时重置使用计数
-                            this.markProviderHealthy(providerType, providerConfig, true, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
                             this._log('debug', `Health check for ${providerConfig.uuid} (${providerType}): Still Healthy`);
                         }
                     } else {
