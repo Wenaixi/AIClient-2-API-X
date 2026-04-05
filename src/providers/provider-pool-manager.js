@@ -7,7 +7,7 @@ import { getProviderModels } from './provider-models.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { convertData } from '../convert/convert.js';
 import { ENDPOINT_TYPE } from '../utils/common.js';
-import { PROVIDER_POOL, OAUTH_CONFIG_PATH_MAP } from '../utils/constants.js';
+import { PROVIDER_POOL, OAUTH_CONFIG_PATH_MAP, HEALTH_CHECK } from '../utils/constants.js';
 
 // 评分相关常量
 const SCORE = {
@@ -622,6 +622,9 @@ export class ProviderPoolManager {
             }
             this.providerPools[providerType].forEach((providerConfig) => {
                 // 尝试从旧状态中恢复运行时数据，避免重载配置时重置累计值
+                // 设计决策：优先保留内存中的运行时状态（如刚标记的 unhealthy），
+                // 因为磁盘文件可能尚未刷入最新状态（防抖保存延迟）。
+                // 若需强制从磁盘重新加载，应先停止服务再修改配置文件。
                 const existing = oldStatus.find(p => p.uuid === providerConfig.uuid);
 
                 // Ensure initial health and usage stats are present in the config

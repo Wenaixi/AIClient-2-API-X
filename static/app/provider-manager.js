@@ -367,52 +367,7 @@ function renderProviders(providers, supportedProviders = []) {
         if (addGroupBtn) {
             addGroupBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                
-                // 使用自定义的主题风格 Prompt
-                showSimplePrompt(
-                    t('providers.addGroup.title'),
-                    t('providers.addGroup.suffixPlaceholder'),
-                    async (suffix) => {
-                        const cleanSuffix = suffix.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        if (!cleanSuffix) {
-                            showToast(t('common.warning'), '请输入有效的后缀（仅限字母和数字）', 'warning');
-                            return;
-                        }
-                        
-                        const newProviderType = `${providerType}-${cleanSuffix}`;
-                        
-                        // 显示加载状态
-                        addGroupBtn.disabled = true;
-                        const originalHtml = addGroupBtn.innerHTML;
-                        addGroupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                        
-                        try {
-                            const response = await window.apiClient.post('/providers', {
-                                providerType: newProviderType,
-                                providerConfig: {
-                                    customName: cleanSuffix.toUpperCase(),
-                                    isHealthy: true,
-                                    isDisabled: false,
-                                    usageCount: 0,
-                                    errorCount: 0
-                                }
-                            });
-                            
-                            if (response.success) {
-                                showToast(t('common.success'), t('providers.addGroup.success'), 'success');
-                                await loadProviders(true);
-                                setTimeout(() => openProviderManager(newProviderType), 500);
-                            } else {
-                                throw new Error(response.error?.message || 'Unknown error');
-                            }
-                        } catch (error) {
-                            logger?.error?.('[ProviderManager] Failed to add provider group:', error);
-                            showToast(t('common.error'), t('providers.addGroup.error') + ': ' + error.message, 'error');
-                            addGroupBtn.disabled = false;
-                            addGroupBtn.innerHTML = originalHtml;
-                        }
-                    }
-                );
+                showAddProviderGroupModal(providerType);
             });
         }
 
@@ -541,55 +496,6 @@ function generateAuthButton(providerType) {
             <span data-i18n="providers.auth.generate">${t('providers.auth.generate')}</span>
         </button>
     `;
-}
-
-/**
- * 显示一个极简的主题风格输入框
- * @param {string} title - 标题
- * @param {string} placeholder - 占位符
- * @param {function} callback - 确认回调
- */
-function showSimplePrompt(title, placeholder, callback) {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.style.display = 'flex';
-    overlay.style.zIndex = '3000';
-    overlay.style.background = 'rgba(0, 0, 0, 0.2)';
-    overlay.style.backdropFilter = 'blur(2px)';
-    
-    overlay.innerHTML = `
-        <div class="modal-content" style="max-width: 320px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--border-color); padding: 20px;">
-            <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px; color: var(--text-primary);">${title}</div>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="simple-prompt-input" placeholder="${placeholder}" style="flex: 1; padding: 8px 12px; border: 1.5px solid var(--border-color); border-radius: 6px; font-size: 13px; outline: none;">
-                <button id="simple-prompt-submit" class="btn btn-primary btn-sm" style="padding: 0 12px; height: 34px; border-radius: 6px; font-size: 13px;">${t('common.confirm')}</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    const input = overlay.querySelector('#simple-prompt-input');
-    const submitBtn = overlay.querySelector('#simple-prompt-submit');
-    
-    input.focus();
-    
-    const finish = () => {
-        const val = input.value.trim();
-        if (val) {
-            overlay.remove();
-            callback(val);
-        }
-    };
-    
-    submitBtn.onclick = finish;
-    input.onkeydown = (e) => {
-        if (e.key === 'Enter') finish();
-        if (e.key === 'Escape') overlay.remove();
-    };
-    overlay.onclick = (e) => {
-        if (e.target === overlay) overlay.remove();
-    };
 }
 
 /**

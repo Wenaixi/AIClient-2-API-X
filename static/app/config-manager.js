@@ -768,6 +768,11 @@ function saveCustomInterval() {
         return;
     }
 
+    if (ms > 172800000) {
+        showToast('间隔不能超过48小时', 'error');
+        return;
+    }
+
     updateCustomIntervalInMemory(currentEditingProviderType, ms > 0 ? ms : null);
     closeCustomIntervalPopup();
     renderCustomIntervalsList();
