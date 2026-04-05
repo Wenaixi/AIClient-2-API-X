@@ -91,10 +91,11 @@ export function startHealthCheckTimer(interval) {
     // 重置运行状态
     state.isRunning = false;
 
-    // 验证并规范化间隔时间
-    const safeInterval = (typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS)
-        ? interval
-        : HEALTH_CHECK.DEFAULT_INTERVAL_MS;
+    // 验证并规范化间隔时间（范围：60秒 ~ 48小时）
+    let safeInterval = HEALTH_CHECK.DEFAULT_INTERVAL_MS;
+    if (typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS) {
+        safeInterval = Math.min(interval, HEALTH_CHECK.MAX_INTERVAL_MS);
+    }
 
     state.timerId = setInterval(async () => {
         if (state.isRunning) {

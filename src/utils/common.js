@@ -1350,6 +1350,52 @@ export function formatToLocal(dateInput) {
     }
 }
 
+/**
+ * 通过前缀查找匹配项
+ * 支持动态配置组的前缀匹配机制，例如 openai-custom-1 → openai-custom
+ * @param {Map|Object} registry - 注册表（Map 或普通对象）
+ * @param {string} key - 要查找的键
+ * @returns {*} 匹配的值或 undefined
+ */
+export function findByPrefix(registry, key) {
+    const entries = registry instanceof Map ? registry.entries() : Object.entries(registry);
+    for (const [k, v] of entries) {
+        if (key === k || key.startsWith(k + '-')) {
+            return v;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * 检查键是否存在于注册表中（支持前缀匹配）
+ * @param {Map|Object} registry - 注册表
+ * @param {string} key - 要检查的键
+ * @returns {boolean}
+ */
+export function hasByPrefix(registry, key) {
+    return findByPrefix(registry, key) !== undefined;
+}
+
+/**
+ * 根据键获取基础类型（用于查找配置和模型）
+ * 例如：openai-custom-1 → openai-custom
+ * @param {Object|Map} registry - 包含键的对象或 Map
+ * @param {string} key - 要查找的键
+ * @returns {string} 基础类型或原始键
+ */
+export function getBaseType(registry, key) {
+    if (registry instanceof Map ? registry.has(key) : registry[key]) {
+        return key;
+    }
+    const keys = registry instanceof Map ? Array.from(registry.keys()) : Object.keys(registry);
+    for (const k of keys) {
+        if (key.startsWith(k + '-')) {
+            return k;
+        }
+    }
+    return key;
+}
 
 /**
  * 创建符合 fromProvider 格式的错误响应（非流式）
@@ -1528,3 +1574,6 @@ function createStreamErrorResponse(error, fromProvider) {
             return `data: ${JSON.stringify(defaultError)}\n\n`;
     }
 }
+
+// 重新导出 constants.js 中的常量，便于统一导入
+export { ANTIGRAVITY_THINKING } from './constants.js';

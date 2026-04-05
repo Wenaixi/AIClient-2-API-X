@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { getServiceAdapter, getRegisteredProviders } from './adapter.js';
 import logger from '../utils/logger.js';
-import { MODEL_PROVIDER, getProtocolPrefix } from '../utils/common.js';
+import { MODEL_PROVIDER, getProtocolPrefix, getBaseType } from '../utils/common.js';
 import { getProviderModels } from './provider-models.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { convertData } from '../convert/convert.js';
@@ -1370,7 +1370,14 @@ export class ProviderPoolManager {
         if (provider) {
             const wasHealthy = provider.config.isHealthy;
             const now = Date.now();
-            provider.config.errorCount++;
+            const lastErrorTime = provider.config.lastErrorTime ? new Date(provider.config.lastErrorTime).getTime() : 0;
+            // 滑动窗口：距离上次错误超过 5 分钟则重置计数，平衡连续错误检测与间歇性错误容忍
+            const errorWindowMs = 300000; // 5 分钟
+            if (now - lastErrorTime > errorWindowMs) {
+                provider.config.errorCount = 1;
+            } else {
+                provider.config.errorCount++;
+            }
 
             provider.config.lastErrorTime = new Date().toISOString();
             // 更新 lastUsed 时间，避免因 LRU 策略导致失败节点被重复选中
@@ -1832,7 +1839,7 @@ export class ProviderPoolManager {
             const batch = providersToCheck.slice(i, i + MAX_CONCURRENT);
             const batchResults = await Promise.allSettled(batch.map(async ({ providerType: pType, provider, uuid, customName }) => {
                 const providerCheckStart = Date.now();
-                const baseProviderType = this._getBaseProviderType(pType);
+                const baseProviderType = getBaseType(ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS, pType);
                 const checkModelName = provider.config.checkModelName ||
                                     ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[pType] ||
                                     ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] ||
@@ -1986,7 +1993,7 @@ export class ProviderPoolManager {
         }
         
         // OpenAI Custom Responses 使用特殊格式
-        if (this._getBaseProviderType(providerType) === MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES) {
+        if (getBaseType(ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS, providerType) === MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES) {
             requests.push({
                 input: [baseMessage],
                 model: modelName
@@ -2003,25 +2010,6 @@ export class ProviderPoolManager {
         return requests;
     }
 
-    /**
-     * 根据提供商类型获取基准提供商类型（用于查找配置和模型）
-     * 例如：openai-custom-1 -> openai-custom
-     * @private
-     */
-    _getBaseProviderType(providerType) {
-        if (ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType]) {
-            return providerType;
-        }
-        
-        // 尝试前缀匹配
-        for (const key of Object.keys(ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS)) {
-            if (providerType === key || providerType.startsWith(key + '-')) {
-                return key;
-            }
-        }
-        
-        return providerType;
-    }
 
     /**
      * Performs an actual health check for a specific provider.
@@ -2037,7 +2025,7 @@ export class ProviderPoolManager {
      */
     async _checkProviderHealth(providerType, providerConfig) {
         // 确定健康检查使用的模型名称
-        const baseProviderType = this._getBaseProviderType(providerType);
+        const baseProviderType = getBaseType(ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS, providerType);
         const modelName = providerConfig.checkModelName ||
                         ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] ||
                         ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType];

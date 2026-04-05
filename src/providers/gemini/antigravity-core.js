@@ -17,7 +17,7 @@ import { handleGeminiAntigravityOAuth } from '../../auth/oauth-handlers.js';
 import { getProxyConfigForProvider, getGoogleAuthProxyConfig } from '../../utils/proxy-utils.js';
 import { cleanJsonSchemaProperties } from '../../converters/utils.js';
 import { getProviderPoolManager } from '../../services/service-manager.js';
-import { MODEL_PROVIDER } from '../../utils/common.js';
+import { MODEL_PROVIDER, ANTIGRAVITY_THINKING } from '../../utils/common.js';
 
 // --- Constants ---
 const CREDENTIALS_DIR = '.antigravity';
@@ -40,7 +40,7 @@ const ANTIGRAVITY_SYSTEM_PROMPT = `You are Antigravity, a powerful agentic AI co
 // Thinking 配置相关常量
 const DEFAULT_THINKING_MIN = 1024;
 const DEFAULT_THINKING_MAX = 100000;
-const FALLBACK_THINKING_SIGNATURE = "skip_thought_signature_validator_fallback";
+
 
 // 获取 Antigravity 模型列表
 const ANTIGRAVITY_MODELS = getProviderModels(MODEL_PROVIDER.ANTIGRAVITY);
@@ -681,13 +681,13 @@ function ensureRolesInContents(requestBody, modelName) {
                 content.parts.forEach(part => {
                     if (part && part.thought === true) {
                         if (!part.thoughtSignature && !part.thought_signature) {
-                            part.thoughtSignature = FALLBACK_THINKING_SIGNATURE;
+                            part.thoughtSignature = ANTIGRAVITY_THINKING.FALLBACK_SIGNATURE;
                         }
                         
                         // [FIX] 额外增加一个 'thinking' 对象以适配某些 Antigravity 内部验证逻辑
                         if (!part.thinking) {
                             part.thinking = {
-                                signature: part.thoughtSignature || part.thought_signature || FALLBACK_THINKING_SIGNATURE
+                                signature: part.thoughtSignature || part.thought_signature || ANTIGRAVITY_THINKING.FALLBACK_SIGNATURE
                             };
                         }
                     }

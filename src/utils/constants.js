@@ -25,6 +25,16 @@ export const PASSWORD = {
     PBKDF2_DIGEST: 'sha512'
 };
 
+// Antigravity thinking 签名相关常量
+export const ANTIGRAVITY_THINKING = {
+    // 最小 thinking budget
+    MIN_BUDGET: 1024,
+    // 最大 thinking budget
+    MAX_BUDGET: 100000,
+    // 思考块签名回退值（用于修复 messages.1.content.0.thinking.signature 报错）
+    FALLBACK_SIGNATURE: 'skip_thought_signature_validator_fallback'
+};
+
 // 网络相关常量
 export const NETWORK = {
     // 最小端口号

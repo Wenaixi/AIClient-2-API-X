@@ -8,6 +8,7 @@ import logger from './logger.js';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { getTLSSidecar } from './tls-sidecar.js';
+import { hasByPrefix } from './common.js';
 
 /**
  * 解析代理URL并返回相应的代理配置
@@ -53,17 +54,6 @@ export function parseProxyUrl(proxyUrl) {
     }
 }
 
-/**
- * 检查 providerType 是否在列表中（支持前缀匹配）
- * @param {string} providerType - 提供商类型
- * @param {string[]} list - 列表
- * @returns {boolean} 是否匹配
- */
-function matchesProviderPrefix(providerType, list) {
-    if (!Array.isArray(list)) return false;
-    if (list.includes(providerType)) return true;
-    return list.some(p => providerType.startsWith(p + '-'));
-}
 
 /**
  * 检查指定的提供商是否启用了代理（支持前缀匹配）
@@ -76,7 +66,7 @@ export function isProxyEnabledForProvider(config, providerType) {
         return false;
     }
 
-    return matchesProviderPrefix(providerType, config.PROXY_ENABLED_PROVIDERS);
+    return hasByPrefix(new Set(config.PROXY_ENABLED_PROVIDERS), providerType);
 }
 
 /**
@@ -129,7 +119,7 @@ export function isTLSSidecarEnabledForProvider(config, providerType) {
         return false;
     }
 
-    return matchesProviderPrefix(providerType, config.TLS_SIDECAR_ENABLED_PROVIDERS);
+    return hasByPrefix(new Set(config.TLS_SIDECAR_ENABLED_PROVIDERS), providerType);
 }
 
 /**

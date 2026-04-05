@@ -9,7 +9,7 @@ import { IFlowApiService } from './openai/iflow-core.js';
 import { CodexApiService } from './openai/codex-core.js';
 import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
-import { MODEL_PROVIDER } from '../utils/common.js';
+import { MODEL_PROVIDER, findByPrefix, hasByPrefix } from '../utils/common.js';
 import logger from '../utils/logger.js';
 
 // 适配器注册表
@@ -705,38 +705,12 @@ registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
 export const serviceInstances = {};
 
 /**
- * 通过前缀查找适配器（支持 openai-custom-1 → openai-custom）
- * 优先最长前缀匹配，避免 openai-custom 和 openai-custom-foo 时误匹配
- * @param {string} provider - 提供商名称
- * @returns {Function|null} - 适配器类或 null
- */
-function findAdapterByPrefix(provider) {
-    let bestMatch = null;
-    let bestLen = -1;
-    for (const [key, value] of adapterRegistry.entries()) {
-        if (provider === key) {
-            return value;
-        }
-        if (provider.startsWith(key + '-')) {
-            if (key.length > bestLen) {
-                bestLen = key.length;
-                bestMatch = value;
-            }
-        }
-    }
-    return bestMatch;
-}
-
-/**
  * 检查提供商是否已注册（支持前缀匹配）
  * @param {string} provider - 提供商名称
  * @returns {boolean} - 是否有效
  */
 export function isRegisteredProvider(provider) {
-    if (adapterRegistry.has(provider)) {
-        return true;
-    }
-    return findAdapterByPrefix(provider) !== null;
+    return hasByPrefix(adapterRegistry, provider);
 }
 
 // 服务适配器工厂
@@ -747,12 +721,7 @@ export function getServiceAdapter(config) {
     const providerKey = config.uuid ? provider + config.uuid : provider;
     
     if (!serviceInstances[providerKey]) {
-        let AdapterClass = adapterRegistry.get(provider);
-
-        // 如果没找到精确匹配，尝试通过前缀查找 (例如 openai-custom-1 -> openai-custom)
-        if (!AdapterClass) {
-            AdapterClass = findAdapterByPrefix(provider);
-        }
+        const AdapterClass = findByPrefix(adapterRegistry, provider);
         
         if (AdapterClass) {
             serviceInstances[providerKey] = new AdapterClass(config);
