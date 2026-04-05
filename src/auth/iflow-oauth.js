@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import axios from 'axios';
 import { broadcastEvent } from '../services/ui-manager.js';
 import { autoLinkProviderConfigs } from '../services/service-manager.js';
 import { CONFIG } from '../core/config-manager.js';
@@ -72,7 +73,6 @@ async function fetchWithProxy(url, options = {}, providerType) {
     }
 
     try {
-        const axios = (await import('axios')).default;
         const response = await axios(axiosConfig);
         
         // 返回类似 fetch Response 的对象

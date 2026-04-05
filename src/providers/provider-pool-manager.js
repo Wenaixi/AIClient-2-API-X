@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import axios from 'axios';
 import { getServiceAdapter, getRegisteredProviders } from './adapter.js';
 import logger from '../utils/logger.js';
 import { MODEL_PROVIDER, getProtocolPrefix, getBaseType } from '../utils/common.js';
@@ -567,9 +568,8 @@ export class ProviderPoolManager {
                 errorCount: providerConfig.errorCount || 0
             }
         };
-        
+
         try {
-            const axios = (await import('axios')).default;
             await axios.post(webhookUrl, payload, {
                 timeout: PROVIDER_POOL.WEBHOOK_TIMEOUT_MS,
                 headers: { 'Content-Type': 'application/json' }

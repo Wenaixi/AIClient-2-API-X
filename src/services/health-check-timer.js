@@ -69,10 +69,10 @@ async function executeHealthCheck() {
             const lastTime = lastCheckTimes.get(providerType) || 0;
             const checkStartTime = Date.now();
 
-            // 添加随机抖动，防止时序攻击
+            // 添加随机抖动，防止时序攻击（增加抖动使间隔略长于配置值）
             const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS);
 
-            if (checkStartTime - lastTime < effectiveInterval - jitter) {
+            if (checkStartTime - lastTime < effectiveInterval + jitter) {
                 // 跳过检查是正常行为，不需要记录日志
                 return;
             }
