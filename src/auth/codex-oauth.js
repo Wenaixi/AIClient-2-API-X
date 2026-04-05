@@ -927,7 +927,12 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
                 logger.info('[Codex Auth] OAuth flow completed successfully');
             } catch (error) {
                 logger.error('[Codex Auth] Failed to complete OAuth flow:', error.message);
-                
+
+                // 确保清理会话，防止内存泄漏
+                if (global.codexOAuthSessions.has(sessionId)) {
+                    global.codexOAuthSessions.delete(sessionId);
+                }
+
                 // 广播认证失败事件
                 broadcastEvent('oauth_error', {
                     provider: 'openai-codex-oauth',

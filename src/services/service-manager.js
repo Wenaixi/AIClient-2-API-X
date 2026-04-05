@@ -652,11 +652,11 @@ export async function getProviderStatus(config, options = {}) {
     if (count > 0) {
         unhealthyRatio = Number((unhealthyCount / count).toFixed(2));
     }
-        let unhealthySummeryMessage = unhealthyProvideIdentifyList.join('\n');
-        if (unhealthySummeryMessage === '') unhealthySummeryMessage = null;
+    let unhealthySummaryMessage = unhealthyProvideIdentifyList.join('\n');
+    if (unhealthySummaryMessage === '') unhealthySummaryMessage = null;
     return {
         providerPoolsSlim,
-        unhealthySummeryMessage,
+        unhealthySummaryMessage,
         count,
         unhealthyCount,
         unhealthyRatio

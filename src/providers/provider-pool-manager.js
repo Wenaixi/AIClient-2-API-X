@@ -57,8 +57,10 @@ export class ProviderPoolManager {
         this.fallbackChain = options.globalConfig?.providerFallbackChain || {};
         this.modelFallbackMapping = options.globalConfig?.modelFallbackMapping || {};
 
-        // 简化并发控制：使用单一锁机制
+        // 基于队列的异步互斥锁，替代 _isSelecting 标志
+        // _selectionLocks[providerType] 是一个 Promise，代表当前正在进行的 selectProvider 操作
         this._selectionLocks = {};
+        this._isSelecting = {};
 
         // 刷新并发控制配置
         this.refreshConcurrency = {
@@ -554,7 +556,19 @@ export class ProviderPoolManager {
         if (!webhookUrl) {
             return; // 未配置 Webhook，跳过
         }
-        
+
+        // 安全验证：只允许 https 协议的 Webhook URL，防止 SSRF
+        try {
+            const parsedUrl = new URL(webhookUrl);
+            if (parsedUrl.protocol !== 'https:') {
+                this._log('error', `Webhook URL must use HTTPS: ${webhookUrl}`);
+                return;
+            }
+        } catch {
+            this._log('error', `Invalid webhook URL: ${webhookUrl}`);
+            return;
+        }
+
         const customName = providerConfig.customName || providerConfig.uuid;
         const payload = {
             timestamp: new Date().toISOString(),
@@ -792,21 +806,21 @@ export class ProviderPoolManager {
             this._log('error', `Invalid providerType: ${providerType}`);
             return null;
         }
- 
-        // 使用标志位 + 异步等待实现更强力的互斥锁
-        // 这种方式能更好地处理同一微任务循环内的并发
-        while (this._isSelecting[providerType]) {
-            await new Promise(resolve => setImmediate(resolve));
-        }
-        
-        this._isSelecting[providerType] = true;
-        
-        try {
-            // 在锁内部执行同步选择
+
+        // 基于队列的异步互斥锁：
+        // 将当前操作链接到前一个操作的 Promise 上，确保串行执行
+        const previousLock = this._selectionLocks[providerType] || Promise.resolve();
+        const lockPromise = previousLock.then(() => {
             return this._doSelectProvider(providerType, requestedModel, options);
-        } finally {
-            this._isSelecting[providerType] = false;
-        }
+        }).catch((err) => {
+            // 重新抛出，让调用方感知错误
+            throw err;
+        });
+
+        // 立即更新锁，后续调用会链接到当前 Promise 之后
+        this._selectionLocks[providerType] = lockPromise;
+
+        return lockPromise;
     }
 
     /**
@@ -1650,17 +1664,17 @@ export class ProviderPoolManager {
      * @private
      */
     _checkAndRecoverScheduledProviders(providerType = null) {
-        const now = new Date();
+        const now = Date.now();
         const typesToCheck = providerType ? [providerType] : Object.keys(this.providerStatus);
-        
+
         for (const type of typesToCheck) {
             const providers = this.providerStatus[type] || [];
             for (const providerStatus of providers) {
                 const config = providerStatus.config;
-                
+
                 // 检查是否有 scheduledRecoveryTime 且已到恢复时间
                 if (config.scheduledRecoveryTime && !config.isHealthy) {
-                    const recoveryTime = new Date(config.scheduledRecoveryTime);
+                    const recoveryTime = new Date(config.scheduledRecoveryTime).getTime();
                     if (now >= recoveryTime) {
                         this._log('info', `Auto-recovering provider ${config.uuid} (${type}). Scheduled recovery time reached: ${recoveryTime.toISOString()}`);
                         
@@ -1820,8 +1834,8 @@ export class ProviderPoolManager {
         
         this._log('info', `[ScheduledHealthCheck] Starting scheduled health checks: ${totalProviders} provider(s) to check (interval: ${scheduledConfig.interval}ms, types: ${selectedProviderTypes.join(', ')})`);
 
-        // 并行执行健康检查，限制并发数
-        const MAX_CONCURRENT = 5;
+        // 并行执行健康检查，限制并发数（使用常量）
+        const MAX_CONCURRENT = HEALTH_CHECK.MAX_CONCURRENT_CHECKS;
         const results = [];
 
         for (let i = 0; i < providersToCheck.length; i += MAX_CONCURRENT) {
@@ -2049,14 +2063,14 @@ export class ProviderPoolManager {
             const timeoutId = setTimeout(() => abortController.abort(), healthCheckTimeout);
 
             try {
-                // 尝试将 signal 注入请求体，供支持的适配器使用
+                // 将 signal 传递给适配器，使其支持超时取消
                 const requestWithSignal = {
                     ...healthCheckRequest,
-                    // signal: abortController.signal
+                    signal: abortController.signal
                 };
 
-                await serviceAdapter.generateContent(modelName, requestWithSignal);
-                
+                await serviceAdapter.generateContent(modelName, requestWithSignal, { signal: abortController.signal });
+
                 clearTimeout(timeoutId);
                 // 注意：使用量计数由调用方处理（performHealthChecks/performInitialHealthChecks）
                 // 这里只返回成功结果，让调用方统一处理状态更新和计数

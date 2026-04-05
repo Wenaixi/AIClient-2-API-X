@@ -21,8 +21,8 @@ const CREDENTIALS_DIR = '.gemini';
 const CREDENTIALS_FILE = 'oauth_creds.json';
 const DEFAULT_CODE_ASSIST_ENDPOINT = 'https://cloudcode-pa.googleapis.com';
 const DEFAULT_CODE_ASSIST_API_VERSION = 'v1internal';
-const OAUTH_CLIENT_ID = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
-const OAUTH_CLIENT_SECRET = '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';
+const OAUTH_CLIENT_ID = process.env.GEMINI_OAUTH_CLIENT_ID || '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
+const OAUTH_CLIENT_SECRET = process.env.GEMINI_OAUTH_CLIENT_SECRET || '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';
 const GEMINI_MODELS = getProviderModels(MODEL_PROVIDER.GEMINI_CLI);
 const ANTI_TRUNCATION_MODELS = GEMINI_MODELS.map(model => `anti-${model}`);
 const GEMINI_CLI_VERSION = '0.31.0';
@@ -83,7 +83,10 @@ function parseRetryDelay(errorBody) {
             const match = message.match(/after\s+(\d+)s\.?/);
             if (match) return parseInt(match[1]) * 1000;
         }
-    } catch (e) {}
+    } catch (e) {
+        // 解析失败时记录调试信息，回退到 null
+        // logger.debug(`parseRetryDelay failed: ${e.message}`);
+    }
     return null;
 }
 
