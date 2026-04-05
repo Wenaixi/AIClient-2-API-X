@@ -226,7 +226,7 @@ function initEventListeners() {
             if (window.showAddProviderGroupModal) {
                 window.showAddProviderGroupModal();
             } else {
-                console.error('showAddProviderGroupModal function not found');
+                logger?.error?.('[EventHandlers] showAddProviderGroupModal function not found');
             }
         });
     }

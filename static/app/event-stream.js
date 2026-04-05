@@ -39,6 +39,10 @@ function initEventStream() {
         showToast(t('common.success'), `${t('common.success')} (${data.provider})`, 'success');
         // 发送自定义事件，以便其他模块（如生成凭据逻辑）可以接收到详细信息
         window.dispatchEvent(new CustomEvent('oauth_success_event', { detail: data }));
+        // 刷新提供商列表以更新统计信息
+        if (typeof loadProviders === 'function') {
+            loadProviders();
+        }
     });
 
     newEventSource.addEventListener('provider_update', (event) => {

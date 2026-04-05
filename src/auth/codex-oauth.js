@@ -904,6 +904,12 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
                 // 清理会话
                 global.codexOAuthSessions.delete(sessionId);
 
+                // 自动关联新生成的凭据到 Pools（必须在广播前完成）
+                await autoLinkProviderConfigs(CONFIG, {
+                    onlyCurrentCred: true,
+                    credPath: credentials.relativePath
+                });
+
                 // 广播认证成功事件
                 broadcastEvent('oauth_success', {
                     provider: 'openai-codex-oauth',
@@ -912,12 +918,6 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
                     timestamp: new Date().toISOString(),
                     email: credentials.email,
                     accountId: credentials.account_id
-                });
-
-                // 自动关联新生成的凭据到 Pools
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: credentials.relativePath
                 });
 
                 logger.info('[Codex Auth] OAuth flow completed successfully');
@@ -1011,6 +1011,12 @@ export async function handleCodexOAuthCallback(code, state) {
         // 清理会话
         global.codexOAuthSessions.delete(state);
 
+        // 自动关联新生成的凭据到 Pools（必须在广播前完成）
+        await autoLinkProviderConfigs(CONFIG, {
+            onlyCurrentCred: true,
+            credPath: result.relativePath
+        });
+
         // 广播认证成功事件（与 gemini 格式一致）
         broadcastEvent('oauth_success', {
             provider: 'openai-codex-oauth',
@@ -1019,12 +1025,6 @@ export async function handleCodexOAuthCallback(code, state) {
             timestamp: new Date().toISOString(),
             email: result.email,
             accountId: result.account_id
-        });
-
-        // 自动关联新生成的凭据到 Pools
-        await autoLinkProviderConfigs(CONFIG, {
-            onlyCurrentCred: true,
-            credPath: result.relativePath
         });
 
         logger.info('[Codex Auth] OAuth callback processed successfully');

@@ -407,20 +407,20 @@ function createIFlowCallbackServer(port, redirectUri, expectedState, options = {
                         logger.info(`${IFLOW_OAUTH_CONFIG.logPrefix} 凭据已保存: ${credPath}`);
                         
                         const relativePath = path.relative(process.cwd(), credPath);
-                        
-                        // 5. 广播授权成功事件
+
+                        // 5. 自动关联新生成的凭据到 Pools（必须在广播前完成）
+                        await autoLinkProviderConfigs(CONFIG, {
+                            onlyCurrentCred: true,
+                            credPath: relativePath
+                        });
+
+                        // 6. 广播授权成功事件
                         broadcastEvent('oauth_success', {
                             provider: 'openai-iflow',
                             credPath: credPath,
                             relativePath: relativePath,
                             email: userInfo.email,
                             timestamp: new Date().toISOString()
-                        });
-                        
-                        // 6. 自动关联新生成的凭据到 Pools
-                        await autoLinkProviderConfigs(CONFIG, {
-                            onlyCurrentCred: true,
-                            credPath: relativePath
                         });
                         
                         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

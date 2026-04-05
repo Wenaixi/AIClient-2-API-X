@@ -221,18 +221,18 @@ async function createOAuthCallbackServer(config, redirectUri, authClient, credPa
                         
                         const relativePath = path.relative(process.cwd(), finalCredPath);
 
+                        // 自动关联新生成的凭据到 Pools（必须在广播前完成）
+                        await autoLinkProviderConfigs(CONFIG, {
+                            onlyCurrentCred: true,
+                            credPath: relativePath
+                        });
+
                         // 广播授权成功事件
                         broadcastEvent('oauth_success', {
                             provider: provider,
                             credPath: finalCredPath,
                             relativePath: relativePath,
                             timestamp: new Date().toISOString()
-                        });
-                        
-                        // 自动关联新生成的凭据到 Pools
-                        await autoLinkProviderConfigs(CONFIG, {
-                            onlyCurrentCred: true,
-                            credPath: relativePath
                         });
                         
                         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

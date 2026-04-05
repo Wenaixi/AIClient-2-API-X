@@ -440,21 +440,21 @@ async function pollKiroBuilderIDToken(clientId, clientSecret, deviceCode, interv
                 await fs.promises.writeFile(credPath, JSON.stringify(tokenData, null, 2));
                 
                 activeKiroPollingTasks.delete(taskId);
-                
-                // 广播成功事件（符合现有规范）
+
+                // 自动关联新生成的凭据到 Pools（必须在广播前完成，否则前端刷新时拿不到新数据）
+                await autoLinkProviderConfigs(CONFIG, {
+                    onlyCurrentCred: true,
+                    credPath: path.relative(process.cwd(), credPath)
+                });
+
+                // 广播成功事件
                 broadcastEvent('oauth_success', {
                     provider: 'claude-kiro-oauth',
                     credPath,
                     relativePath: path.relative(process.cwd(), credPath),
                     timestamp: new Date().toISOString()
                 });
-                
-                // 自动关联新生成的凭据到 Pools
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: path.relative(process.cwd(), credPath)
-                });
-                
+
                 return tokenData;
             }
             
@@ -630,7 +630,13 @@ function createKiroHttpCallbackServer(port, codeVerifier, expectedState, options
                     await fs.promises.writeFile(credPath, JSON.stringify(saveData, null, 2));
                     
                     logger.info(`${KIRO_OAUTH_CONFIG.logPrefix} 令牌已保存: ${credPath}`);
-                    
+
+                    // 自动关联新生成的凭据到 Pools（必须在广播前完成）
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: path.relative(process.cwd(), credPath)
+                    });
+
                     // 广播成功事件
                     broadcastEvent('oauth_success', {
                         provider: 'claude-kiro-oauth',
@@ -638,13 +644,7 @@ function createKiroHttpCallbackServer(port, codeVerifier, expectedState, options
                         relativePath: path.relative(process.cwd(), credPath),
                         timestamp: new Date().toISOString()
                     });
-                    
-                    // 自动关联新生成的凭据到 Pools
-                    await autoLinkProviderConfigs(CONFIG, {
-                        onlyCurrentCred: true,
-                        credPath: path.relative(process.cwd(), credPath)
-                    });
-                    
+
                     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                     res.end(generateResponsePage(true, '授权成功！您可以关闭此页面'));
                     
@@ -887,15 +887,8 @@ export async function batchImportKiroRefreshTokens(refreshTokens, region = KIRO_
         }
     }
     
-    // 如果有成功的，广播事件并自动关联
+    // 如果有成功的，先自动关联新生成的凭据到 Pools，再广播事件
     if (results.success > 0) {
-        broadcastEvent('oauth_batch_success', {
-            provider: 'claude-kiro-oauth',
-            count: results.success,
-            timestamp: new Date().toISOString()
-        });
-        
-        // 自动关联新生成的凭据到 Pools
         for (const detail of results.details) {
             if (detail.success && detail.path) {
                 await autoLinkProviderConfigs(CONFIG, {
@@ -904,8 +897,14 @@ export async function batchImportKiroRefreshTokens(refreshTokens, region = KIRO_
                 });
             }
         }
+
+        broadcastEvent('oauth_batch_success', {
+            provider: 'claude-kiro-oauth',
+            count: results.success,
+            timestamp: new Date().toISOString()
+        });
     }
-    
+
     return results;
 }
 
@@ -1027,15 +1026,8 @@ export async function batchImportKiroRefreshTokensStream(refreshTokens, region =
         }
     }
     
-    // 如果有成功的，广播事件并自动关联
+    // 如果有成功的，先自动关联新生成的凭据到 Pools，再广播事件
     if (results.success > 0) {
-        broadcastEvent('oauth_batch_success', {
-            provider: 'claude-kiro-oauth',
-            count: results.success,
-            timestamp: new Date().toISOString()
-        });
-        
-        // 自动关联新生成的凭据到 Pools
         for (const detail of results.details) {
             if (detail.success && detail.path) {
                 await autoLinkProviderConfigs(CONFIG, {
@@ -1044,8 +1036,14 @@ export async function batchImportKiroRefreshTokensStream(refreshTokens, region =
                 });
             }
         }
+
+        broadcastEvent('oauth_batch_success', {
+            provider: 'claude-kiro-oauth',
+            count: results.success,
+            timestamp: new Date().toISOString()
+        });
     }
-    
+
     return results;
 }
 
@@ -1155,18 +1153,18 @@ export async function importAwsCredentials(credentials, skipDuplicateCheck = fal
         const relativePath = path.relative(process.cwd(), credPath);
         
         logger.info(`${KIRO_OAUTH_CONFIG.logPrefix} AWS credentials saved to: ${relativePath}`);
-        
+
+        // 自动关联新生成的凭据到 Pools（必须在广播前完成）
+        await autoLinkProviderConfigs(CONFIG, {
+            onlyCurrentCred: true,
+            credPath: relativePath
+        });
+
         // 广播事件
         broadcastEvent('oauth_success', {
             provider: 'claude-kiro-oauth',
             relativePath: relativePath,
             timestamp: new Date().toISOString()
-        });
-        
-        // 自动关联新生成的凭据到 Pools
-        await autoLinkProviderConfigs(CONFIG, {
-            onlyCurrentCred: true,
-            credPath: relativePath
         });
         
         return {

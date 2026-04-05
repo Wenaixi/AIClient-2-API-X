@@ -1,5 +1,6 @@
 import { getServiceAdapter, serviceInstances } from '../providers/adapter.js';
 import logger from '../utils/logger.js';
+import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { ProviderPoolManager } from '../providers/provider-pool-manager.js';
 import deepmerge from 'deepmerge';
 import * as fs from 'fs';
@@ -127,6 +128,21 @@ export async function autoLinkProviderConfigs(config, options = {}) {
         providerPoolManager.providerPools = config.providerPools;
         providerPoolManager.initializeProviderStatus();
     }
+
+    // 广播 provider_update 事件通知前端刷新
+    if (totalNewProviders > 0) {
+        Object.keys(allNewProviders).forEach(displayName => {
+            const mapping = PROVIDER_MAPPINGS.find(m => m.displayName === displayName);
+            if (mapping) {
+                broadcastEvent('provider_update', {
+                    action: 'add',
+                    providerType: mapping.providerType,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+    }
+
     return config.providerPools;
 }
 
@@ -400,6 +416,8 @@ async function _resolveEffectiveRouting(config, requestedModel) {
  * @param {string} [requestedModel] - Optional. The model name to filter providers by.
  * @param {Object} [options] - Optional. Additional options.
  * @param {boolean} [options.skipUsageCount] - Optional. If true, skip incrementing usage count.
+ *     Note: usageCount is now incremented in releaseSlot() after request completion,
+ *     so skipUsageCount here only controls whether selectProvider increments it upfront.
  * @returns {Promise<Object>} The API service adapter
  */
 export async function getApiService(config, requestedModel = null, options = {}) {
