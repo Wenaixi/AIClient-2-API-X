@@ -334,6 +334,7 @@ async function loadConfiguration() {
         // 加载自定义间隔配置
         inMemoryCustomIntervals = JSON.parse(JSON.stringify(data.SCHEDULED_HEALTH_CHECK?.customIntervals || {}));
         renderCustomIntervalsList();
+        initQuickButtons();
 
         // 设置供应商标签的长按/右键事件
         setupProviderLongPressHandlers();
@@ -635,23 +636,41 @@ function renderCustomIntervalsList() {
         const safeId = providerType.replace(/[^a-zA-Z0-9]/g, '_');
 
         return `
-            <div class="custom-interval-item" data-provider-type="${providerType}">
+            <div class="custom-interval-item" data-provider-type="${escHtml(providerType)}">
                 <div class="provider-info">
                     <i class="${info.icon}"></i>
-                    <span class="provider-name">${info.name}</span>
+                    <span class="provider-name">${escHtml(info.name)}</span>
                 </div>
                 <div class="interval-badge">${intervalStr}</div>
                 <div class="item-actions">
-                    <button class="btn btn-sm btn-outline-primary" onclick="window.editCustomInterval('${providerType.replace(/'/g, "\\'")}')" title="编辑">
+                    <button class="btn btn-sm btn-outline-primary edit-interval-btn" title="编辑">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="window.deleteCustomInterval('${providerType.replace(/'/g, "\\'")}')" title="删除">
+                    <button class="btn btn-sm btn-outline-danger delete-interval-btn" title="删除">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
         `;
     }).join('');
+
+    // 使用事件委托绑定编辑/删除按钮（避免 innerHTML 后绑定丢失）
+    listEl.querySelectorAll('.edit-interval-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const item = btn.closest('.custom-interval-item');
+            if (!item) return;
+            const providerType = item.getAttribute('data-provider-type');
+            showCustomIntervalPopup(providerType);
+        });
+    });
+    listEl.querySelectorAll('.delete-interval-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const item = btn.closest('.custom-interval-item');
+            if (!item) return;
+            const providerType = item.getAttribute('data-provider-type');
+            deleteCustomIntervalConfirm(providerType);
+        });
+    });
 }
 
 // ==================== 供应商标签长按/右键处理 ====================
@@ -675,7 +694,7 @@ function setupProviderLongPressHandlers() {
             e.preventDefault();
             const providerType = tag.getAttribute('data-value');
             if (!tag.classList.contains('selected')) {
-                showToast('请先选中该供应商', 'warning');
+                showToast(t('config.healthCheck.selectProviderFirst'), 'warning');
                 return;
             }
             showCustomIntervalPopup(providerType);
@@ -688,7 +707,7 @@ function setupProviderLongPressHandlers() {
                 tag.dataset.isLongPress = 'true';
                 const providerType = tag.getAttribute('data-value');
                 if (!tag.classList.contains('selected')) {
-                    showToast('请先选中该供应商', 'warning');
+                    showToast(t('config.healthCheck.selectProviderFirst'), 'warning');
                     return;
                 }
                 showCustomIntervalPopup(providerType);
@@ -738,19 +757,28 @@ function showCustomIntervalPopup(providerType) {
 
     nameSpan.textContent = providerName;
 
-    // 绑定快捷按钮事件（每次都重新绑定，防止覆盖）
-    const quickBtns = popup.querySelectorAll('.quick-select-btns button');
-    quickBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const ms = parseInt(btn.getAttribute('data-ms'));
-            const { hours: h, minutes: m, seconds: s } = msToHms(ms);
-            document.getElementById('popupHours').value = h;
-            document.getElementById('popupMinutes').value = m;
-            document.getElementById('popupSeconds').value = s;
-        });
-    });
-
     popup.style.display = 'block';
+}
+
+// 初始化快捷按钮事件（只绑定一次）
+let quickBtnsInitialized = false;
+function initQuickButtons() {
+    if (quickBtnsInitialized) return;
+    quickBtnsInitialized = true;
+
+    const popup = document.getElementById('customIntervalPopup');
+    if (!popup) return;
+
+    popup.addEventListener('click', (e) => {
+        const btn = e.target.closest('.quick-select-btns button');
+        if (!btn) return;
+        const ms = parseInt(btn.getAttribute('data-ms'));
+        if (isNaN(ms)) return;
+        const { hours: h, minutes: m, seconds: s } = msToHms(ms);
+        document.getElementById('popupHours').value = h;
+        document.getElementById('popupMinutes').value = m;
+        document.getElementById('popupSeconds').value = s;
+    });
 }
 
 /**
@@ -783,6 +811,18 @@ function closeCustomIntervalPopup() {
 }
 
 /**
+ * 删除自定义间隔（供列表项按钮调用）
+ * @param {string} providerType
+ */
+function deleteCustomIntervalConfirm(providerType) {
+    if (!confirm(t('config.healthCheck.confirmDelete'))) return;
+
+    updateCustomIntervalInMemory(providerType, null);
+    renderCustomIntervalsList();
+    showToast('已删除自定义间隔', 'success');
+}
+
+/**
  * 编辑自定义间隔（供列表项按钮调用）
  * @param {string} safeId - providerType 的安全ID
  */
@@ -796,18 +836,13 @@ function editCustomInterval(safeId) {
 
 /**
  * 删除自定义间隔（供列表项按钮调用）
- * @param {string} safeId
+ * @param {string} safeId - providerType 的安全ID
  */
 function deleteCustomInterval(safeId) {
     const item = document.querySelector(`.custom-interval-item[data-provider-type="${safeId}"]`);
     if (!item) return;
     const providerType = item.getAttribute('data-provider-type');
-
-    if (!confirm(`确定删除 "${providerType}" 的自定义间隔吗？`)) return;
-
-    updateCustomIntervalInMemory(providerType, null);
-    renderCustomIntervalsList();
-    showToast('已删除自定义间隔', 'success');
+    deleteCustomIntervalConfirm(providerType);
 }
 
 // ==================== 导出 ====================

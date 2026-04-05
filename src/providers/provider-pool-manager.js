@@ -759,11 +759,16 @@ export class ProviderPoolManager {
      */
     releaseSlot(providerType, uuid) {
         if (!providerType || !uuid) return;
-        
+
         const provider = this._findProvider(providerType, uuid);
         if (!provider) return;
 
         const state = provider.state;
+        const config = provider.config;
+
+        // 请求成功完成，递增 usageCount
+        config.usageCount++;
+
         if (state.activeCount > 0) {
             state.activeCount--;
         }
@@ -776,6 +781,9 @@ export class ProviderPoolManager {
                 setImmediate(next);
             }
         }
+
+        // 持久化计数变更
+        this._debouncedSave(providerType);
     }
 
     /**
@@ -868,19 +876,16 @@ export class ProviderPoolManager {
         })[0];
 
         // 始终更新 lastUsed（确保 LRU 策略生效，避免并发请求选到同一个 provider）
-        // usageCount 只在请求成功后才增加（由 skipUsageCount 控制）
+        // usageCount 只在请求成功后才增加（由 releaseSlot 负责递增）
         selected.config.lastUsed = new Date().toISOString();
-        
+
         // 更新自增序列号，确保即使毫秒级并发，也能在下一轮排序中被区分开
         this._selectionSequence++;
         selected.config._lastSelectionSeq = this._selectionSequence;
-        
-        // 强制打印选中日志，方便排查并发问题
-        this._log('info', `[Concurrency Control] Atomic selection: ${selected.config.uuid} (Seq: ${this._selectionSequence})`);
 
-        if (!options.skipUsageCount) {
-            selected.config.usageCount++;
-        }
+        // 强制打印选中日志，方便排查并发问题
+        this._log('debug', `[Concurrency Control] Atomic selection: ${selected.config.uuid} (Seq: ${this._selectionSequence})`);
+
         // 使用防抖保存（文件 I/O 是异步的，但内存已经更新）
         this._debouncedSave(providerType);
 
@@ -1503,13 +1508,11 @@ export class ProviderPoolManager {
                 provider.config.lastHealthCheckTime = new Date().toISOString();
                 provider.config.lastHealthCheckModel = healthCheckModel;
             }
-            
-            // 只有在明确要求重置使用计数时才重置
+
+            // 只有在明确要求重置使用计数时才重置，不再递增
+            // usageCount 的统一递增点在 releaseSlot() 中（请求完成时）
             if (resetUsageCount) {
                 provider.config.usageCount = 0;
-            }else{
-                provider.config.usageCount++;
-                provider.config.lastUsed = new Date().toISOString();
             }
             
             // 健康状态变化日志
@@ -1830,43 +1833,48 @@ export class ProviderPoolManager {
         }
         
         this._log('info', `[ScheduledHealthCheck] Starting scheduled health checks: ${totalProviders} provider(s) to check (interval: ${scheduledConfig.interval}ms, types: ${selectedProviderTypes.join(', ')})`);
-        
-        let successCount = 0;
-        let failCount = 0;
-        
-        for (const { providerType, provider, uuid, customName } of providersToCheck) {
-            const providerCheckStart = Date.now();
-            const baseProviderType = this._getBaseProviderType(providerType);
-            const checkModelName = provider.config.checkModelName || 
-                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] || 
-                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] || 
-                                'unknown';
-            const displayName = customName || uuid.substring(0, 8);
 
-            try {
-                // Perform health check (health check is based on providerTypes configuration, not per-provider checkHealth flag)
-                const result = await this._checkProviderHealth(providerType, provider.config);
-                const checkDuration = Date.now() - providerCheckStart;
-                
-                if (!result.success) {
-                    // Provider is unhealthy
-                    failCount++;
-                    this._log('warn', `[ScheduledHealthCheck] ${displayName} (${providerType}) FAILED: ${result.errorMessage || 'Provider is not responding correctly.'} (${checkDuration}ms)`);
-                    this.markProviderUnhealthyImmediately(providerType, provider.config, result.errorMessage);
-                } else {
-                    // Provider is healthy
-                    successCount++;
-                    this._log('info', `[ScheduledHealthCheck] ${displayName} (${providerType}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
-                    this.markProviderHealthy(providerType, provider.config, false, result.modelName);
+        // 并行执行健康检查，限制并发数
+        const MAX_CONCURRENT = 5;
+        const results = [];
+
+        for (let i = 0; i < providersToCheck.length; i += MAX_CONCURRENT) {
+            const batch = providersToCheck.slice(i, i + MAX_CONCURRENT);
+            const batchResults = await Promise.allSettled(batch.map(async ({ providerType: pType, provider, uuid, customName }) => {
+                const providerCheckStart = Date.now();
+                const baseProviderType = this._getBaseProviderType(pType);
+                const checkModelName = provider.config.checkModelName ||
+                                    ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[pType] ||
+                                    ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] ||
+                                    'unknown';
+                const displayName = customName || uuid.substring(0, 8);
+
+                try {
+                    const result = await this._checkProviderHealth(pType, provider.config);
+                    const checkDuration = Date.now() - providerCheckStart;
+
+                    if (!result.success) {
+                        this._log('warn', `[ScheduledHealthCheck] ${displayName} (${pType}) FAILED: ${result.errorMessage || 'Provider is not responding correctly.'} (${checkDuration}ms)`);
+                        this.markProviderUnhealthyImmediately(pType, provider.config, result.errorMessage);
+                        return { success: false, providerType: pType };
+                    } else {
+                        this._log('debug', `[ScheduledHealthCheck] ${displayName} (${pType}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
+                        this.markProviderHealthy(pType, provider.config, false, result.modelName);
+                        return { success: true, providerType: pType };
+                    }
+                } catch (error) {
+                    const checkDuration = Date.now() - providerCheckStart;
+                    this._log('error', `[ScheduledHealthCheck] ${displayName} (${pType}) EXCEPTION: ${error.message} (${checkDuration}ms)`);
+                    this.markProviderUnhealthyImmediately(pType, provider.config, error.message);
+                    return { success: false, providerType: pType, error: error.message };
                 }
-            } catch (error) {
-                const checkDuration = Date.now() - providerCheckStart;
-                failCount++;
-                this._log('error', `[ScheduledHealthCheck] ${displayName} (${providerType}) EXCEPTION: ${error.message} (${checkDuration}ms)`);
-                this.markProviderUnhealthyImmediately(providerType, provider.config, error.message);
-            }
+            }));
+            results.push(...batchResults);
         }
-        
+
+        const successCount = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+        const failCount = results.length - successCount;
+
         const totalDuration = Date.now() - checkStartTime;
         this._log('info', `[ScheduledHealthCheck] Completed: ${successCount} passed, ${failCount} failed, ${totalDuration}ms total`);
     }
@@ -1897,8 +1905,8 @@ export class ProviderPoolManager {
 
         // Get the interval for this provider type (for logging)
         const defaultInterval = scheduledConfig.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
-        const overrides = scheduledConfig.overrides || {};
-        const interval = overrides[providerType] || defaultInterval;
+        const customIntervals = scheduledConfig.customIntervals || {};
+        const interval = customIntervals[providerType] || defaultInterval;
 
         // Collect providers of this type to check
         const providersToCheck = [];
@@ -2112,8 +2120,12 @@ export class ProviderPoolManager {
         }
         
         // 设置新的定时器
-        this.saveTimer = setTimeout(() => {
-            this._flushPendingSaves();
+        this.saveTimer = setTimeout(async () => {
+            try {
+                await this._flushPendingSaves();
+            } catch (error) {
+                this._log('error', `Debounced save failed: ${error.message}`);
+            }
         }, this.saveDebounceTime);
     }
     
@@ -2124,15 +2136,14 @@ export class ProviderPoolManager {
     async _flushPendingSaves() {
         const typesToSave = Array.from(this.pendingSaves);
         if (typesToSave.length === 0) return;
-        
+
         this.pendingSaves.clear();
         this.saveTimer = null;
-        
+
         try {
             const filePath = this.globalConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
             let currentPools = {};
-            
-            // 一次性读取文件
+
             try {
                 const fileContent = await fs.promises.readFile(filePath, 'utf8');
                 currentPools = JSON.parse(fileContent);
@@ -2144,29 +2155,20 @@ export class ProviderPoolManager {
                 }
             }
 
-            // 更新所有待保存的 providerType
             for (const providerType of typesToSave) {
                 if (this.providerStatus[providerType]) {
                     currentPools[providerType] = this.providerStatus[providerType].map(p => {
-                        // Convert Date objects to ISOString if they exist
                         const config = { ...p.config };
-                        if (config.lastUsed instanceof Date) {
-                            config.lastUsed = config.lastUsed.toISOString();
-                        }
-                        if (config.lastErrorTime instanceof Date) {
-                            config.lastErrorTime = config.lastErrorTime.toISOString();
-                        }
-                        if (config.lastHealthCheckTime instanceof Date) {
-                            config.lastHealthCheckTime = config.lastHealthCheckTime.toISOString();
-                        }
+                        if (config.lastUsed instanceof Date) config.lastUsed = config.lastUsed.toISOString();
+                        if (config.lastErrorTime instanceof Date) config.lastErrorTime = config.lastErrorTime.toISOString();
+                        if (config.lastHealthCheckTime instanceof Date) config.lastHealthCheckTime = config.lastHealthCheckTime.toISOString();
                         return config;
                     });
                 } else {
                     this._log('warn', `Attempted to save unknown providerType: ${providerType}`);
                 }
             }
-            
-            // 一次性写入文件
+
             await fs.promises.writeFile(filePath, JSON.stringify(currentPools, null, 2), 'utf8');
             this._log('info', `configs/provider_pools.json updated successfully for types: ${typesToSave.join(', ')}`);
         } catch (error) {

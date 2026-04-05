@@ -44,7 +44,6 @@ function sanitizeProviderData(provider, maskSensitive = false) {
         }
         name = name.replace(/<[^>]*>/g, '');
         name = name.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-        name = name.replace(/&[#\w]+;/g, '');
         sanitized.customName = name.trim();
     }
     return sanitized;
