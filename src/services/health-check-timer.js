@@ -54,27 +54,29 @@ async function executeHealthCheck() {
         }
     }
 
-    // 并行执行各类型健康检查
-    const checkPromises = config.providerTypes.map(async (providerType) => {
-        const customInterval = customIntervals[providerType];
-        const effectiveInterval = customInterval ?? globalInterval;
+    // 并行执行各类型健康检查，限制并发数
+    const MAX_CONCURRENT = 5;
+    for (let i = 0; i < config.providerTypes.length; i += MAX_CONCURRENT) {
+        const batch = config.providerTypes.slice(i, i + MAX_CONCURRENT);
+        await Promise.all(batch.map(async (providerType) => {
+            const customInterval = customIntervals[providerType];
+            const effectiveInterval = customInterval ?? globalInterval;
 
-        const lastTime = lastCheckTimes.get(providerType) || 0;
-        if (now - lastTime < effectiveInterval) {
-            logger.debug(`[HealthCheckTimer] Skipping ${providerType} - not yet due (last: ${lastTime}, interval: ${effectiveInterval}ms)`);
-            return;
-        }
+            const lastTime = lastCheckTimes.get(providerType) || 0;
+            if (now - lastTime < effectiveInterval) {
+                logger.debug(`[HealthCheckTimer] Skipping ${providerType} - not yet due (last: ${lastTime}, interval: ${effectiveInterval}ms)`);
+                return;
+            }
 
-        logger.info(`[HealthCheckTimer] Executing health check for ${providerType} (custom interval: ${customInterval ? customInterval + 'ms' : 'using global ' + globalInterval + 'ms'})`);
-        try {
-            await poolManager.performHealthChecksByType(providerType);
-            lastCheckTimes.set(providerType, now);
-        } catch (error) {
-            logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:`, error);
-        }
-    });
-
-    await Promise.all(checkPromises);
+            logger.info(`[HealthCheckTimer] Executing health check for ${providerType} (custom interval: ${customInterval ? customInterval + 'ms' : 'using global ' + globalInterval + 'ms'})`);
+            try {
+                await poolManager.performHealthChecksByType(providerType);
+                lastCheckTimes.set(providerType, now);
+            } catch (error) {
+                logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:`, error);
+            }
+        }));
+    }
 }
 
 /**

@@ -902,7 +902,7 @@ export async function handleHealthCheck(req, res, currentConfig, providerPoolMan
                 const healthResult = await providerPoolManager._checkProviderHealth(providerType, providerConfig);
                 
                 if (healthResult.success) {
-                    providerPoolManager.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
+                    providerPoolManager.markProviderHealthy(providerType, providerConfig, healthResult.modelName);
                     results.push({
                         uuid: providerConfig.uuid,
                         success: true,
