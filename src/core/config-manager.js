@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { promises as pfs } from 'fs';
 import { INPUT_SYSTEM_PROMPT_FILE, MODEL_PROVIDER } from '../utils/common.js';
 import logger from '../utils/logger.js';
+import { HEALTH_CHECK } from '../utils/constants.js';
 
 export let CONFIG = {}; // Make CONFIG exportable
 export let PROMPT_LOG_FILENAME = ''; // Make PROMPT_LOG_FILENAME exportable
@@ -177,6 +178,9 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
 
     normalizeConfiguredProviders(currentConfig);
 
+    // 验证健康检查配置
+    validateHealthCheckConfig(currentConfig);
+
     if (!currentConfig.SYSTEM_PROMPT_FILE_PATH) {
         currentConfig.SYSTEM_PROMPT_FILE_PATH = INPUT_SYSTEM_PROMPT_FILE;
     }
@@ -257,6 +261,75 @@ export async function getSystemPromptFileContent(filePath) {
     } catch (error) {
         logger.error(`[System Prompt] Error reading system prompt file ${filePath}: ${error.message}`);
         return null;
+    }
+}
+
+/**
+ * 验证健康检查配置的 customIntervals
+ * @param {Object} customIntervals - 自定义间隔配置对象
+ * @returns {Object} 验证后的配置对象
+ */
+function validateCustomIntervals(customIntervals) {
+    if (!customIntervals || typeof customIntervals !== 'object') {
+        return {};
+    }
+
+    const validated = {};
+    for (const [providerType, interval] of Object.entries(customIntervals)) {
+        // 验证 providerType 是否为有效字符串
+        if (typeof providerType !== 'string' || !providerType.trim()) {
+            logger.warn(`[Config Warning] Invalid providerType in customIntervals: ${providerType}`);
+            continue;
+        }
+
+        // 验证 interval 是否为有效数字且在合理范围内
+        const numInterval = Number(interval);
+        if (!Number.isFinite(numInterval) || numInterval < HEALTH_CHECK.MIN_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Invalid interval for ${providerType}: ${interval}. Must be >= ${HEALTH_CHECK.MIN_INTERVAL_MS}ms`);
+            continue;
+        }
+
+        // 限制最大间隔
+        validated[providerType] = Math.min(numInterval, HEALTH_CHECK.MAX_INTERVAL_MS);
+        if (numInterval > HEALTH_CHECK.MAX_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Interval for ${providerType} exceeds maximum, capped at ${HEALTH_CHECK.MAX_INTERVAL_MS}ms`);
+        }
+    }
+
+    return validated;
+}
+
+/**
+ * 验证并规范化健康检查配置
+ * @param {Object} config - 配置对象
+ */
+function validateHealthCheckConfig(config) {
+    if (!config.SCHEDULED_HEALTH_CHECK || typeof config.SCHEDULED_HEALTH_CHECK !== 'object') {
+        return;
+    }
+
+    const hcConfig = config.SCHEDULED_HEALTH_CHECK;
+
+    // 验证并规范化 customIntervals
+    if (hcConfig.customIntervals) {
+        hcConfig.customIntervals = validateCustomIntervals(hcConfig.customIntervals);
+    }
+
+    // 验证 providerTypes 数组
+    if (hcConfig.providerTypes && !Array.isArray(hcConfig.providerTypes)) {
+        logger.warn('[Config Warning] SCHEDULED_HEALTH_CHECK.providerTypes must be an array, resetting to empty array');
+        hcConfig.providerTypes = [];
+    }
+
+    // 验证 interval
+    if (typeof hcConfig.interval === 'number') {
+        if (hcConfig.interval < HEALTH_CHECK.MIN_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Health check interval too small, using minimum: ${HEALTH_CHECK.MIN_INTERVAL_MS}ms`);
+            hcConfig.interval = HEALTH_CHECK.MIN_INTERVAL_MS;
+        } else if (hcConfig.interval > HEALTH_CHECK.MAX_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Health check interval too large, using maximum: ${HEALTH_CHECK.MAX_INTERVAL_MS}ms`);
+            hcConfig.interval = HEALTH_CHECK.MAX_INTERVAL_MS;
+        }
     }
 }
 

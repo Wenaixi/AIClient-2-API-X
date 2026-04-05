@@ -6,6 +6,7 @@ import { getProviderModels } from './provider-models.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { convertData } from '../convert/convert.js';
 import { ENDPOINT_TYPE } from '../utils/common.js';
+import { PROVIDER_POOL, OAUTH_CONFIG_PATH_MAP } from '../utils/constants.js';
 
 /**
  * Manages a pool of API service providers, handling their health and selection.
@@ -28,54 +29,41 @@ export class ProviderPoolManager {
 
     constructor(providerPools, options = {}) {
         this.providerPools = providerPools;
-        this.globalConfig = options.globalConfig || {}; // 存储全局配置
-        this.providerStatus = {}; // Tracks health and usage for each provider instance
-        this.roundRobinIndex = {}; // Tracks the current index for round-robin selection for each provider type
-        // 使用 ?? 运算符确保 0 也能被正确设置，而不是被 || 替换为默认值
-        this.maxErrorCount = options.maxErrorCount ?? 10; // Default to 10 errors before marking unhealthy
-        this.healthCheckInterval = options.healthCheckInterval ?? 10 * 60 * 1000; // Default to 10 minutes
+        this.globalConfig = options.globalConfig || {};
+        this.providerStatus = {};
+        this.roundRobinIndex = {};
 
-            // 日志级别控制
-        this.logLevel = options.logLevel || 'info'; // 'debug', 'info', 'warn', 'error'
-        
-        // 添加防抖机制，避免频繁的文件 I/O 操作
-        this.saveDebounceTime = options.saveDebounceTime || 1000; // 默认1秒防抖
+        // 使用常量替代魔法数字
+        this.maxErrorCount = options.maxErrorCount ?? PROVIDER_POOL.DEFAULT_MAX_ERROR_COUNT;
+        this.healthCheckInterval = options.healthCheckInterval ?? PROVIDER_POOL.DEFAULT_HEALTH_CHECK_INTERVAL_MS;
+        this.logLevel = options.logLevel || 'info';
+        this.saveDebounceTime = options.saveDebounceTime || PROVIDER_POOL.DEFAULT_SAVE_DEBOUNCE_MS;
         this.saveTimer = null;
-        this.pendingSaves = new Set(); // 记录待保存的 providerType
-        
-        // Fallback 链配置
+        this.pendingSaves = new Set();
+
+        // Fallback 配置
         this.fallbackChain = options.globalConfig?.providerFallbackChain || {};
-        
-        // Model Fallback 映射配置
         this.modelFallbackMapping = options.globalConfig?.modelFallbackMapping || {};
 
-        // 并发控制：每个 providerType 的选择锁
-        // 用于确保 selectProvider 的排序 and 更新操作是原子的
+        // 简化并发控制：使用单一锁机制
         this._selectionLocks = {};
-        this._isSelecting = {}; // 同步标志位锁
 
-        // --- V2: 读写分离 and 异步刷新队列 ---
         // 刷新并发控制配置
         this.refreshConcurrency = {
-            global: options.globalConfig?.REFRESH_CONCURRENCY_GLOBAL ?? 2, // 全局最大并行提供商数
-            perProvider: options.globalConfig?.REFRESH_CONCURRENCY_PER_PROVIDER ?? 1 // 每个提供商内部最大并行数
+            global: options.globalConfig?.REFRESH_CONCURRENCY_GLOBAL ?? PROVIDER_POOL.DEFAULT_REFRESH_CONCURRENCY_GLOBAL,
+            perProvider: options.globalConfig?.REFRESH_CONCURRENCY_PER_PROVIDER ?? PROVIDER_POOL.DEFAULT_REFRESH_CONCURRENCY_PER_PROVIDER
         };
-        
-        this.activeProviderRefreshes = 0; // 当前正在刷新的提供商类型数量
-        this.globalRefreshWaiters = []; // 等待全局并发槽位的任务
-        
-        this.warmupTarget = options.globalConfig?.WARMUP_TARGET || 0; // 默认预热0个节点
-        this.refreshingUuids = new Set(); // 正在刷新的节点 UUID 集合
-        
-        this.refreshQueues = {}; // 按 providerType 分组的队列
-        // 缓冲队列机制：延迟5秒，去重后再执行刷新
-        this.refreshBufferQueues = {}; // 按 providerType 分组的缓冲队列
-        this.refreshBufferTimers = {}; // 按 providerType 分组的定时器
-        this.bufferDelay = options.globalConfig?.REFRESH_BUFFER_DELAY ?? 5000; // 默认5秒缓冲延迟
-        
-        // 用于并发选点时的原子排序辅助（自增序列）
+
+        this.activeProviderRefreshes = 0;
+        this.globalRefreshWaiters = [];
+        this.warmupTarget = options.globalConfig?.WARMUP_TARGET || PROVIDER_POOL.DEFAULT_WARMUP_TARGET;
+        this.refreshingUuids = new Set();
+        this.refreshQueues = {};
+        this.refreshBufferQueues = {};
+        this.refreshBufferTimers = {};
+        this.bufferDelay = options.globalConfig?.REFRESH_BUFFER_DELAY ?? PROVIDER_POOL.DEFAULT_REFRESH_BUFFER_DELAY_MS;
         this._selectionSequence = 0;
- 
+
         this.initializeProviderStatus();
     }
 
@@ -90,21 +78,8 @@ export class ProviderPoolManager {
             for (const providerStatus of providers) {
                 const config = providerStatus.config;
                 
-                // 根据 providerType 确定配置文件路径字段名
-                let configPath = null;
-                if (providerType.startsWith('claude-kiro')) {
-                    configPath = config.KIRO_OAUTH_CREDS_FILE_PATH;
-                } else if (providerType.startsWith('gemini-cli')) {
-                    configPath = config.GEMINI_OAUTH_CREDS_FILE_PATH;
-                } else if (providerType.startsWith('gemini-antigravity')) {
-                    configPath = config.ANTIGRAVITY_OAUTH_CREDS_FILE_PATH;
-                } else if (providerType.startsWith('openai-qwen')) {
-                    configPath = config.QWEN_OAUTH_CREDS_FILE_PATH;
-                } else if (providerType.startsWith('openai-iflow')) {
-                    configPath = config.IFLOW_OAUTH_CREDS_FILE_PATH;
-                } else if (providerType.startsWith('openai-codex')) {
-                    configPath = config.CODEX_OAUTH_CREDS_FILE_PATH;
-                }
+                // 使用配置映射表获取配置文件路径
+                const configPath = this._getOAuthConfigPath(providerType, config);
                 
                 // logger.info(`Checking node ${providerStatus.uuid} (${providerType}) expiry date... configPath: ${configPath}`);
                 // 排除不健康和禁用的节点
@@ -2152,6 +2127,22 @@ export class ProviderPoolManager {
         } catch (error) {
             this._log('error', `Failed to write provider_pools.json: ${error.message}`);
         }
+    }
+
+    /**
+     * 根据 providerType 获取 OAuth 配置文件路径
+     * @param {string} providerType - 提供商类型
+     * @param {object} config - 提供商配置对象
+     * @returns {string|null} 配置文件路径
+     * @private
+     */
+    _getOAuthConfigPath(providerType, config) {
+        for (const [prefix, pathKey] of Object.entries(OAUTH_CONFIG_PATH_MAP)) {
+            if (providerType.startsWith(prefix)) {
+                return config[pathKey] || null;
+            }
+        }
+        return null;
     }
 
 }
