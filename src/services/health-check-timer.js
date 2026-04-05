@@ -9,9 +9,9 @@ import { HEALTH_CHECK } from '../utils/constants.js';
 
 // 使用模块级私有变量存储状态，避免全局污染
 let timerState = {
-    isRunning: false,
     timerId: null,
-    activeInterval: null
+    activeInterval: null,
+    checkPromise: null
 };
 
 // 记录每个 providerType 上次检查时间（毫秒）
@@ -47,15 +47,20 @@ async function executeHealthCheck() {
         }
     }
 
-    // 防止内存泄漏：限制 Map 大小
+    // 防止内存泄漏：限制 Map 大小（仅在超过阈值时清理）
     if (lastCheckTimes.size > HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES) {
         logger.warn(`[HealthCheckTimer] lastCheckTimes Map size (${lastCheckTimes.size}) exceeds limit, clearing oldest entries`);
-        // 保留最近使用的条目
-        const entries = Array.from(lastCheckTimes.entries())
-            .sort((a, b) => b[1] - a[1]) // 按时间戳降序排序
-            .slice(0, Math.floor(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES * 0.8)); // 保留80%
-        lastCheckTimes.clear();
-        entries.forEach(([key, value]) => lastCheckTimes.set(key, value));
+        // 使用更高效的清理策略：只删除最旧的20%条目
+        const targetSize = Math.floor(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES * 0.8);
+        const entriesToRemove = lastCheckTimes.size - targetSize;
+
+        // 找出最旧的条目并删除
+        const entries = Array.from(lastCheckTimes.entries());
+        entries.sort((a, b) => a[1] - b[1]); // 按时间戳升序排序
+
+        for (let i = 0; i < entriesToRemove; i++) {
+            lastCheckTimes.delete(entries[i][0]);
+        }
     }
 
     // 并行执行各类型健康检查，限制并发数
@@ -69,8 +74,8 @@ async function executeHealthCheck() {
             const lastTime = lastCheckTimes.get(providerType) || 0;
             const checkStartTime = Date.now();
 
-            // 添加随机抖动，防止时序攻击（增加抖动使间隔略长于配置值）
-            const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS);
+            // 添加双向随机抖动，防止时序攻击（±jitter）
+            const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS * 2) - HEALTH_CHECK.JITTER_MS;
 
             if (checkStartTime - lastTime < effectiveInterval + jitter) {
                 // 跳过检查是正常行为，不需要记录日志
@@ -100,9 +105,6 @@ export function startHealthCheckTimer(interval) {
 
     const state = _getState();
 
-    // 重置运行状态
-    state.isRunning = false;
-
     // 验证并规范化间隔时间（范围：60秒 ~ 48小时）
     let safeInterval = HEALTH_CHECK.DEFAULT_INTERVAL_MS;
     if (typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS) {
@@ -110,16 +112,13 @@ export function startHealthCheckTimer(interval) {
     }
 
     state.timerId = setInterval(async () => {
-        if (state.isRunning) {
-            // 跳过检查是正常行为，不需要记录日志
+        // 使用 Promise 确保原子性，防止竞态条件
+        if (state.checkPromise) {
             return;
         }
-        state.isRunning = true;
-        try {
-            await executeHealthCheck();
-        } finally {
-            state.isRunning = false;
-        }
+        state.checkPromise = executeHealthCheck().finally(() => {
+            state.checkPromise = null;
+        });
     }, safeInterval);
 
     state.activeInterval = safeInterval;
@@ -157,7 +156,7 @@ export function getHealthCheckTimerStatus() {
     const state = _getState();
     return {
         isActive: state.timerId !== null,
-        isRunning: state.isRunning,
+        isRunning: state.checkPromise !== null,
         interval: state.activeInterval
     };
 }
@@ -177,14 +176,19 @@ export function updateHealthCheckTimers(scheduledConfig) {
 
 /**
  * 在启动时执行一次健康检查
+ * @returns {Promise<void>}
  */
-export async function runStartupHealthCheck() {
+export function runStartupHealthCheck() {
     logger.info('[HealthCheckTimer] Running startup health check...');
-    setTimeout(async () => {
-        try {
-            await executeHealthCheck();
-        } catch (error) {
-            logger.error('[HealthCheckTimer] Startup health check error:', error);
-        }
-    }, 100);
+    return new Promise((resolve) => {
+        setTimeout(async () => {
+            try {
+                await executeHealthCheck();
+                resolve();
+            } catch (error) {
+                logger.error('[HealthCheckTimer] Startup health check error:', error);
+                resolve();
+            }
+        }, 100);
+    });
 }

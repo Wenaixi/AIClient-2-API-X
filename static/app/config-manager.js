@@ -1,6 +1,6 @@
 // 配置管理模块
 
-import { showToast, formatUptime, msToHms, hmsToMs } from './utils.js';
+import { showToast, formatUptime, msToHms, hmsToMs, escapeHtml } from './utils.js';
 import { handleProviderChange, handleGeminiCredsTypeChange, handleKiroCredsTypeChange } from './event-handlers.js';
 import { loadProviders } from './provider-manager.js';
 import { t } from './i18n.js';
@@ -52,12 +52,11 @@ function updateConfigProviderConfigs(configs) {
 function renderProviderTags(container, configs, isRequired) {
     // 过滤掉不可见的提供商
     const visibleConfigs = configs.filter(c => c.visible !== false);
-    
-    const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
     container.innerHTML = visibleConfigs.map(c => `
-        <button type="button" class="provider-tag" data-value="${escHtml(c.id)}">
-            <i class="fas ${escHtml(c.icon || 'fa-server')}"></i>
-            <span>${escHtml(c.name)}</span>
+        <button type="button" class="provider-tag" data-value="${escapeHtml(c.id)}">
+            <i class="fas ${escapeHtml(c.icon || 'fa-server')}"></i>
+            <span>${escapeHtml(c.name)}</span>
         </button>
     `).join('');
     
@@ -609,10 +608,10 @@ function renderCustomIntervalsList() {
         const safeId = providerType.replace(/[^a-zA-Z0-9]/g, '_');
 
         return `
-            <div class="custom-interval-item" data-provider-type="${escHtml(providerType)}">
+            <div class="custom-interval-item" data-provider-type="${escapeHtml(providerType)}">
                 <div class="provider-info">
                     <i class="${info.icon}"></i>
-                    <span class="provider-name">${escHtml(info.name)}</span>
+                    <span class="provider-name">${escapeHtml(info.name)}</span>
                 </div>
                 <div class="interval-badge">${intervalStr}</div>
                 <div class="item-actions">

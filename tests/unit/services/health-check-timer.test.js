@@ -13,7 +13,7 @@ import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globa
 const HEALTH_CHECK = {
   MIN_INTERVAL_MS: 60000,
   DEFAULT_INTERVAL_MS: 600000,
-  MAX_INTERVAL_MS: 3600000
+  MAX_INTERVAL_MS: 172800000
 };
 
 /**
@@ -21,7 +21,7 @@ const HEALTH_CHECK = {
  */
 class TestableHealthCheckTimer {
   constructor() {
-    this.isRunning = false;
+    this.checkPromise = null;
     this.timerId = null;
     this.activeInterval = null;
   }
@@ -30,21 +30,17 @@ class TestableHealthCheckTimer {
     if (this.timerId) {
       clearInterval(this.timerId);
     }
-    this.isRunning = false;
 
     const safeInterval =
       typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS
-        ? interval
+        ? Math.min(interval, HEALTH_CHECK.MAX_INTERVAL_MS)
         : HEALTH_CHECK.DEFAULT_INTERVAL_MS;
 
     this.timerId = setInterval(() => {
-      if (this.isRunning) return;
-      this.isRunning = true;
-      try {
-        // 模拟健康检查
-      } finally {
-        this.isRunning = false;
-      }
+      if (this.checkPromise) return;
+      this.checkPromise = Promise.resolve().finally(() => {
+        this.checkPromise = null;
+      });
     }, safeInterval);
 
     this.activeInterval = safeInterval;
@@ -67,7 +63,7 @@ class TestableHealthCheckTimer {
   getStatus() {
     return {
       isActive: this.timerId !== null,
-      isRunning: this.isRunning,
+      isRunning: this.checkPromise !== null,
       interval: this.activeInterval
     };
   }
