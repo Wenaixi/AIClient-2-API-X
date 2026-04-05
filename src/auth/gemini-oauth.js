@@ -222,10 +222,14 @@ async function createOAuthCallbackServer(config, redirectUri, authClient, credPa
                         const relativePath = path.relative(process.cwd(), finalCredPath);
 
                         // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-                        await autoLinkProviderConfigs(CONFIG, {
-                            onlyCurrentCred: true,
-                            credPath: relativePath
-                        });
+                        try {
+                            await autoLinkProviderConfigs(CONFIG, {
+                                onlyCurrentCred: true,
+                                credPath: relativePath
+                            });
+                        } catch (err) {
+                            logger.warn('[Gemini OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                        }
 
                         // 广播授权成功事件
                         broadcastEvent('oauth_success', {
@@ -533,10 +537,14 @@ export async function batchImportGeminiTokensStream(providerType, tokens, onProg
             results.success++;
 
             // 自动关联新生成的凭据到 Pools
-            await autoLinkProviderConfigs(CONFIG, {
-                onlyCurrentCred: true,
-                credPath: relativePath
-            });
+            try {
+                await autoLinkProviderConfigs(CONFIG, {
+                    onlyCurrentCred: true,
+                    credPath: relativePath
+                });
+            } catch (err) {
+                logger.warn('[Gemini OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+            }
             
         } catch (error) {
             logger.error(`${config.logPrefix} Token ${i + 1} 导入失败:`, error.message);

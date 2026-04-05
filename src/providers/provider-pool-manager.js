@@ -1482,10 +1482,9 @@ export class ProviderPoolManager {
      * Marks a provider as healthy.
      * @param {string} providerType - The type of the provider.
      * @param {object} providerConfig - The configuration of the provider to mark.
-     * @param {boolean} resetUsageCount - Whether to reset usage count (optional, default: false).
      * @param {string} [healthCheckModel] - Optional model name used for health check.
      */
-    markProviderHealthy(providerType, providerConfig, resetUsageCount = false, healthCheckModel = null) {
+    markProviderHealthy(providerType, providerConfig, healthCheckModel = null) {
         if (!providerConfig?.uuid) {
             this._log('error', 'Invalid providerConfig in markProviderHealthy');
             return;
@@ -1509,18 +1508,9 @@ export class ProviderPoolManager {
                 provider.config.lastHealthCheckModel = healthCheckModel;
             }
 
-            // 只有在明确要求重置使用计数时才重置，不再递增
-            // usageCount 的统一递增点在 releaseSlot() 中（请求完成时）
-            if (resetUsageCount) {
-                provider.config.usageCount = 0;
-            }
-            
-            // 健康状态变化日志
             if (!wasHealthy) {
                 this._logHealthStatusChange(providerType, provider.config, 'unhealthy', 'healthy', null);
             }
-            
-            this._log('info', `Marked provider as healthy: ${provider.config.uuid} for type ${providerType}${resetUsageCount ? ' (usage count reset)' : ''}`);
             
             this._debouncedSave(providerType);
         }
@@ -1757,11 +1747,11 @@ export class ProviderPoolManager {
                         if (!providerStatus.config.isHealthy) {
                             // Provider was unhealthy but is now healthy
                             // 恢复健康时不重置使用计数，保持原有值
-                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, healthResult.modelName);
                             this._log('info', `Health check for ${providerConfig.uuid} (${providerType}): Marked Healthy (actual check)`);
                         } else {
                             // Provider was already healthy and still is
-                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, healthResult.modelName);
                             this._log('debug', `Health check for ${providerConfig.uuid} (${providerType}): Still Healthy`);
                         }
                     } else {
@@ -1859,7 +1849,7 @@ export class ProviderPoolManager {
                         return { success: false, providerType: pType };
                     } else {
                         this._log('debug', `[ScheduledHealthCheck] ${displayName} (${pType}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
-                        this.markProviderHealthy(pType, provider.config, false, result.modelName);
+                        this.markProviderHealthy(pType, provider.config, result.modelName);
                         return { success: true, providerType: pType };
                     }
                 } catch (error) {
@@ -1951,7 +1941,7 @@ export class ProviderPoolManager {
                 } else {
                     successCount++;
                     this._log('info', `[ScheduledHealthCheck] ${displayName} (${pt}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
-                    this.markProviderHealthy(pt, provider.config, false, result.modelName);
+                    this.markProviderHealthy(pt, provider.config, result.modelName);
                 }
             } catch (error) {
                 const checkDuration = Date.now() - providerCheckStart;

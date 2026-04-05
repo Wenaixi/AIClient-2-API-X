@@ -442,10 +442,14 @@ async function pollKiroBuilderIDToken(clientId, clientSecret, deviceCode, interv
                 activeKiroPollingTasks.delete(taskId);
 
                 // 自动关联新生成的凭据到 Pools（必须在广播前完成，否则前端刷新时拿不到新数据）
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: path.relative(process.cwd(), credPath)
-                });
+                try {
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: path.relative(process.cwd(), credPath)
+                    });
+                } catch (err) {
+                    logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                }
 
                 // 广播成功事件
                 broadcastEvent('oauth_success', {
@@ -632,10 +636,14 @@ function createKiroHttpCallbackServer(port, codeVerifier, expectedState, options
                     logger.info(`${KIRO_OAUTH_CONFIG.logPrefix} 令牌已保存: ${credPath}`);
 
                     // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-                    await autoLinkProviderConfigs(CONFIG, {
-                        onlyCurrentCred: true,
-                        credPath: path.relative(process.cwd(), credPath)
-                    });
+                    try {
+                        await autoLinkProviderConfigs(CONFIG, {
+                            onlyCurrentCred: true,
+                            credPath: path.relative(process.cwd(), credPath)
+                        });
+                    } catch (err) {
+                        logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                    }
 
                     // 广播成功事件
                     broadcastEvent('oauth_success', {
@@ -891,10 +899,14 @@ export async function batchImportKiroRefreshTokens(refreshTokens, region = KIRO_
     if (results.success > 0) {
         for (const detail of results.details) {
             if (detail.success && detail.path) {
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: detail.path
-                });
+                try {
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: detail.path
+                    });
+                } catch (err) {
+                    logger.warn(`[Kiro OAuth] autoLink failed for ${detail.path}:`, err.message);
+                }
             }
         }
 
@@ -1030,10 +1042,14 @@ export async function batchImportKiroRefreshTokensStream(refreshTokens, region =
     if (results.success > 0) {
         for (const detail of results.details) {
             if (detail.success && detail.path) {
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: detail.path
-                });
+                try {
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: detail.path
+                    });
+                } catch (err) {
+                    logger.warn(`[Kiro OAuth] autoLink failed for ${detail.path}:`, err.message);
+                }
             }
         }
 
@@ -1155,10 +1171,14 @@ export async function importAwsCredentials(credentials, skipDuplicateCheck = fal
         logger.info(`${KIRO_OAUTH_CONFIG.logPrefix} AWS credentials saved to: ${relativePath}`);
 
         // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-        await autoLinkProviderConfigs(CONFIG, {
-            onlyCurrentCred: true,
-            credPath: relativePath
-        });
+        try {
+            await autoLinkProviderConfigs(CONFIG, {
+                onlyCurrentCred: true,
+                credPath: relativePath
+            });
+        } catch (err) {
+            logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+        }
 
         // 广播事件
         broadcastEvent('oauth_success', {

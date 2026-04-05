@@ -706,16 +706,25 @@ export const serviceInstances = {};
 
 /**
  * 通过前缀查找适配器（支持 openai-custom-1 → openai-custom）
+ * 优先最长前缀匹配，避免 openai-custom 和 openai-custom-foo 时误匹配
  * @param {string} provider - 提供商名称
  * @returns {Function|null} - 适配器类或 null
  */
 function findAdapterByPrefix(provider) {
+    let bestMatch = null;
+    let bestLen = -1;
     for (const [key, value] of adapterRegistry.entries()) {
-        if (provider === key || provider.startsWith(key + '-')) {
+        if (provider === key) {
             return value;
         }
+        if (provider.startsWith(key + '-')) {
+            if (key.length > bestLen) {
+                bestLen = key.length;
+                bestMatch = value;
+            }
+        }
     }
-    return null;
+    return bestMatch;
 }
 
 /**

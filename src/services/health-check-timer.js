@@ -43,12 +43,19 @@ async function executeHealthCheck() {
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
     const customIntervals = config.customIntervals || {};
-    const providerTypes = config.providerTypes || [];
+    const configuredProviderTypes = new Set(config.providerTypes || []);
     const now = Date.now();
     const lastCheckTimes = _getLastCheckTimes();
 
+    // Clean up stale entries for providerTypes no longer in config
+    for (const key of lastCheckTimes.keys()) {
+        if (!configuredProviderTypes.has(key)) {
+            lastCheckTimes.delete(key);
+        }
+    }
+
     // 并行执行各类型健康检查
-    const checkPromises = providerTypes.map(async (providerType) => {
+    const checkPromises = config.providerTypes.map(async (providerType) => {
         const customInterval = customIntervals[providerType];
         const effectiveInterval = customInterval ?? globalInterval;
 

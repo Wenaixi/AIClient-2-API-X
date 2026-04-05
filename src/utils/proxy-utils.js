@@ -54,6 +54,18 @@ export function parseProxyUrl(proxyUrl) {
 }
 
 /**
+ * 检查 providerType 是否在列表中（支持前缀匹配）
+ * @param {string} providerType - 提供商类型
+ * @param {string[]} list - 列表
+ * @returns {boolean} 是否匹配
+ */
+function matchesProviderPrefix(providerType, list) {
+    if (!Array.isArray(list)) return false;
+    if (list.includes(providerType)) return true;
+    return list.some(p => providerType.startsWith(p + '-'));
+}
+
+/**
  * 检查指定的提供商是否启用了代理（支持前缀匹配）
  * @param {Object} config - 配置对象
  * @param {string} providerType - 提供商类型
@@ -64,18 +76,7 @@ export function isProxyEnabledForProvider(config, providerType) {
         return false;
     }
 
-    const enabledProviders = config.PROXY_ENABLED_PROVIDERS;
-    if (!Array.isArray(enabledProviders)) {
-        return false;
-    }
-
-    // 1. 尝试精确匹配
-    if (enabledProviders.includes(providerType)) {
-        return true;
-    }
-
-    // 2. 尝试前缀匹配 (例如 openai-custom-prod 继承 openai-custom 的配置)
-    return enabledProviders.some(p => providerType.startsWith(p + '-'));
+    return matchesProviderPrefix(providerType, config.PROXY_ENABLED_PROVIDERS);
 }
 
 /**
@@ -128,18 +129,7 @@ export function isTLSSidecarEnabledForProvider(config, providerType) {
         return false;
     }
 
-    const enabledProviders = config.TLS_SIDECAR_ENABLED_PROVIDERS;
-    if (!Array.isArray(enabledProviders)) {
-        return false;
-    }
-
-    // 1. 尝试精确匹配
-    if (enabledProviders.includes(providerType)) {
-        return true;
-    }
-
-    // 2. 尝试前缀匹配
-    return enabledProviders.some(p => providerType.startsWith(p + '-'));
+    return matchesProviderPrefix(providerType, config.TLS_SIDECAR_ENABLED_PROVIDERS);
 }
 
 /**

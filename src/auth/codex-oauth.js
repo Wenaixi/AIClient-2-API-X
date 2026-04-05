@@ -905,10 +905,14 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
                 global.codexOAuthSessions.delete(sessionId);
 
                 // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: credentials.relativePath
-                });
+                try {
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: credentials.relativePath
+                    });
+                } catch (err) {
+                    logger.warn('[Codex Auth] autoLinkProviderConfigs failed, continuing with OAuth success:', err.message);
+                }
 
                 // 广播认证成功事件
                 broadcastEvent('oauth_success', {
@@ -1012,10 +1016,14 @@ export async function handleCodexOAuthCallback(code, state) {
         global.codexOAuthSessions.delete(state);
 
         // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-        await autoLinkProviderConfigs(CONFIG, {
-            onlyCurrentCred: true,
-            credPath: result.relativePath
-        });
+        try {
+            await autoLinkProviderConfigs(CONFIG, {
+                onlyCurrentCred: true,
+                credPath: result.relativePath
+            });
+        } catch (err) {
+            logger.warn('[Codex Auth] autoLinkProviderConfigs failed, continuing with OAuth success:', err.message);
+        }
 
         // 广播认证成功事件（与 gemini 格式一致）
         broadcastEvent('oauth_success', {

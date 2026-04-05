@@ -119,15 +119,20 @@ export function getProviderModels(providerType) {
     if (PROVIDER_MODELS[providerType]) {
         return PROVIDER_MODELS[providerType];
     }
-    
-    // 尝试前缀匹配 (例如 openai-custom-1 -> openai-custom)
+
+    // 尝试前缀匹配，优先最长前缀 (例如 openai-custom-1 -> openai-custom)
+    let bestMatch = null;
+    let bestLen = -1;
     for (const key of Object.keys(PROVIDER_MODELS)) {
         if (providerType.startsWith(key + '-')) {
-            return PROVIDER_MODELS[key];
+            if (key.length > bestLen) {
+                bestLen = key.length;
+                bestMatch = key;
+            }
         }
     }
-    
-    return [];
+
+    return bestMatch ? PROVIDER_MODELS[bestMatch] : [];
 }
 
 /**
