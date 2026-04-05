@@ -635,30 +635,34 @@ export class ProviderPoolManager {
                 this._selectionLocks[providerType] = Promise.resolve();
             }
             this.providerPools[providerType].forEach((providerConfig) => {
-                // 尝试从旧状态中恢复活跃请求计数和队列，避免重载配置时重置并发限制
+                // 尝试从旧状态中恢复运行时数据，避免重载配置时重置累计值
                 const existing = oldStatus.find(p => p.uuid === providerConfig.uuid);
 
                 // Ensure initial health and usage stats are present in the config
-                providerConfig.isHealthy = providerConfig.isHealthy !== undefined ? providerConfig.isHealthy : true;
-                providerConfig.isDisabled = providerConfig.isDisabled !== undefined ? providerConfig.isDisabled : false;
-                providerConfig.lastUsed = providerConfig.lastUsed !== undefined ? providerConfig.lastUsed : null;
-                providerConfig.usageCount = providerConfig.usageCount !== undefined ? providerConfig.usageCount : 0;
-                providerConfig.errorCount = providerConfig.errorCount !== undefined ? providerConfig.errorCount : 0;
-                
+                // 优先从内存中的 existing 恢复运行时累计值，其次使用磁盘初始值
+                providerConfig.isHealthy = existing ? existing.config.isHealthy : (providerConfig.isHealthy !== undefined ? providerConfig.isHealthy : true);
+                providerConfig.isDisabled = existing ? existing.config.isDisabled : (providerConfig.isDisabled !== undefined ? providerConfig.isDisabled : false);
+                providerConfig.lastUsed = existing ? existing.config.lastUsed : (providerConfig.lastUsed !== undefined ? providerConfig.lastUsed : null);
+                providerConfig.usageCount = existing ? existing.config.usageCount : (providerConfig.usageCount !== undefined ? providerConfig.usageCount : 0);
+                providerConfig.errorCount = existing ? existing.config.errorCount : (providerConfig.errorCount !== undefined ? providerConfig.errorCount : 0);
+
                 // --- V2: 刷新监控字段 ---
-                providerConfig.needsRefresh = providerConfig.needsRefresh !== undefined ? providerConfig.needsRefresh : false;
-                providerConfig.refreshCount = providerConfig.refreshCount !== undefined ? providerConfig.refreshCount : 0;
-                
+                providerConfig.needsRefresh = existing ? existing.config.needsRefresh : (providerConfig.needsRefresh !== undefined ? providerConfig.needsRefresh : false);
+                providerConfig.refreshCount = existing ? existing.config.refreshCount : (providerConfig.refreshCount !== undefined ? providerConfig.refreshCount : 0);
+                providerConfig.lastRefreshTime = existing ? existing.config.lastRefreshTime : (providerConfig.lastRefreshTime !== undefined ? providerConfig.lastRefreshTime : null);
+
                 // 优化2: 简化 lastErrorTime 处理逻辑
-                providerConfig.lastErrorTime = providerConfig.lastErrorTime instanceof Date
+                providerConfig.lastErrorTime = existing ? existing.config.lastErrorTime : (providerConfig.lastErrorTime instanceof Date
                     ? providerConfig.lastErrorTime.toISOString()
-                    : (providerConfig.lastErrorTime || null);
-                
+                    : (providerConfig.lastErrorTime || null));
+
                 // 健康检测相关字段
-                providerConfig.lastHealthCheckTime = providerConfig.lastHealthCheckTime || null;
-                providerConfig.lastHealthCheckModel = providerConfig.lastHealthCheckModel || null;
-                providerConfig.lastErrorMessage = providerConfig.lastErrorMessage || null;
-                providerConfig.customName = providerConfig.customName || null;
+                providerConfig.lastHealthCheckTime = existing ? existing.config.lastHealthCheckTime : (providerConfig.lastHealthCheckTime || null);
+                providerConfig.lastHealthCheckModel = existing ? existing.config.lastHealthCheckModel : (providerConfig.lastHealthCheckModel || null);
+                providerConfig.lastErrorMessage = existing ? existing.config.lastErrorMessage : (providerConfig.lastErrorMessage || null);
+                providerConfig.customName = existing ? existing.config.customName : (providerConfig.customName || null);
+                providerConfig._lastSelectionSeq = existing ? existing.config._lastSelectionSeq : (providerConfig._lastSelectionSeq || 0);
+                providerConfig.scheduledRecoveryTime = existing ? existing.config.scheduledRecoveryTime : (providerConfig.scheduledRecoveryTime || null);
 
                 this.providerStatus[providerType].push({
                     config: providerConfig,
@@ -1361,15 +1365,7 @@ export class ProviderPoolManager {
         if (provider) {
             const wasHealthy = provider.config.isHealthy;
             const now = Date.now();
-            const lastErrorTime = provider.config.lastErrorTime ? new Date(provider.config.lastErrorTime).getTime() : 0;
-            const errorWindowMs = 10000; // 10 秒窗口期
-
-            // 如果距离上次错误超过窗口期，重置错误计数
-            if (now - lastErrorTime > errorWindowMs) {
-                provider.config.errorCount = 1;
-            } else {
-                provider.config.errorCount++;
-            }
+            provider.config.errorCount++;
 
             provider.config.lastErrorTime = new Date().toISOString();
             // 更新 lastUsed 时间，避免因 LRU 策略导致失败节点被重复选中
@@ -1758,12 +1754,11 @@ export class ProviderPoolManager {
                         if (!providerStatus.config.isHealthy) {
                             // Provider was unhealthy but is now healthy
                             // 恢复健康时不重置使用计数，保持原有值
-                            this.markProviderHealthy(providerType, providerConfig, true, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
                             this._log('info', `Health check for ${providerConfig.uuid} (${providerType}): Marked Healthy (actual check)`);
                         } else {
                             // Provider was already healthy and still is
-                            // 只在初始化时重置使用计数
-                            this.markProviderHealthy(providerType, providerConfig, true, healthResult.modelName);
+                            this.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
                             this._log('debug', `Health check for ${providerConfig.uuid} (${providerType}): Still Healthy`);
                         }
                     } else {
@@ -1841,7 +1836,11 @@ export class ProviderPoolManager {
         
         for (const { providerType, provider, uuid, customName } of providersToCheck) {
             const providerCheckStart = Date.now();
-            const checkModelName = provider.config.checkModelName || ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] || 'unknown';
+            const baseProviderType = this._getBaseProviderType(providerType);
+            const checkModelName = provider.config.checkModelName || 
+                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] || 
+                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] || 
+                                'unknown';
             const displayName = customName || uuid.substring(0, 8);
 
             try {
@@ -1870,6 +1869,92 @@ export class ProviderPoolManager {
         
         const totalDuration = Date.now() - checkStartTime;
         this._log('info', `[ScheduledHealthCheck] Completed: ${successCount} passed, ${failCount} failed, ${totalDuration}ms total`);
+    }
+
+    /**
+     * Performs health checks for a specific provider type.
+     * This method is designed to be called by per-type timers.
+     * @param {string} providerType - The provider type to check
+     */
+    async performHealthChecksByType(providerType) {
+        const scheduledConfig = this.globalConfig?.SCHEDULED_HEALTH_CHECK;
+        const checkStartTime = Date.now();
+
+        // Check if scheduled health checks are disabled
+        if (!scheduledConfig?.enabled) {
+            this._log('debug', `[ScheduledHealthCheck] Scheduled health checks are disabled via configuration`);
+            return;
+        }
+
+        // Get selected provider types
+        const selectedProviderTypes = scheduledConfig?.providerTypes;
+
+        // Validate providerTypes is an array and includes this providerType
+        if (!Array.isArray(selectedProviderTypes) || !selectedProviderTypes.includes(providerType)) {
+            this._log('debug', `[ScheduledHealthCheck] Provider type ${providerType} not in selected types, skipping`);
+            return;
+        }
+
+        // Get the interval for this provider type (for logging)
+        const defaultInterval = scheduledConfig.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
+        const overrides = scheduledConfig.overrides || {};
+        const interval = overrides[providerType] || defaultInterval;
+
+        // Collect providers of this type to check
+        const providersToCheck = [];
+
+        if (!this.providerStatus[providerType]) {
+            this._log('debug', `[ScheduledHealthCheck] No providers found for type ${providerType}`);
+            return;
+        }
+
+        for (const provider of this.providerStatus[providerType]) {
+            // Skip manually disabled providers
+            if (provider.config.isDisabled === true) {
+                this._log('debug', `[ScheduledHealthCheck] Skipping ${provider.config.uuid} (${providerType}): manually disabled`);
+                continue;
+            }
+            providersToCheck.push({ providerType, provider, uuid: provider.config.uuid, customName: provider.config.customName });
+        }
+
+        if (providersToCheck.length === 0) {
+            this._log('debug', `[ScheduledHealthCheck] No enabled providers for type ${providerType}`);
+            return;
+        }
+
+        this._log('info', `[ScheduledHealthCheck] Starting health check for ${providerType}: ${providersToCheck.length} provider(s) (interval: ${interval}ms)`);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const { providerType: pt, provider, uuid, customName } of providersToCheck) {
+            const providerCheckStart = Date.now();
+            const checkModelName = provider.config.checkModelName || ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[pt] || 'unknown';
+            const displayName = customName || uuid.substring(0, 8);
+
+            try {
+                const result = await this._checkProviderHealth(pt, provider.config);
+                const checkDuration = Date.now() - providerCheckStart;
+
+                if (!result.success) {
+                    failCount++;
+                    this._log('warn', `[ScheduledHealthCheck] ${displayName} (${pt}) FAILED: ${result.errorMessage || 'Provider is not responding correctly.'} (${checkDuration}ms)`);
+                    this.markProviderUnhealthyImmediately(pt, provider.config, result.errorMessage);
+                } else {
+                    successCount++;
+                    this._log('info', `[ScheduledHealthCheck] ${displayName} (${pt}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
+                    this.markProviderHealthy(pt, provider.config, false, result.modelName);
+                }
+            } catch (error) {
+                const checkDuration = Date.now() - providerCheckStart;
+                failCount++;
+                this._log('error', `[ScheduledHealthCheck] ${displayName} (${pt}) EXCEPTION: ${error.message} (${checkDuration}ms)`);
+                this.markProviderUnhealthyImmediately(pt, provider.config, error.message);
+            }
+        }
+
+        const totalDuration = Date.now() - checkStartTime;
+        this._log('info', `[ScheduledHealthCheck] ${providerType} completed: ${successCount} passed, ${failCount} failed, ${totalDuration}ms total`);
     }
 
     /**
@@ -1903,7 +1988,7 @@ export class ProviderPoolManager {
         }
         
         // OpenAI Custom Responses 使用特殊格式
-        if (providerType === MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES) {
+        if (this._getBaseProviderType(providerType) === MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES) {
             requests.push({
                 input: [baseMessage],
                 model: modelName
@@ -1921,6 +2006,26 @@ export class ProviderPoolManager {
     }
 
     /**
+     * 根据提供商类型获取基准提供商类型（用于查找配置和模型）
+     * 例如：openai-custom-1 -> openai-custom
+     * @private
+     */
+    _getBaseProviderType(providerType) {
+        if (ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType]) {
+            return providerType;
+        }
+        
+        // 尝试前缀匹配
+        for (const key of Object.keys(ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS)) {
+            if (providerType === key || providerType.startsWith(key + '-')) {
+                return key;
+            }
+        }
+        
+        return providerType;
+    }
+
+    /**
      * Performs an actual health check for a specific provider.
      * 
      * 设计决策：不检查 providerConfig.checkHealth 标志。
@@ -1934,8 +2039,10 @@ export class ProviderPoolManager {
      */
     async _checkProviderHealth(providerType, providerConfig) {
         // 确定健康检查使用的模型名称
+        const baseProviderType = this._getBaseProviderType(providerType);
         const modelName = providerConfig.checkModelName ||
-                        ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType];
+                        ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] ||
+                        ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType];
 
         if (!modelName) {
             this._log('warn', `Unknown provider type for health check: ${providerType}. Please check DEFAULT_HEALTH_CHECK_MODELS.`);

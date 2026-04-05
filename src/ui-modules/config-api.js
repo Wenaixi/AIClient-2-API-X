@@ -9,6 +9,7 @@ import { initApiService } from '../services/service-manager.js';
 import { getRequestBody } from '../utils/common.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { HEALTH_CHECK, PASSWORD, NETWORK, RETRY } from '../utils/constants.js';
+import { reloadHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } from '../services/health-check-timer.js';
 
 /**
  * 重载配置文件
@@ -220,32 +221,32 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 return isNaN(val) ? HEALTH_CHECK.DEFAULT_INTERVAL_MS : Math.max(HEALTH_CHECK.MIN_INTERVAL_MS, Math.min(HEALTH_CHECK.MAX_INTERVAL_MS, val));
             })();
 
-            // 先保存旧的 interval 用于比较
-            const oldInterval = globalThis._activeHealthCheckInterval;
+            // 获取当前计时器状态用于比较
+            const currentStatus = getHealthCheckTimerStatus();
+            const oldInterval = currentStatus.interval;
 
-            // 更新配置
+            // 更新配置 - 使用深度合并避免丢失其他字段
             currentConfig.SCHEDULED_HEALTH_CHECK = {
+                ...currentConfig.SCHEDULED_HEALTH_CHECK,
                 enabled: nowEnabled,
                 startupRun: incoming?.startupRun !== false,
                 interval: newInterval,
-                providerTypes: Array.isArray(incoming?.providerTypes) ? incoming.providerTypes : []
+                providerTypes: Array.isArray(incoming?.providerTypes) ? incoming.providerTypes : [],
+                customIntervals: incoming?.customIntervals || {}
             };
 
             // 处理 timer 状态变化
             // 当 enabled 从 true -> false 时，清除 timer
-            if (wasEnabled && !nowEnabled && globalThis.stopHealthCheckTimer) {
-                globalThis.stopHealthCheckTimer();
-                globalThis._activeHealthCheckInterval = undefined;
+            if (wasEnabled && !nowEnabled) {
+                stopHealthCheckTimer();
             }
             // 当 enabled 从 false -> true 时，启动 timer
-            else if (!wasEnabled && nowEnabled && globalThis.reloadHealthCheckTimer) {
-                globalThis._activeHealthCheckInterval = newInterval;
-                globalThis.reloadHealthCheckTimer(newInterval);
+            else if (!wasEnabled && nowEnabled) {
+                reloadHealthCheckTimer(newInterval);
             }
             // 当 enabled=true 且 interval 变化时，重启 timer
-            else if (nowEnabled && newInterval !== oldInterval && globalThis.reloadHealthCheckTimer) {
-                globalThis._activeHealthCheckInterval = newInterval;
-                globalThis.reloadHealthCheckTimer(newInterval);
+            else if (nowEnabled && newInterval !== oldInterval) {
+                reloadHealthCheckTimer(newInterval);
             }
         }
 

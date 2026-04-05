@@ -19,6 +19,19 @@ import { MODEL_PROVIDER } from '../utils/common.js';
 let providerPoolManager = null;
 
 /**
+ * 检查是否存在给定提供商类型的号池配置
+ * 同时检查 config（启动时静态加载）和 providerPoolManager（运行时 UI 可能更新）
+ * @param {Object} config - 配置对象
+ * @param {Object} providerPoolManager - ProviderPoolManager 实例
+ * @param {string} providerType - 提供商类型
+ * @returns {boolean}
+ */
+function hasProviderPools(config, providerPoolManager, providerType) {
+    return (config.providerPools && config.providerPools[providerType]) ||
+           (providerPoolManager && providerPoolManager.providerPools && providerPoolManager.providerPools[providerType]);
+}
+
+/**
  * 扫描 configs 目录并自动关联未关联的配置文件到对应的提供商
  * @param {Object} config - 服务器配置对象
  * @param {Object} options - 可选参数
@@ -398,7 +411,7 @@ export async function getApiService(config, requestedModel = null, options = {})
     if (effectiveProvider === MODEL_PROVIDER.AUTO && !actualModelName) return null;
 
     let serviceConfig = config;
-    if (providerPoolManager && config.providerPools && config.providerPools[config.MODEL_PROVIDER]) {
+    if (providerPoolManager && hasProviderPools(config, providerPoolManager, config.MODEL_PROVIDER)) {
         // 如果有号池管理器，并且当前模型提供者类型有对应的号池，则从号池中选择一个提供者配置
         // selectProvider 现在是异步的，使用链式锁确保并发安全
         const selectedProviderConfig = await providerPoolManager.selectProvider(config.MODEL_PROVIDER, actualModelName, { ...options, skipUsageCount: true });
@@ -440,12 +453,12 @@ export async function getApiServiceWithFallback(config, requestedModel = null, o
     }
 
     let serviceConfig = config;
-    let actualProviderType = config.MODEL_PROVIDER;
+    let actualProviderType = effectiveProvider;
     let isFallback = false;
     let selectedUuid = null;
     let actualModel = actualModelName;
-    
-    if (providerPoolManager && config.providerPools && config.providerPools[config.MODEL_PROVIDER]) {
+
+    if (providerPoolManager && hasProviderPools(config, providerPoolManager, config.MODEL_PROVIDER)) {
         // selectProviderWithFallback 现在是异步的，使用链式锁确保并发安全
         // 如果开启了并发限制，则使用 acquireSlot 进行选择和占位
         const useAcquire = options.acquireSlot === true;
@@ -563,7 +576,8 @@ export async function getProviderStatus(config, options = {}) {
         'gemini-antigravity': 'ANTIGRAVITY_OAUTH_CREDS_FILE_PATH',
         'openai-iflow': 'IFLOW_TOKEN_FILE_PATH',
         'forward-api': 'FORWARD_BASE_URL',
-        'grok-custom': 'GROK_COOKIE_TOKEN'
+        'grok-custom': 'GROK_COOKIE_TOKEN',
+        'openai-codex-oauth': 'CODEX_OAUTH_CREDS_FILE_PATH'
     };
     let providerPoolsSlim = [];
     let unhealthyProvideIdentifyList = [];
@@ -575,7 +589,18 @@ export async function getProviderStatus(config, options = {}) {
     for (const key of Object.keys(providerPools)) {
         if (!Array.isArray(providerPools[key])) continue;
         if (filterProvider && key !== filterProvider) continue;
-        const identifyField = identifyFieldMap[key] || null;
+        
+        let identifyField = identifyFieldMap[key] || null;
+        if (!identifyField) {
+            // 尝试通过前缀查找 identifyField (例如 openai-custom-1 -> openai-custom)
+            for (const [prefix, field] of Object.entries(identifyFieldMap)) {
+                if (key.startsWith(prefix + '-')) {
+                    identifyField = field;
+                    break;
+                }
+            }
+        }
+        
         const slimArr = providerPools[key]
             .filter(item => {
                 if (item.isDisabled) return false;

@@ -9,8 +9,8 @@ export const HEALTH_CHECK = {
     MIN_INTERVAL_MS: 60000,
     // 默认检查间隔：10分钟（600000毫秒）
     DEFAULT_INTERVAL_MS: 600000,
-    // 最大检查间隔：1小时（3600000毫秒）- 仅用于前端UI限制
-    MAX_INTERVAL_MS: 3600000
+    // 最大检查间隔：48小时（172800000毫秒）
+    MAX_INTERVAL_MS: 172800000
 };
 
 // 密码安全相关常量

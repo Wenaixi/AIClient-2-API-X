@@ -7,7 +7,7 @@ import { initializeAPIManagement } from './api-manager.js';
 import { createRequestHandler } from '../handlers/request-handler.js';
 import { discoverPlugins, getPluginManager } from '../core/plugin-manager.js';
 import { getTLSSidecar } from '../utils/tls-sidecar.js';
-import { HEALTH_CHECK } from '../utils/constants.js';
+import { startHealthCheckTimer, stopHealthCheckTimer, reloadHealthCheckTimer, runStartupHealthCheck, getHealthCheckTimerStatus, updateHealthCheckTimers } from './health-check-timer.js';
 
 /**
  * @license
@@ -363,81 +363,16 @@ async function startServer() {
         }
 
         // 定时健康检查
-        // 注意：无论初始 enabled 状态如何，都注册 reloadHealthCheckTimer，
-        // 使得热更新时（从 disabled→enabled）config-api 能调用它启动 timer。
         const scheduledConfig = CONFIG.SCHEDULED_HEALTH_CHECK;
         {
-            const DEFAULT_INTERVAL = CONFIG.CRON_NEAR_MINUTES * 60 * 1000;
-
-            let isHealthCheckRunning = false;
-            let healthCheckTimerId = null;
-
-            // 定时健康检查函数（始终注册，无论初始 enabled 状态）
-            const runHealthCheckTimer = (interval) => {
-                // 清除旧的 timer
-                if (healthCheckTimerId) {
-                    clearInterval(healthCheckTimerId);
-                    healthCheckTimerId = null;
-                }
-                // 重置运行状态，允许新的 timer 立即触发
-                // 否则如果 reload 时正在运行，新 timer 的第一次触发会被跳过
-                isHealthCheckRunning = false;
-
-                // 设置定时任务
-                // 设计决策：只验证最小值，不设最大值。
-                // 前端有 max=3600000 (1小时) 的 UI 限制，但后端允许更大值以支持特殊需求。
-                const safeInterval = (typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS) ? interval : DEFAULT_INTERVAL;
-                healthCheckTimerId = setInterval(async () => {
-                    if (isHealthCheckRunning) {
-                        logger.debug('[ScheduledHealthCheck] Skipping - previous run still in progress');
-                        return;
-                    }
-                    isHealthCheckRunning = true;
-                    try {
-                        await poolManager.performHealthChecks();
-                    } catch (error) {
-                        logger.error('[ScheduledHealthCheck] Error:', error);
-                    } finally {
-                        isHealthCheckRunning = false;
-                    }
-                }, safeInterval);
-                logger.info(`[ScheduledHealthCheck] Scheduled every ${safeInterval}ms`);
-                return safeInterval;
-            };
-
-            // 注册重载/停止函数到 globalThis（供 config-api 热更新使用）
-            // 必须在 enabled 检查外注册，保证热更新时可访问
-            globalThis.reloadHealthCheckTimer = runHealthCheckTimer;
-            globalThis.stopHealthCheckTimer = () => {
-                if (healthCheckTimerId) {
-                    clearInterval(healthCheckTimerId);
-                    healthCheckTimerId = null;
-                    logger.info('[ScheduledHealthCheck] Timer stopped');
-                }
-            };
-
             if (scheduledConfig?.enabled) {
-                let interval = scheduledConfig.interval;
-                if (typeof interval !== 'number' || interval < HEALTH_CHECK.MIN_INTERVAL_MS) {
-                    logger.warn(`[ScheduledHealthCheck] Invalid interval ${interval}, using default ${DEFAULT_INTERVAL}`);
-                    interval = DEFAULT_INTERVAL;
-                }
-
-                // 启动时运行健康检查
+                // 启动时运行健康检查（所有类型）
                 if (scheduledConfig.startupRun !== false) {
-                    logger.info('[ScheduledHealthCheck] Running scheduled health check on startup...');
-                    setTimeout(async () => {
-                        try {
-                            await poolManager.performHealthChecks();
-                        } catch (error) {
-                            logger.error('[ScheduledHealthCheck] Startup run error:', error);
-                        }
-                    }, 100);
+                    await runStartupHealthCheck();
                 }
 
-                // 设置定时任务
-                const activeInterval = runHealthCheckTimer(interval);
-                globalThis._activeHealthCheckInterval = activeInterval;
+                // 使用 per-type 定时器
+                updateHealthCheckTimers(scheduledConfig);
             }
         }
 

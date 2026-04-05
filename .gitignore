@@ -16,4 +16,6 @@ api-potluck-data.json
 # Codex credentials
 configs/codex/
 AGENTS.md
+.agent/
 
+coverage/
