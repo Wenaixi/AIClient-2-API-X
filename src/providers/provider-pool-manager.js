@@ -8,6 +8,17 @@ import { convertData } from '../convert/convert.js';
 import { ENDPOINT_TYPE } from '../utils/common.js';
 import { PROVIDER_POOL, OAUTH_CONFIG_PATH_MAP } from '../utils/constants.js';
 
+// 评分相关常量
+const SCORE = {
+    FRESH_NODE_OFFSET: PROVIDER_POOL.FRESH_NODE_BASE_SCORE_OFFSET,
+    USAGE_MULTIPLIER: PROVIDER_POOL.USAGE_SCORE_MULTIPLIER,
+    LOAD_MULTIPLIER: PROVIDER_POOL.LOAD_SCORE_MULTIPLIER,
+    SEQUENCE_MULTIPLIER: PROVIDER_POOL.SEQUENCE_SCORE_MULTIPLIER,
+    MAX_RELATIVE_SEQ: PROVIDER_POOL.MAX_RELATIVE_SEQUENCE,
+    FRESHNESS_WINDOW_MS: PROVIDER_POOL.FRESHNESS_WINDOW_MS,
+    LRU_FALLBACK_MS: PROVIDER_POOL.DEFAULT_LRU_FALLBACK_MS
+};
+
 /**
  * Manages a pool of API service providers, handling their health and selection.
  */
@@ -437,16 +448,16 @@ export class ProviderPoolManager {
         
         // 2. 预热/新鲜度判断
         const lastHealthCheckTime = config.lastHealthCheckTime ? new Date(config.lastHealthCheckTime).getTime() : 0;
-        const isFresh = lastHealthCheckTime && (now - lastHealthCheckTime < 60000);
+        const isFresh = lastHealthCheckTime && (now - lastHealthCheckTime < SCORE.FRESHNESS_WINDOW_MS);
 
         // 3. 计算统一评分
-        // 基础分：新鲜节点使用固定负偏移 (-1e14)，普通节点使用上次使用时间 (约 1.7e12)
-        const lastUsedTime = config.lastUsed ? new Date(config.lastUsed).getTime() : (now - 86400000);
-        const baseScore = isFresh ? -1e14 : lastUsedTime;
+        // 基础分：新鲜节点使用固定负偏移，普通节点使用上次使用时间 (约 1.7e12)
+        const lastUsedTime = config.lastUsed ? new Date(config.lastUsed).getTime() : (now - SCORE.LRU_FALLBACK_MS);
+        const baseScore = isFresh ? SCORE.FRESH_NODE_OFFSET : lastUsedTime;
 
-        // 惩罚项 A: 使用次数 (每多用一次增加 10 秒权重)
+        // 惩罚项 A: 使用次数 (每多用一次增加权重)
         const usageCount = config.usageCount || 0;
-        const usageScore = usageCount * 10000;
+        const usageScore = usageCount * SCORE.USAGE_MULTIPLIER;
 
         // 惩罚项 B: 相对序列号 (用于打破平局，确保轮询)
         const lastSelectionSeq = config._lastSelectionSeq || 0;
@@ -455,11 +466,11 @@ export class ProviderPoolManager {
             minSeqInPool = pool.reduce((min, p) => Math.min(min, p.config._lastSelectionSeq || 0), Infinity);
         }
         const relativeSeq = Math.max(0, lastSelectionSeq - minSeqInPool);
-        const cappedRelativeSeq = Math.min(relativeSeq, 100);
-        const sequenceScore = cappedRelativeSeq * 1000;
+        const cappedRelativeSeq = Math.min(relativeSeq, SCORE.MAX_RELATIVE_SEQ);
+        const sequenceScore = cappedRelativeSeq * SCORE.SEQUENCE_MULTIPLIER;
 
-        // 惩罚项 C: 负载 (每个活跃请求增加 5 秒权重)
-        const loadScore = (state.activeCount || 0) * 5000;
+        // 惩罚项 C: 负载 (每个活跃请求增加权重)
+        const loadScore = (state.activeCount || 0) * SCORE.LOAD_MULTIPLIER;
 
         // 新鲜节点的微调：配合 usageScore 和 sequenceScore 在多个新鲜节点间轮询
         const freshBonus = isFresh ? (now - lastHealthCheckTime) : 0;
@@ -560,7 +571,7 @@ export class ProviderPoolManager {
         try {
             const axios = (await import('axios')).default;
             await axios.post(webhookUrl, payload, {
-                timeout: 5000,
+                timeout: PROVIDER_POOL.WEBHOOK_TIMEOUT_MS,
                 headers: { 'Content-Type': 'application/json' }
             });
             this._log('info', `Health alert sent to webhook for ${customName}: ${status}`);
@@ -696,8 +707,8 @@ export class ProviderPoolManager {
             try {
                 // 等待释放信号
                 await new Promise((resolve, reject) => {
-                    // 设置较短的超时用于测试验证，或者由外部控制
-                    const timeoutMs = options.queueTimeout || 300000;
+                    // 设置队列超时，可由外部控制
+                    const timeoutMs = options.queueTimeout || PROVIDER_POOL.QUEUE_TIMEOUT_MS;
                     const timeout = setTimeout(() => {
                         const idx = state.queue.indexOf(handler);
                         if (idx !== -1) {
@@ -1311,10 +1322,10 @@ export class ProviderPoolManager {
                 return;
             }
 
-            // 防并发机制 B: 如果 30 秒内刚刷新过，忽略请求（防止滞后的 401 错误导致重复刷新）
+            // 防并发机制 B: 如果在冷却期内刚刷新过，忽略请求（防止滞后的 401 错误导致重复刷新）
             const now = Date.now();
             const lastRefreshTime = provider.config.lastRefreshTime || 0;
-            if (now - lastRefreshTime < 30000) {
+            if (now - lastRefreshTime < PROVIDER_POOL.REFRESH_COOLDOWN_MS) {
                 this._log('info', `Provider ${providerConfig.uuid} was refreshed recently (${Math.round((now - lastRefreshTime)/1000)}s ago), ignoring refresh request.`);
                 return;
             }
@@ -1346,8 +1357,8 @@ export class ProviderPoolManager {
             const wasHealthy = provider.config.isHealthy;
             const now = Date.now();
             const lastErrorTime = provider.config.lastErrorTime ? new Date(provider.config.lastErrorTime).getTime() : 0;
-            // 滑动窗口：距离上次错误超过 5 分钟则重置计数，平衡连续错误检测与间歇性错误容忍
-            const errorWindowMs = 300000; // 5 分钟
+            // 滑动窗口：距离上次错误超过设定时间则重置计数，平衡连续错误检测与间歇性错误容忍
+            const errorWindowMs = PROVIDER_POOL.ERROR_WINDOW_MS;
             if (now - lastErrorTime > errorWindowMs) {
                 provider.config.errorCount = 1;
             } else {
@@ -2024,8 +2035,8 @@ export class ProviderPoolManager {
         // 获取所有可能的请求格式
         const healthCheckRequests = this._buildHealthCheckRequests(providerType, modelName);
 
-        // 健康检查超时时间（15秒，避免长时间阻塞）
-        const healthCheckTimeout = 15000;
+        // 健康检查超时时间（避免长时间阻塞）
+        const healthCheckTimeout = PROVIDER_POOL.HEALTH_CHECK_TIMEOUT_MS;
         let lastError = null;
 
         // 重试机制：尝试不同的请求格式

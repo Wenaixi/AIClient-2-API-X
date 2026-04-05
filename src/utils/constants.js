@@ -74,7 +74,31 @@ export const PROVIDER_POOL = {
     // 默认预热目标节点数
     DEFAULT_WARMUP_TARGET: 0,
     // 选择操作超时时间（毫秒）
-    SELECTION_TIMEOUT_MS: 5000
+    SELECTION_TIMEOUT_MS: 5000,
+    // 新鲜度判断窗口（60秒）
+    FRESHNESS_WINDOW_MS: 60000,
+    // 错误滑动窗口（5分钟）
+    ERROR_WINDOW_MS: 300000,
+    // 队列等待超时（5分钟）
+    QUEUE_TIMEOUT_MS: 300000,
+    // 健康检查超时（15秒）
+    HEALTH_CHECK_TIMEOUT_MS: 15000,
+    // 刷新冷却时间（30秒，防止重复刷新）
+    REFRESH_COOLDOWN_MS: 30000,
+    // Webhook 通知超时（5秒）
+    WEBHOOK_TIMEOUT_MS: 5000,
+    // 评分权重：使用次数（每使用一次增加的权重，约10秒）
+    USAGE_SCORE_MULTIPLIER: 10000,
+    // 评分权重：活跃请求（每个活跃请求增加的权重，约5秒）
+    LOAD_SCORE_MULTIPLIER: 5000,
+    // 评分权重：序列号（用于轮询的相对序列号权重）
+    SEQUENCE_SCORE_MULTIPLIER: 1000,
+    // 评分权重：序列号上限（防止序列号过大影响评分）
+    MAX_RELATIVE_SEQUENCE: 100,
+    // 新鲜节点基础分偏移（非常大的负数，确保新鲜节点优先被选择）
+    FRESH_NODE_BASE_SCORE_OFFSET: -1e14,
+    // 默认LRU一天前的节点（毫秒）
+    DEFAULT_LRU_FALLBACK_MS: 86400000
 };
 
 // OAuth 配置文件路径映射

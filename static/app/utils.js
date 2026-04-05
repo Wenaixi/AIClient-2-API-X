@@ -3,6 +3,31 @@ import { t, getCurrentLanguage } from './i18n.js';
 import { apiClient } from './auth.js';
 
 /**
+ * 将毫秒转换为 小时/分钟/秒
+ * @param {number} ms - 毫秒
+ * @returns {{hours: number, minutes: number, seconds: number}}
+ */
+export function msToHms(ms) {
+    if (!ms || ms < 0) ms = 0;
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return { hours, minutes, seconds };
+}
+
+/**
+ * 将 小时/分钟/秒 转换为毫秒
+ * @param {number} hours
+ * @param {number} minutes
+ * @param {number} seconds
+ * @returns {number} 毫秒
+ */
+export function hmsToMs(hours, minutes, seconds) {
+    return ((hours || 0) * 3600 + (minutes || 0) * 60 + (seconds || 0)) * 1000;
+}
+
+/**
  * 获取所有支持的提供商配置列表
  * @param {string[]} supportedProviders - 已注册的提供商类型列表
  * @returns {Object[]} 提供商配置对象数组
@@ -508,5 +533,7 @@ export {
     getProviderConfigs,
     getBaseProviderConfigs,
     getProviderStats,
-    apiRequest
+    apiRequest,
+    msToHms,
+    hmsToMs
 };
