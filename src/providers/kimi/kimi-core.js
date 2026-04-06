@@ -15,6 +15,19 @@ import { normalizeKimiToolMessageLinks } from './kimi-message-normalizer.js';
 
 const KIMI_API_BASE_URL = 'https://api.kimi.com/coding';
 
+// 共享 HTTP agent（避免每个实例创建独立连接池）
+let _sharedHttpAgent = null;
+let _sharedHttpsAgent = null;
+function getSharedAgents() {
+    if (!_sharedHttpAgent) {
+        _sharedHttpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, maxFreeSockets: 5, timeout: 120000 });
+    }
+    if (!_sharedHttpsAgent) {
+        _sharedHttpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, maxFreeSockets: 5, timeout: 120000 });
+    }
+    return { httpAgent: _sharedHttpAgent, httpsAgent: _sharedHttpsAgent };
+}
+
 /**
  * 获取主机名
  */
@@ -45,19 +58,8 @@ export class KimiApiService {
 
         logger.info(`[Kimi] System proxy ${this.useSystemProxy ? 'enabled' : 'disabled'}`);
 
-        // 配置 HTTP/HTTPS agent
-        const httpAgent = new http.Agent({
-            keepAlive: true,
-            maxSockets: 100,
-            maxFreeSockets: 5,
-            timeout: 120000,
-        });
-        const httpsAgent = new https.Agent({
-            keepAlive: true,
-            maxSockets: 100,
-            maxFreeSockets: 5,
-            timeout: 120000,
-        });
+        // 配置 HTTP/HTTPS agent（使用共享 agent 避免重复创建连接池）
+        const { httpAgent, httpsAgent } = getSharedAgents();
 
         const axiosConfig = {
             baseURL: this.baseUrl,
@@ -258,6 +260,8 @@ export class KimiApiService {
             streamRequestBody.model = this.normalizeModelName(streamRequestBody.model);
         }
 
+        let hasYielded = false;
+
         try {
             // 获取访问令牌
             const accessToken = await this.getAccessToken();
@@ -275,7 +279,6 @@ export class KimiApiService {
 
             const stream = response.data;
             let buffer = '';
-            let hasYielded = false;
 
             for await (const chunk of stream) {
                 buffer += chunk.toString();

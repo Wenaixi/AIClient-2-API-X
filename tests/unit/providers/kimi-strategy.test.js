@@ -423,7 +423,7 @@ describe('KimiStrategy', () => {
 
         test('should convert tool_calls delta chunk', () => {
             const strategy = createStrategy();
-            const chunk = { choices: [{ delta: { tool_calls: [{ name: 'search' }] } }] };
+            const chunk = { choices: [{ delta: { tool_calls: [{ function: { arguments: '{"query": "search"}' } }] } }] };
             const result = strategy.convertStreamChunkToClaude(chunk);
             expect(result.type).toBe('content_block_delta');
             expect(result.delta.type).toBe('input_json_delta');

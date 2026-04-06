@@ -16,6 +16,10 @@ import {
     batchImportKimiRefreshTokensStream
 } from '../auth/oauth-handlers.js';
 
+// Kimi check-status 端点简单内存限速器：每个 deviceCode 在窗口期内只允许一次检查
+const _checkStatusLimiter = new Map();
+const CHECK_STATUS_WINDOW_MS = 2000; // 2 秒冷却窗口
+
 /**
  * 生成 OAuth 授权 URL
  */
@@ -157,6 +161,27 @@ export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
                 error: 'deviceCode is required'
             }));
             return true;
+        }
+
+        // 速率限制：防止 device code 枚举滥用
+        const now = Date.now();
+        const lastCheck = _checkStatusLimiter.get(deviceCode) || 0;
+        if (now - lastCheck < CHECK_STATUS_WINDOW_MS) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'Too many requests. Please wait a moment before checking again.'
+            }));
+            return true;
+        }
+        _checkStatusLimiter.set(deviceCode, now);
+        // 定期清理过期条目，防止内存泄漏
+        if (_checkStatusLimiter.size > 1000) {
+            for (const [key, ts] of _checkStatusLimiter.entries()) {
+                if (now - ts > CHECK_STATUS_WINDOW_MS * 10) {
+                    _checkStatusLimiter.delete(key);
+                }
+            }
         }
 
         const result = await checkKimiAuthStatus(currentConfig, deviceCode);

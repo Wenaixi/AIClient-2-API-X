@@ -604,11 +604,17 @@ export class ProviderPoolManager {
             return; // 未配置 Webhook，跳过
         }
 
-        // 安全验证：只允许 https 协议的 Webhook URL，防止 SSRF
+        // 安全验证：只允许 https 协议的 Webhook URL，且拒绝内网/本地地址，防止 SSRF
         try {
             const parsedUrl = new URL(webhookUrl);
             if (parsedUrl.protocol !== 'https:') {
                 this._log('error', `Webhook URL must use HTTPS: ${webhookUrl}`);
+                return;
+            }
+            const hostname = parsedUrl.hostname.toLowerCase();
+            const isPrivate = this._isPrivateHostname(hostname);
+            if (isPrivate) {
+                this._log('error', `Webhook URL points to private network: ${webhookUrl}`);
                 return;
             }
         } catch {
@@ -639,6 +645,23 @@ export class ProviderPoolManager {
         } catch (error) {
             this._log('error', `Failed to send health alert to webhook: ${error.message}`);
         }
+    }
+
+    /**
+     * 判断主机名是否为私有地址
+     * @private
+     */
+    _isPrivateHostname(hostname) {
+        const h = hostname.toLowerCase();
+        if (h === 'localhost' || h === '::1' || h === '127.0.0.1' || /^127\./.test(h)) return true;
+        if (h.startsWith('10.')) return true;
+        if (h.startsWith('192.168.')) return true;
+        if (h.startsWith('169.254.')) return true;
+        if (h.startsWith('172.')) {
+            const second = parseInt(h.split('.')[1], 10);
+            if (second >= 16 && second <= 31) return true;
+        }
+        return false;
     }
 
     /**

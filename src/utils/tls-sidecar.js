@@ -10,12 +10,14 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import logger from './logger.js';
 import http from 'http';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use a polyfill-safe approach: resolve relative to project root via process.cwd()
+// since import.meta.url may be undefined in some test environments (e.g. Jest + babel transform)
+const UTILS_DIR = path.resolve(process.cwd(), 'src/utils');
+const __filename = path.join(UTILS_DIR, 'tls-sidecar.js');
+const __dirname = UTILS_DIR;
 
 const DEFAULT_PORT = 9090;
 const HEALTH_CHECK_INTERVAL = 30000; // 30s
