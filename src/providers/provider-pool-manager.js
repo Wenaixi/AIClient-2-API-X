@@ -2251,5 +2251,48 @@ export class ProviderPoolManager {
         return null;
     }
 
+    /**
+     * 销毁 ProviderPoolManager 实例，清理所有资源
+     * 用于防止内存泄漏，在重新创建实例或关闭应用时调用
+     */
+    destroy() {
+        this._log('info', '[ProviderPoolManager] Destroying instance and cleaning up resources...');
+
+        // 清理保存定时器
+        if (this.saveTimer) {
+            clearTimeout(this.saveTimer);
+            this.saveTimer = null;
+        }
+
+        // 清空待保存队列
+        this.pendingSaves.clear();
+
+        // 清理所有刷新缓冲定时器
+        for (const providerType of Object.keys(this.refreshBufferTimers)) {
+            if (this.refreshBufferTimers[providerType]) {
+                clearTimeout(this.refreshBufferTimers[providerType]);
+                delete this.refreshBufferTimers[providerType];
+            }
+        }
+
+        // 清理刷新队列
+        for (const providerType of Object.keys(this.refreshQueues)) {
+            const queue = this.refreshQueues[providerType];
+            if (queue && queue.waitingTasks) {
+                queue.waitingTasks = [];
+            }
+        }
+        this.refreshQueues = {};
+        this.refreshBufferQueues = {};
+
+        // 清理刷新中的UUID集合
+        this.refreshingUuids.clear();
+
+        // 清理全局刷新等待队列
+        this.globalRefreshWaiters = [];
+
+        this._log('info', '[ProviderPoolManager] Cleanup completed');
+    }
+
 }
 

@@ -143,7 +143,8 @@ describe('TestableHealthCheckTimer', () => {
     test('should reset running state when restarting', () => {
       timer.start(100);
       timer.reload(100);
-      expect(timer.isRunning).toBe(false);
+      const status = timer.getStatus();
+      expect(status.isRunning).toBe(false);
     });
   });
 
@@ -183,7 +184,7 @@ describe('HEALTH_CHECK Constants Usage', () => {
   });
 
   test('should have MAX_INTERVAL_MS as absolute maximum', () => {
-    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(3600000);
+    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(172800000); // 48小时
     expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
   });
 

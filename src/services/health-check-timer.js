@@ -3,6 +3,7 @@
  * 封装健康检查计时器的状态和操作方法
  */
 
+import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { getProviderPoolManager } from './service-manager.js';
 import { HEALTH_CHECK } from '../utils/constants.js';
@@ -85,7 +86,7 @@ async function executeHealthCheck() {
             const checkStartTime = Date.now();
 
             // 添加非负随机抖动，防止时序攻击（0 ~ jitter）
-            const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS);
+            const jitter = crypto.randomInt(0, HEALTH_CHECK.JITTER_MS + 1);
 
             if (checkStartTime - lastTime + jitter < effectiveInterval) {
                 // 跳过检查是正常行为，不需要记录日志
