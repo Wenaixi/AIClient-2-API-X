@@ -5,7 +5,6 @@ import { OpenAIApiService } from './openai/openai-core.js';
 import { ClaudeApiService } from './claude/claude-core.js';
 import { KiroApiService } from './claude/claude-kiro.js';
 import { QwenApiService } from './openai/qwen-core.js';
-import { IFlowApiService } from './openai/iflow-core.js';
 import { CodexApiService } from './openai/codex-core.js';
 import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
@@ -486,62 +485,6 @@ export class QwenApiServiceAdapter extends ApiServiceAdapter {
     }
 }
 
-// iFlow API 服务适配器
-export class IFlowApiServiceAdapter extends ApiServiceAdapter {
-    constructor(config) {
-        super();
-        this.iflowApiService = new IFlowApiService(config);
-    }
-
-    async generateContent(model, requestBody) {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        return this.iflowApiService.generateContent(model, requestBody);
-    }
-
-    async *generateContentStream(model, requestBody) {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        yield* this.iflowApiService.generateContentStream(model, requestBody);
-    }
-
-    async listModels() {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        return this.iflowApiService.listModels();
-    }
-
-    async refreshToken() {
-        if (!this.iflowApiService.isInitialized) {
-            await this.iflowApiService.initialize();
-        }
-        if (this.isExpiryDateNear()) {
-            logger.info(`[iFlow] Expiry date is near, refreshing API key...`);
-            await this.iflowApiService.initializeAuth(true);
-        }
-        return Promise.resolve();
-    }
-
-    async forceRefreshToken() {
-        if (!this.iflowApiService.isInitialized) {
-            await this.iflowApiService.initialize();
-        }
-        logger.info(`[iFlow] Force refreshing API key...`);
-        return this.iflowApiService.initializeAuth(true);
-    }
-
-    isExpiryDateNear() {
-        return this.iflowApiService.isExpiryDateNear();
-    }
-
-}
-
 // Codex API 服务适配器
 export class CodexApiServiceAdapter extends ApiServiceAdapter {
     constructor(config) {
@@ -771,6 +714,18 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
     isExpiryDateNear() {
         return this.kimiApiService.tokenStorage?.needsRefresh() || false;
     }
+
+    /**
+     * 获取用量限制信息
+     * @returns {Promise<Object>} 用量限制信息
+     */
+    async getUsageLimits() {
+        // 确保 token 已加载
+        if (!this.kimiApiService.tokenStorage) {
+            await this._ensureTokenLoaded();
+        }
+        return this.kimiApiService.getUsageLimits();
+    }
 }
 
 // 注册所有内置适配器
@@ -781,7 +736,6 @@ registerAdapter(MODEL_PROVIDER.ANTIGRAVITY, AntigravityApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CLAUDE_CUSTOM, ClaudeApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIRO_API, KiroApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.QWEN_API, QwenApiServiceAdapter);
-// registerAdapter(MODEL_PROVIDER.IFLOW_API, IFlowApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CODEX_API, CodexApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);

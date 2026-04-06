@@ -400,6 +400,42 @@ export class KimiApiService {
             ]
         };
     }
+
+    /**
+     * 获取用量限制信息
+     * @returns {Promise<Object>} 用量限制信息
+     */
+    async getUsageLimits() {
+        const accessToken = await this.getAccessToken();
+
+        try {
+            const axiosConfig = {
+                method: 'get',
+                url: '/v1/user/me',
+                headers: this.getKimiHeaders(accessToken, false)
+            };
+
+            this._applySidecar(axiosConfig);
+            const response = await this.axiosInstance.request(axiosConfig);
+            logger.info('[Kimi] Usage limits fetched successfully');
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status;
+            const errorMessage = error.message || '';
+
+            // 如果端点不存在（404）或其他错误，返回基本信息
+            logger.warn(`[Kimi] Usage query returned ${status}: ${errorMessage}. Returning basic account info.`);
+
+            // 尝试从 token 中提取基本信息
+            const result = {
+                raw: error.response?.data || null,
+                status,
+                error: (status && status !== 404) ? errorMessage : (status === undefined ? errorMessage : null)
+            };
+
+            return result;
+        }
+    }
 }
 
 export default KimiApiService;

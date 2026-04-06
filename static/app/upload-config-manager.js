@@ -1054,12 +1054,6 @@ function detectProviderFromPath(filePath) {
             providerType: 'openai-codex-oauth',
             displayName: 'OpenAI Codex OAuth',
             shortName: 'codex-oauth'
-        },
-        {
-            patterns: ['configs/iflow/', '/iflow/'],
-            providerType: 'openai-iflow',
-            displayName: 'OpenAI iFlow OAuth',
-            shortName: 'iflow-oauth'
         }
     ];
 

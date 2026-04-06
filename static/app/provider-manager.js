@@ -475,7 +475,7 @@ async function openProviderManager(providerType) {
  */
 function generateAuthButton(providerType) {
     // 只为支持OAuth的提供商显示授权按钮
-    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-iflow', 'openai-codex-oauth', 'kimi-oauth'];
+    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-codex-oauth', 'kimi-oauth'];
 
     if (!oauthProviders.includes(providerType)) {
         return '';
@@ -491,11 +491,11 @@ function generateAuthButton(providerType) {
         `;
     }
 
-    // Kimi 提供商使用月亮图标
+    // Kimi 提供商使用钥匙图标（与其他OAuth提供商保持一致）
     if (providerType === 'kimi-oauth') {
         return `
             <button class="generate-auth-btn" title="生成 Kimi OAuth 授权链接">
-                <i class="fas fa-moon"></i>
+                <i class="fas fa-key"></i>
                 <span data-i18n="providers.auth.generate">${t('providers.auth.generate')}</span>
             </button>
         `;
@@ -2585,8 +2585,7 @@ function getAuthFilePath(provider) {
         'gemini-cli-oauth': '~/.gemini/oauth_creds.json',
         'gemini-antigravity': '~/.antigravity/oauth_creds.json',
         'openai-qwen-oauth': '~/.qwen/oauth_creds.json',
-        'claude-kiro-oauth': '~/.aws/sso/cache/kiro-auth-token.json',
-        'openai-iflow': '~/.iflow/oauth_creds.json'
+        'claude-kiro-oauth': '~/.aws/sso/cache/kiro-auth-token.json'
     };
     return authFilePaths[provider] || (getCurrentLanguage() === 'en-US' ? 'Unknown Path' : '未知路径');
 }
@@ -2633,18 +2632,6 @@ function showAuthModal(authUrl, authInfo) {
                     <li data-i18n="oauth.kiro.step2" data-i18n-params='{"method":"${methodAccount}"}'>${t('oauth.kiro.step2', { method: methodAccount })}</li>
                     <li data-i18n="oauth.kiro.step3">${t('oauth.kiro.step3')}</li>
                     <li data-i18n="oauth.kiro.step4">${t('oauth.kiro.step4')}</li>
-                </ol>
-            </div>
-        `;
-    } else if (authInfo.provider === 'openai-iflow') {
-        instructionsHtml = `
-            <div class="auth-instructions">
-                <h4 data-i18n="oauth.modal.steps">${t('oauth.modal.steps')}</h4>
-                <ol>
-                    <li data-i18n="oauth.iflow.step1">${t('oauth.iflow.step1')}</li>
-                    <li data-i18n="oauth.iflow.step2">${t('oauth.iflow.step2')}</li>
-                    <li data-i18n="oauth.iflow.step3">${t('oauth.iflow.step3')}</li>
-                    <li data-i18n="oauth.iflow.step4">${t('oauth.iflow.step4')}</li>
                 </ol>
             </div>
         `;

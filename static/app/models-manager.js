@@ -198,7 +198,6 @@ function getProviderDisplayName(providerType) {
         'openai-custom': 'OpenAI Custom',
         'openaiResponses-custom': 'OpenAI Responses Custom',
         'openai-qwen-oauth': 'Qwen (OAuth)',
-        'openai-iflow': 'iFlow',
         'openai-codex-oauth': 'OpenAI Codex (OAuth)',
         'grok-custom': 'Grok Reverse'
     };
@@ -238,7 +237,6 @@ function getProviderIcon(providerType) {
         'claude': 'fas fa-robot',
         'openai': 'fas fa-brain',
         'qwen': 'fas fa-brain',
-        'iflow': 'fas fa-brain',
         'forward': 'fas fa-share-square',
         'grok': 'fas fa-search'
     };

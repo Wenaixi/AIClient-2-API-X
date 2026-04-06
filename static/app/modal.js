@@ -1084,8 +1084,6 @@ function getFieldOrder(provider) {
             providerType = 'openai-qwen-oauth';
         } else if (provider.ANTIGRAVITY_OAUTH_CREDS_FILE_PATH) {
             providerType = 'gemini-antigravity';
-        } else if (provider.IFLOW_OAUTH_CREDS_FILE_PATH) {
-            providerType = 'openai-iflow';
         } else if (provider.CODEX_OAUTH_CREDS_FILE_PATH) {
             providerType = 'openai-codex-oauth';
         } else if (provider.GROK_COOKIE_TOKEN) {

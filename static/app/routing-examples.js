@@ -196,17 +196,6 @@ function getAvailableRoutes() {
             badgeClass: 'oauth'
         },
         {
-            provider: 'openai-iflow',
-            name: 'iFlow OAuth',
-            paths: {
-                openai: '/openai-iflow/v1/chat/completions',
-                claude: '/openai-iflow/v1/messages'
-            },
-            description: t('dashboard.routing.oauth'),
-            badge: t('dashboard.routing.oauth'),
-            badgeClass: 'oauth'
-        },
-        {
             provider: 'openai-codex-oauth',
             name: 'OpenAI Codex OAuth',
             paths: {
@@ -429,7 +418,6 @@ function renderRoutingExamples(providerConfigs) {
         'claude-kiro-oauth': 'fa-robot',
         'openai-qwen-oauth': 'fa-code',
         'openaiResponses-custom': 'fa-comment-alt',
-        'openai-iflow': 'fa-wind',
         'openai-codex-oauth': 'fa-keyboard',
         'grok-custom': 'fa-search'
     };
@@ -442,7 +430,6 @@ function renderRoutingExamples(providerConfigs) {
         'claude-kiro-oauth': 'claude-sonnet-4-6',
         'openai-custom': 'gpt-4o',
         'openai-qwen-oauth': 'qwen3-coder-plus',
-        'openai-iflow': 'qwen3-max',
         'openai-codex-oauth': 'gpt-5',
         'grok-custom': 'grok-3',
         'openaiResponses-custom': 'gpt-4o'

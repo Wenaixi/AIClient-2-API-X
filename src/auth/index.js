@@ -28,12 +28,6 @@ export {
     importAwsCredentials
 } from './kiro-oauth.js';
 
-// iFlow OAuth
-export {
-    handleIFlowOAuth,
-    refreshIFlowTokens
-} from './iflow-oauth.js';
-
 // Kimi OAuth
 export {
     startKimiDeviceFlow,

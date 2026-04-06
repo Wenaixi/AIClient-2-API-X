@@ -74,12 +74,6 @@ function getBaseProviderConfigs() {
             defaultPath: 'configs/qwen/'
         },
         {
-            id: 'openai-iflow',
-            name: t('dashboard.routing.nodeName.iflow'),
-            icon: 'fa-stream',
-            defaultPath: 'configs/iflow/'
-        },
-        {
             id: 'kimi-oauth',
             name: t('dashboard.routing.nodeName.kimi'),
             icon: 'fa-moon',
@@ -228,7 +222,6 @@ function getFieldLabel(key) {
         'KIRO_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'QWEN_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'ANTIGRAVITY_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
-        'IFLOW_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'CODEX_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'GROK_COOKIE_TOKEN': t('modal.provider.field.ssoToken'),
         'GROK_CF_CLEARANCE': t('modal.provider.field.cfClearance'),
@@ -241,7 +234,6 @@ function getFieldLabel(key) {
         'QWEN_OAUTH_BASE_URL': t('modal.provider.field.oauthBaseUrl'),
         'ANTIGRAVITY_BASE_URL_DAILY': t('modal.provider.field.dailyBaseUrl'),
         'ANTIGRAVITY_BASE_URL_AUTOPUSH': t('modal.provider.field.autopushBaseUrl'),
-        'IFLOW_BASE_URL': t('modal.provider.field.iflowBaseUrl'),
         'CODEX_BASE_URL': t('modal.provider.field.codexBaseUrl'),
         'GROK_BASE_URL': t('modal.provider.field.grokBaseUrl'),
         'FORWARD_API_KEY': 'Forward API Key',
@@ -394,20 +386,6 @@ function getProviderTypeFields(providerType) {
                 label: `${t('modal.provider.field.autopushBaseUrl')} <span class="optional-tag">${t('config.optional')}</span>`,
                 type: 'text',
                 placeholder: 'https://autopush-cloudcode-pa.sandbox.googleapis.com'
-            }
-        ],
-        'openai-iflow': [
-            {
-                id: 'IFLOW_OAUTH_CREDS_FILE_PATH',
-                label: t('modal.provider.field.oauthPath'),
-                type: 'text',
-                placeholder: t('modal.provider.field.oauthPath.iflow.placeholder')
-            },
-            {
-                id: 'IFLOW_BASE_URL',
-                label: `iFlow Base URL <span class="optional-tag">${t('config.optional')}</span>`,
-                type: 'text',
-                placeholder: 'https://iflow.cn/api'
             }
         ],
         'kimi-oauth': [

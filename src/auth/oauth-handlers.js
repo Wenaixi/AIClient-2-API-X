@@ -21,9 +21,6 @@ export {
     batchImportKiroRefreshTokens,
     batchImportKiroRefreshTokensStream,
     importAwsCredentials,
-    // iFlow OAuth
-    handleIFlowOAuth,
-    refreshIFlowTokens,
     // Kimi OAuth
     handleKimiOAuth,
     completeKimiOAuth,
