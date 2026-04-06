@@ -24,4 +24,12 @@ export {
     // iFlow OAuth
     handleIFlowOAuth,
     refreshIFlowTokens,
+    // Kimi OAuth
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokens,
+    batchImportKimiRefreshTokensStream,
+    checkKimiCredentialsDuplicate,
+    refreshKimiTokens
 } from './index.js';

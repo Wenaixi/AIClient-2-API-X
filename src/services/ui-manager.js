@@ -63,8 +63,11 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
         return await systemApi.handleHealthCheck(req, res);
     }
     
-    // Handle UI management API requests (需要token验证，除了登录接口、健康检查和Events接口)
-    if (pathParam.startsWith('/api/') && pathParam !== '/api/login' && pathParam !== '/api/health' && pathParam !== '/api/events' && pathParam !== '/api/grok/assets') {
+    // Handle UI management API requests (需要token验证，除了登录接口、健康检查、Events接口和OAuth相关接口)
+    // OAuth相关路径：/api/oauth/* 和 /api/providers/*/generate-auth-url
+    const isOAuthPath = pathParam.startsWith('/api/oauth/') ||
+                        pathParam.match(/^\/api\/providers\/[^\/]+\/generate-auth-url$/);
+    if (pathParam.startsWith('/api/') && pathParam !== '/api/login' && pathParam !== '/api/health' && pathParam !== '/api/events' && pathParam !== '/api/grok/assets' && !isOAuthPath) {
         // 检查token验证
         const isAuth = await auth.checkAuth(req);
         if (!isAuth) {
@@ -82,6 +85,8 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
             return true;
         }
     }
+
+    // OAuth 相关接口和 generate-auth-url 不需要 token 验证
 
     // 文件上传API
     if (method === 'POST' && pathParam === '/api/upload-oauth-credentials') {
@@ -229,6 +234,16 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
         return await oauthApi.handleManualOAuthCallback(req, res);
     }
 
+    // Handle Kimi OAuth completion (Device Flow polling)
+    if (method === 'POST' && pathParam === '/api/oauth/kimi/complete') {
+        return await oauthApi.handleCompleteKimiOAuth(req, res, currentConfig);
+    }
+
+    // 检查 Kimi 设备码授权状态（非阻塞单次检查）
+    if (method === 'POST' && pathParam === '/api/oauth/kimi/check-status') {
+        return await oauthApi.handleCheckKimiAuthStatus(req, res, currentConfig);
+    }
+
     // Server-Sent Events for real-time updates
     if (method === 'GET' && pathParam === '/api/events') {
         return await eventBroadcast.handleEvents(req, res);
@@ -328,6 +343,11 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
 
     if (method === 'POST' && pathParam === '/api/codex/batch-import-tokens') {
         return await oauthApi.handleBatchImportCodexTokens(req, res);
+    }
+
+    // Batch import Kimi refresh tokens with SSE (real-time progress)
+    if (method === 'POST' && pathParam === '/api/kimi/batch-import-tokens') {
+        return await oauthApi.handleBatchImportKimiTokens(req, res);
     }
 
     // Import AWS SSO credentials for Kiro

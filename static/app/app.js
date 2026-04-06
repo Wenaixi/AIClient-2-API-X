@@ -142,15 +142,15 @@ function initApp() {
 
         if (providerStats.activeProviders > 0) {
             const stats = getProviderStats(providerStats);
-            console.log('=== 提供商统计报告 ===');
-            console.log(`活跃提供商: ${stats.activeProviders}`);
-            console.log(`健康提供商: ${stats.healthyProviders} (${stats.healthRatio})`);
-            console.log(`总账户数: ${stats.totalAccounts}`);
-            console.log(`总请求数: ${stats.totalRequests}`);
-            console.log(`总错误数: ${stats.totalErrors}`);
-            console.log(`成功率: ${stats.successRate}`);
-            console.log(`平均每提供商请求数: ${stats.avgUsagePerProvider}`);
-            console.log('========================');
+            // console.log('=== 提供商统计报告 ===');
+            // console.log(`活跃提供商: ${stats.activeProviders}`);
+            // console.log(`健康提供商: ${stats.healthyProviders} (${stats.healthRatio})`);
+            // console.log(`总账户数: ${stats.totalAccounts}`);
+            // console.log(`总请求数: ${stats.totalRequests}`);
+            // console.log(`总错误数: ${stats.totalErrors}`);
+            // console.log(`成功率: ${stats.successRate}`);
+            // console.log(`平均每提供商请求数: ${stats.avgUsagePerProvider}`);
+            // console.log('========================');
         }
     }, REFRESH_INTERVALS.SYSTEM_INFO);
 
@@ -164,7 +164,7 @@ function initMobileMenu() {
     const headerControls = document.getElementById('headerControls');
     
     if (!mobileMenuToggle || !headerControls) {
-        console.log('Mobile menu elements not found');
+        // console.log('Mobile menu elements not found');
         return;
     }
     
@@ -177,18 +177,18 @@ function initMobileMenu() {
         e.preventDefault();
         e.stopPropagation();
         
-        console.log('Mobile menu toggle clicked, current state:', isMenuOpen);
+        // console.log('Mobile menu toggle clicked, current state:', isMenuOpen);
         
         isMenuOpen = !isMenuOpen;
         
         if (isMenuOpen) {
             headerControls.style.display = 'flex';
             mobileMenuToggle.innerHTML = '<i class="fas fa-times"></i>';
-            console.log('Menu opened');
+            // console.log('Menu opened');
         } else {
             headerControls.style.display = 'none';
             mobileMenuToggle.innerHTML = '<i class="fas fa-bars"></i>';
-            console.log('Menu closed');
+            // console.log('Menu closed');
         }
     });
     
@@ -198,7 +198,7 @@ function initMobileMenu() {
             isMenuOpen = false;
             headerControls.style.display = 'none';
             mobileMenuToggle.innerHTML = '<i class="fas fa-bars"></i>';
-            console.log('Menu closed by clicking outside');
+            // console.log('Menu closed by clicking outside');
         }
     });
 }
@@ -255,4 +255,4 @@ window.togglePlugin = togglePlugin;
 // 导出调试函数
 window.getProviderStats = () => getProviderStats(providerStats);
 
-console.log('AIClient2API 管理控制台已加载 - 模块化版本');
+// console.log('AIClient2API 管理控制台已加载 - 模块化版本');

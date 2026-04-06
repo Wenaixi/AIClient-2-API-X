@@ -62,6 +62,8 @@ export class ClaudeConverter extends BaseConverter {
                 return this.toCodexRequest(data);
             case MODEL_PROTOCOL_PREFIX.GROK:
                 return this.toGrokRequest(data);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return this.toOpenAIRequest(data); // Claude to Kimi via OpenAI format
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -80,6 +82,8 @@ export class ClaudeConverter extends BaseConverter {
                 return this.toOpenAIResponsesResponse(data, model);
             case MODEL_PROTOCOL_PREFIX.CODEX:
                 return this.toCodexResponse(data, model);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return this.toOpenAIResponse(data, model); // Claude to Kimi via OpenAI format
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -98,6 +102,8 @@ export class ClaudeConverter extends BaseConverter {
                 return this.toOpenAIResponsesStreamChunk(chunk, model, requestId);
             case MODEL_PROTOCOL_PREFIX.CODEX:
                 return this.toCodexStreamChunk(chunk, model);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return this.toOpenAIStreamChunk(chunk, model); // Claude to Kimi via OpenAI format
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -112,6 +118,8 @@ export class ClaudeConverter extends BaseConverter {
                 return this.toOpenAIModelList(data);
             case MODEL_PROTOCOL_PREFIX.GEMINI:
                 return this.toGeminiModelList(data);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return this.toOpenAIModelList(data); // Claude to Kimi via OpenAI format
             default:
                 return data;
         }

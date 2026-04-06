@@ -73,15 +73,21 @@ function getBaseProviderConfigs() {
             icon: 'fa-cloud',
             defaultPath: 'configs/qwen/'
         },
-        { 
-            id: 'openai-iflow', 
-            name: t('dashboard.routing.nodeName.iflow'), 
+        {
+            id: 'openai-iflow',
+            name: t('dashboard.routing.nodeName.iflow'),
             icon: 'fa-stream',
             defaultPath: 'configs/iflow/'
         },
-        { 
-            id: 'grok-custom', 
-            name: t('dashboard.routing.nodeName.grok'), 
+        {
+            id: 'kimi-oauth',
+            name: t('dashboard.routing.nodeName.kimi'),
+            icon: 'fa-robot',
+            defaultPath: 'configs/kimi/'
+        },
+        {
+            id: 'grok-custom',
+            name: t('dashboard.routing.nodeName.grok'),
             icon: 'fa-user-secret'
         },
         { 
@@ -404,6 +410,20 @@ function getProviderTypeFields(providerType) {
                 placeholder: 'https://iflow.cn/api'
             }
         ],
+        'kimi-oauth': [
+            {
+                id: 'KIMI_OAUTH_CREDS_FILE_PATH',
+                label: t('modal.provider.field.oauthPath'),
+                type: 'text',
+                placeholder: t('modal.provider.field.oauthPath.kimi.placeholder')
+            },
+            {
+                id: 'KIMI_BASE_URL',
+                label: `Kimi Base URL <span class="optional-tag">${t('config.optional')}</span>`,
+                type: 'text',
+                placeholder: 'https://api.kimi.com/coding'
+            }
+        ],
         'openai-codex-oauth': [
             {
                 id: 'CODEX_OAUTH_CREDS_FILE_PATH',
@@ -533,7 +553,5 @@ export {
     getProviderConfigs,
     getBaseProviderConfigs,
     getProviderStats,
-    apiRequest,
-    msToHms,
-    hmsToMs
+    apiRequest
 };

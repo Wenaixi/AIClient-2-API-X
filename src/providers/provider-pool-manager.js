@@ -37,6 +37,7 @@ export class ProviderPoolManager {
         'openai-codex-oauth': 'gpt-5-codex-mini',
         'openaiResponses-custom': 'gpt-4o-mini',
         'forward-api': 'gpt-4o-mini',
+        'kimi-oauth': 'kimi-k2',
     };
 
     constructor(providerPools, options = {}) {
@@ -769,8 +770,11 @@ export class ProviderPoolManager {
         const state = provider.state;
         const config = provider.config;
 
-        // 请求成功完成，递增 usageCount
+        // 请求成功完成，递增 usageCount 并重置错误计数
         config.usageCount++;
+        config.errorCount = 0;
+        config.lastErrorTime = null;
+        config.lastErrorMessage = null;
 
         if (state.activeCount > 0) {
             state.activeCount--;

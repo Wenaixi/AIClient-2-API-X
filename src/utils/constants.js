@@ -108,5 +108,6 @@ export const OAUTH_CONFIG_PATH_MAP = {
     'gemini-antigravity': 'ANTIGRAVITY_OAUTH_CREDS_FILE_PATH',
     'openai-qwen': 'QWEN_OAUTH_CREDS_FILE_PATH',
     'openai-iflow': 'IFLOW_OAUTH_CREDS_FILE_PATH',
-    'openai-codex': 'CODEX_OAUTH_CREDS_FILE_PATH'
+    'openai-codex': 'CODEX_OAUTH_CREDS_FILE_PATH',
+    'kimi': 'KIMI_OAUTH_CREDS_FILE_PATH'
 };

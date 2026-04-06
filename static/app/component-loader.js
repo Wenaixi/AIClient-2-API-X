@@ -112,7 +112,8 @@ async function initializeComponents() {
         
         await loadComponents(sectionComponents);
         
-        console.log('All components loaded successfully');
+        // All components loaded - debug disabled
+        // console.log('All components loaded successfully');
         // 触发组件加载完成事件
         window.dispatchEvent(new CustomEvent('componentsLoaded'));
         

@@ -10,13 +10,20 @@ import {
     handleCodexOAuth,
     batchImportCodexTokensStream,
     batchImportKiroRefreshTokensStream,
-    importAwsCredentials
+    importAwsCredentials,
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokensStream
 } from '../auth/oauth-handlers.js';
 
 /**
  * 生成 OAuth 授权 URL
  */
 export async function handleGenerateAuthUrl(req, res, currentConfig, providerType) {
+    console.log('[OAuth API DEBUG] handleGenerateAuthUrl() called');
+    console.log('[OAuth API DEBUG] providerType:', providerType);
+
     try {
         let authUrl = '';
         let authInfo = {};
@@ -58,6 +65,11 @@ export async function handleGenerateAuthUrl(req, res, currentConfig, providerTyp
             const result = await handleCodexOAuth(currentConfig, options);
             authUrl = result.authUrl;
             authInfo = result.authInfo;
+        } else if (providerType === 'kimi-oauth') {
+            // Kimi OAuth（Device Flow）
+            const result = await handleKimiOAuth(currentConfig, options);
+            authUrl = result.authUrl;
+            authInfo = result.authInfo;
         } else {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
@@ -83,6 +95,93 @@ export async function handleGenerateAuthUrl(req, res, currentConfig, providerTyp
             error: {
                 message: `Failed to generate auth URL: ${error.message}`
             }
+        }));
+        return true;
+    }
+}
+
+/**
+ * 处理 Kimi OAuth 授权完成（Device Flow 轮询）
+ */
+export async function handleCompleteKimiOAuth(req, res, currentConfig) {
+    try {
+        const body = await getRequestBody(req);
+        const { deviceCode, interval, expiresIn } = body;
+
+        if (!deviceCode) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'deviceCode is required'
+            }));
+            return true;
+        }
+
+        logger.info('[Kimi OAuth Complete] Waiting for user authorization...');
+
+        const result = await completeKimiOAuth(currentConfig, {
+            deviceCode,
+            interval,
+            expiresIn
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: true,
+            filepath: result.filepath,
+            tokenInfo: result.tokenInfo
+        }));
+        return true;
+
+    } catch (error) {
+        logger.error('[UI API] Kimi OAuth completion failed:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: false,
+            error: `Authorization failed: ${error.message}`
+        }));
+        return true;
+    }
+}
+
+/**
+ * 检查 Kimi 设备码授权状态（单次非阻塞检查）
+ */
+export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
+    console.log('[OAuth API DEBUG] handleCheckKimiAuthStatus() called');
+    console.log('[OAuth API DEBUG] currentConfig keys:', Object.keys(currentConfig || {}));
+
+    try {
+        const body = await getRequestBody(req);
+        const { deviceCode } = body;
+
+        console.log('[OAuth API DEBUG] deviceCode from request:', deviceCode);
+
+        if (!deviceCode) {
+            console.error('[OAuth API DEBUG] Missing deviceCode');
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'deviceCode is required'
+            }));
+            return true;
+        }
+
+        console.log('[OAuth API DEBUG] Calling checkKimiAuthStatus...');
+        const result = await checkKimiAuthStatus(currentConfig, deviceCode);
+        console.log('[OAuth API DEBUG] checkKimiAuthStatus result:', JSON.stringify(result));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+        return true;
+
+    } catch (error) {
+        console.error('[OAuth API DEBUG] handleCheckKimiAuthStatus() error:', error.message);
+        console.error('[OAuth API DEBUG] Error stack:', error.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            authorized: false,
+            error: error.message
         }));
         return true;
     }
@@ -423,13 +522,101 @@ export async function handleBatchImportCodexTokens(req, res) {
 }
 
 /**
+ * 批量导入 Kimi Refresh Tokens（带实时进度 SSE）
+ */
+export async function handleBatchImportKimiTokens(req, res) {
+    try {
+        const body = await getRequestBody(req);
+        const { refreshTokens } = body;
+
+        if (!refreshTokens || !Array.isArray(refreshTokens) || refreshTokens.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'refreshTokens array is required and must not be empty'
+            }));
+            return true;
+        }
+
+        logger.info(`[Kimi Batch Import] Starting batch import of ${refreshTokens.length} tokens with SSE...`);
+
+        // 设置 SSE 响应头
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        });
+
+        // 发送 SSE 事件的辅助函数（带错误处理）
+        const sendSSE = (event, data) => {
+            if (!res.writableEnded && !res.destroyed) {
+                try {
+                    res.write(`event: ${event}\n`);
+                    res.write(`data: ${JSON.stringify(data)}\n\n`);
+                } catch (err) {
+                    logger.error('[Kimi Batch Import] Failed to write SSE:', err.message);
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // 发送开始事件
+        sendSSE('start', { total: refreshTokens.length });
+
+        // 执行流式批量导入
+        const result = await batchImportKimiRefreshTokensStream(
+            refreshTokens,
+            (progress) => {
+                // 每处理完一个 token 发送进度更新
+                sendSSE('progress', progress);
+            }
+        );
+
+        logger.info(`[Kimi Batch Import] Completed: ${result.success} success, ${result.failed} failed`);
+
+        // 发送完成事件
+        sendSSE('complete', {
+            success: true,
+            total: result.total,
+            successCount: result.success,
+            failedCount: result.failed,
+            details: result.details
+        });
+
+        res.end();
+        return true;
+
+    } catch (error) {
+        logger.error('[Kimi Batch Import] Error:', error);
+        if (res.headersSent && !res.writableEnded && !res.destroyed) {
+            try {
+                res.write(`event: error\n`);
+                res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+                res.end();
+            } catch (writeErr) {
+                logger.error('[Kimi Batch Import] Failed to write error:', writeErr.message);
+            }
+        } else if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: error.message
+            }));
+        }
+        return true;
+    }
+}
+
+/**
  * 导入 AWS SSO 凭据用于 Kiro（支持单个或批量导入）
  */
 export async function handleImportAwsCredentials(req, res) {
     try {
         const body = await getRequestBody(req);
         const { credentials } = body;
-        
+
         if (!credentials) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
@@ -438,7 +625,7 @@ export async function handleImportAwsCredentials(req, res) {
             }));
             return true;
         }
-        
+
         // 检查是否为批量导入（数组）
         if (Array.isArray(credentials)) {
             // 批量导入模式 - 使用 SSE 流式响应

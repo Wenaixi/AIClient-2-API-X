@@ -107,6 +107,12 @@ export const PROVIDER_MODELS = {
         'grok-imagine-1.0',
         'grok-imagine-1.0-edit',
         'grok-imagine-1.0-video'
+    ],
+    'kimi-oauth': [
+        'kimi-k2',
+        'kimi-k2.5',
+        'kimi-k2-0905',
+        'kimi-k2-thinking'
     ]
 };
 

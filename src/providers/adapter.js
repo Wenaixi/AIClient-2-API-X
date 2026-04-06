@@ -9,6 +9,7 @@ import { IFlowApiService } from './openai/iflow-core.js';
 import { CodexApiService } from './openai/codex-core.js';
 import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
+import { KimiApiService } from './kimi/kimi-core.js';
 import { MODEL_PROVIDER, findByPrefix, hasByPrefix } from '../utils/common.js';
 import logger from '../utils/logger.js';
 
@@ -688,6 +689,90 @@ export class GrokApiServiceAdapter extends ApiServiceAdapter {
     }
 }
 
+// Kimi API 服务适配器
+export class KimiApiServiceAdapter extends ApiServiceAdapter {
+    constructor(config) {
+        super();
+        this.kimiApiService = new KimiApiService(config);
+        this.config = config;
+    }
+
+    async generateContent(model, requestBody) {
+        // 确保 token 已加载
+        if (!this.kimiApiService.tokenStorage) {
+            await this._ensureTokenLoaded();
+        }
+        return this.kimiApiService.chatCompletion(requestBody);
+    }
+
+    async *generateContentStream(model, requestBody) {
+        // 确保 token 已加载
+        if (!this.kimiApiService.tokenStorage) {
+            await this._ensureTokenLoaded();
+        }
+        yield* this.kimiApiService.chatCompletionStream(requestBody);
+    }
+
+    async listModels() {
+        // 如果 tokenStorage 未加载，尝试从配置中加载
+        if (!this.kimiApiService.tokenStorage) {
+            logger.info('[Kimi Adapter] Token not loaded, attempting to load from config...');
+            try {
+                await this._ensureTokenLoaded();
+            } catch (error) {
+                logger.warn('[Kimi Adapter] Failed to load token, returning hardcoded model list');
+            }
+        }
+        return this.kimiApiService.listModels();
+    }
+
+    async _ensureTokenLoaded() {
+        // 从配置文件加载 Kimi token
+        const credPath = this.config.KIMI_OAUTH_CREDS_FILE_PATH;
+        if (!credPath) {
+            throw new Error('No KIMI_OAUTH_CREDS_FILE_PATH configured');
+        }
+
+        const { readFileSync, existsSync } = await import('fs');
+        const { resolve } = await import('path');
+
+        const configDir = process.cwd();
+        const fullPath = resolve(configDir, credPath);
+
+        if (!existsSync(fullPath)) {
+            throw new Error(`Kimi credentials file not found: ${fullPath}`);
+        }
+
+        const credData = JSON.parse(readFileSync(fullPath, 'utf-8'));
+        const { KimiTokenStorage } = await import('../auth/kimi-oauth.js');
+        this.kimiApiService.setTokenStorage(KimiTokenStorage.fromJSON(credData));
+        logger.info('[Kimi Adapter] Token loaded successfully');
+    }
+
+    async refreshToken() {
+        // Kimi 的 token 刷新在 KimiApiService 内部自动处理
+        logger.info('[Kimi] Token refresh handled automatically by service');
+        return Promise.resolve();
+    }
+
+    async forceRefreshToken() {
+        // 强制刷新 token
+        if (this.kimiApiService.tokenStorage?.refresh_token) {
+            logger.info('[Kimi] Force refreshing token...');
+            const { refreshKimiToken } = await import('../auth/kimi-oauth.js');
+            this.kimiApiService.tokenStorage = await refreshKimiToken(
+                this.kimiApiService.tokenStorage,
+                this.config
+            );
+        }
+        return Promise.resolve();
+    }
+
+    isExpiryDateNear() {
+        return this.kimiApiService.tokenStorage?.needsRefresh() || false;
+    }
+}
+
 // 注册所有内置适配器
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM, OpenAIApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES, OpenAIResponsesApiServiceAdapter);
@@ -699,6 +784,7 @@ registerAdapter(MODEL_PROVIDER.QWEN_API, QwenApiServiceAdapter);
 // registerAdapter(MODEL_PROVIDER.IFLOW_API, IFlowApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CODEX_API, CodexApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
+registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);
 // registerAdapter(MODEL_PROVIDER.FORWARD_API, ForwardApiServiceAdapter);
 
 // 用于存储服务适配器单例的映射

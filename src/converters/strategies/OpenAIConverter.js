@@ -62,6 +62,8 @@ export class OpenAIConverter extends BaseConverter {
                 return this.toCodexRequest(data);
             case MODEL_PROTOCOL_PREFIX.GROK:
                 return this.toGrokRequest(data);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return data; // OpenAI to Kimi - no conversion needed
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -82,6 +84,8 @@ export class OpenAIConverter extends BaseConverter {
                 return this.toOpenAIResponsesResponse(data, model);
             case MODEL_PROTOCOL_PREFIX.GROK:
                 return this.toGrokResponse(data, model);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return data; // OpenAI to Kimi - no conversion needed
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -100,6 +104,8 @@ export class OpenAIConverter extends BaseConverter {
                 return this.toOpenAIResponsesStreamChunk(chunk, model);
             case MODEL_PROTOCOL_PREFIX.GROK:
                 return this.toGrokStreamChunk(chunk, model);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return chunk; // OpenAI to Kimi - no conversion needed
             default:
                 throw new Error(`Unsupported target protocol: ${targetProtocol}`);
         }
@@ -114,6 +120,8 @@ export class OpenAIConverter extends BaseConverter {
                 return this.toClaudeModelList(data);
             case MODEL_PROTOCOL_PREFIX.GEMINI:
                 return this.toGeminiModelList(data);
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return data; // OpenAI to Kimi - no conversion needed
             default:
                 return this.ensureDisplayName(data);
         }

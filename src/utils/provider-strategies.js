@@ -6,6 +6,7 @@ import { ResponsesAPIStrategy } from '../providers/openai/openai-responses-strat
 import { CodexResponsesAPIStrategy } from '../providers/openai/codex-responses-strategy.js';
 import { ForwardStrategy } from '../providers/forward/forward-strategy.js';
 import { GrokStrategy } from '../providers/grok/grok-strategy.js';
+import { KimiStrategy } from '../providers/kimi/kimi-strategy.js';
 
 /**
  * Strategy factory that returns the appropriate strategy instance based on the provider protocol.
@@ -27,6 +28,8 @@ class ProviderStrategyFactory {
                 return new ForwardStrategy();
             case MODEL_PROTOCOL_PREFIX.GROK:
                 return new GrokStrategy();
+            case MODEL_PROTOCOL_PREFIX.KIMI:
+                return new KimiStrategy();
             default:
                 throw new Error(`Unsupported provider protocol: ${providerProtocol}`);
         }

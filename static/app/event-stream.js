@@ -16,12 +16,12 @@ function initEventStream() {
 
     newEventSource.onopen = () => {
         updateServerStatus(true);
-        console.log('EventStream connected');
+        // console.log('EventStream connected');
     };
 
     newEventSource.onerror = () => {
         updateServerStatus(false);
-        console.log('EventStream disconnected');
+        // console.log('EventStream disconnected');
     };
 
     newEventSource.addEventListener('log', (event) => {
@@ -158,32 +158,33 @@ export function setConfigLoaders(configLoader) {
  * @param {Object} data - 更新数据
  */
 function handleConfigUpdate(data) {
-    console.log('[ConfigUpdate] 收到配置更新事件:', data);
-    
+    // [ConfigUpdate] debug disabled
+    // console.log('[ConfigUpdate] 收到配置更新事件:', data);
+
     // 根据操作类型进行相应处理
     switch (data.action) {
         case 'delete':
             // 文件删除事件，直接刷新配置文件列表
             if (loadConfigList) {
                 loadConfigList();
-                console.log('[ConfigUpdate] 配置文件列表已刷新（文件删除）');
+                // console.log('[ConfigUpdate] 配置文件列表已刷新（文件删除）');
             }
             break;
-            
+
         case 'add':
         case 'update':
             // 文件添加或更新事件，刷新配置文件列表
             if (loadConfigList) {
                 loadConfigList();
-                console.log('[ConfigUpdate] 配置文件列表已刷新（文件更新）');
+                // console.log('[ConfigUpdate] 配置文件列表已刷新（文件更新）');
             }
             break;
-            
+
         default:
             // 未知操作类型，也刷新列表以确保同步
             if (loadConfigList) {
                 loadConfigList();
-                console.log('[ConfigUpdate] 配置文件列表已刷新（默认）');
+                // console.log('[ConfigUpdate] 配置文件列表已刷新（默认）');
             }
             break;
     }

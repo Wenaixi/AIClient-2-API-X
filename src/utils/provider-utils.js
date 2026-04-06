@@ -89,6 +89,17 @@ export const PROVIDER_MAPPINGS = [
         displayName: 'Grok Reverse',
         needsProjectId: false,
         urlKeys: ['GROK_BASE_URL', 'GROK_CF_CLEARANCE', 'GROK_USER_AGENT']
+    },
+    {
+        // Kimi OAuth 配置
+        dirName: 'kimi',
+        patterns: ['configs/kimi/', '/kimi/'],
+        providerType: 'kimi-oauth',
+        credPathKey: 'KIMI_OAUTH_CREDS_FILE_PATH',
+        defaultCheckModel: 'kimi-k2',
+        displayName: 'Kimi OAuth',
+        needsProjectId: false,
+        urlKeys: ['KIMI_BASE_URL']
     }
 ];
 

@@ -58,6 +58,7 @@ export const MODEL_PROTOCOL_PREFIX = {
     CODEX: 'codex',
     FORWARD: 'forward',
     GROK: 'grok',
+    KIMI: 'kimi',
 }
 
 export const MODEL_PROVIDER = {
@@ -73,6 +74,7 @@ export const MODEL_PROVIDER = {
     CODEX_API: 'openai-codex-oauth',
     FORWARD_API: 'forward-api',
     GROK_CUSTOM: 'grok-custom',
+    KIMI_API: 'kimi-oauth',
     AUTO: 'auto',
 }
 
@@ -86,6 +88,11 @@ export function getProtocolPrefix(provider) {
     // Special case for Codex - it needs its own protocol
     if (provider === 'openai-codex-oauth') {
         return 'codex';
+    }
+
+    // Special case for Kimi - it needs its own protocol
+    if (provider === 'kimi-oauth') {
+        return 'kimi';
     }
 
     const hyphenIndex = provider.indexOf('-');

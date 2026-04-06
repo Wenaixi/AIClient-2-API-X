@@ -645,6 +645,8 @@ export async function handleResetProviderHealth(req, res, currentConfig, provide
         // Update provider pool manager if available
         if (providerPoolManager) {
             providerPoolManager.providerPools = providerPools;
+            // Clear old in-memory status so initializeProviderStatus uses the reset values from file
+            providerPoolManager.providerStatus[providerType] = [];
             providerPoolManager.initializeProviderStatus();
         }
 
