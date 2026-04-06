@@ -2516,31 +2516,19 @@ function showKiroAwsImportModal() {
  * @param {Object} extraOptions - 额外选项
  */
 async function executeGenerateAuthUrl(providerType, extraOptions = {}) {
-    console.log('[Frontend DEBUG] executeGenerateAuthUrl() called');
-    console.log('[Frontend DEBUG] providerType:', providerType);
-    console.log('[Frontend DEBUG] extraOptions:', extraOptions);
-
     try {
         showToast(t('common.info'), t('modal.provider.auth.initializing'), 'info');
 
         // 使用 fileUploadHandler 中的 getProviderKey 获取目录名称
         const providerDir = fileUploadHandler.getProviderKey(providerType);
-        console.log('[Frontend DEBUG] providerDir:', providerDir);
 
-        console.log('[Frontend DEBUG] Sending request to /providers/${providerType}/generate-auth-url');
         const response = await window.apiClient.post(
             `/providers/${encodeURIComponent(providerType)}/generate-auth-url`,
             {
                 saveToConfigs: true,
                 providerDir: providerDir,
-                ...extraOptions
-            }
+                ...extraOptions}
         );
-
-        console.log('[Frontend DEBUG] Response received:', response);
-        console.log('[Frontend DEBUG] response.success:', response.success);
-        console.log('[Frontend DEBUG] response.authUrl:', response.authUrl);
-        console.log('[Frontend DEBUG] response.authInfo:', response.authInfo);
 
         if (response.success && response.authUrl) {
             // 如果提供了 targetInputId，设置成功监听器
@@ -2562,15 +2550,11 @@ async function executeGenerateAuthUrl(providerType, extraOptions = {}) {
             }
 
             // 显示授权信息模态框
-            console.log('[Frontend DEBUG] Calling showAuthModal()');
             showAuthModal(response.authUrl, response.authInfo);
         } else {
-            console.error('[Frontend DEBUG] Failed to get authUrl, response:', response);
             showToast(t('common.error'), t('modal.provider.auth.failed'), 'error');
         }
     } catch (error) {
-        console.error('[Frontend DEBUG] executeGenerateAuthUrl() error:', error);
-        console.error('[Frontend DEBUG] Error message:', error.message);
         showToast(t('common.error'), t('modal.provider.auth.failed') + `: ${error.message}`, 'error');
     }
 }
@@ -2825,9 +2809,10 @@ function showAuthModal(authUrl, authInfo) {
 
     // Kimi Device Flow: 授权成功时关闭小浏览器窗口
     // 注意：设备码显示区域已移除，授权成功/失败由后端轮询检测
-    
+
     // 在浏览器中打开按钮
     const openBtn = modal.querySelector('.open-auth-btn');
+    let kimiWindowCheck = null;
     openBtn.addEventListener('click', () => {
         // Kimi Device Flow: 不需要监控子窗口 URL 变化（Device Flow 没有 redirect callback）
         // 直接打开浏览器，然后让 startKimiAutoPolling 在后端轮询等待授权
@@ -2846,14 +2831,11 @@ function showAuthModal(authUrl, authInfo) {
             if (kimiAuthWindow) {
                 showToast(t('common.info'), '请在打开的页面中完成登录', 'info');
                 // 轮询子窗口是否被关闭，如果关闭则检查授权状态
-                const kimiWindowCheck = setInterval(() => {
+                kimiWindowCheck = setInterval(() => {
                     try {
                         if (kimiAuthWindow.closed) {
                             clearInterval(kimiWindowCheck);
-                            // 用户关闭了浏览器窗口，检查是否已授权成功
-                            if (kimiPollTimer) {
-                                // 轮询还在进行中，等待后端检测结果
-                            }
+                            kimiWindowCheck = null;
                         }
                     } catch (e) {
                         // 跨域是正常的
@@ -3047,36 +3029,23 @@ function showAuthModal(authUrl, authInfo) {
         let kimiPollTimer = null;
         let kimiPollingActive = false;
 
-        console.log('[Frontend DEBUG] Kimi OAuth modal opened');
-        console.log('[Frontend DEBUG] authInfo.deviceCode:', authInfo.deviceCode);
-        console.log('[Frontend DEBUG] authInfo.userCode:', authInfo.userCode);
-        console.log('[Frontend DEBUG] authInfo.verificationUriComplete:', authInfo.verificationUriComplete);
-
         // 前端定时轮询后端检查授权状态
         const startKimiAutoPolling = () => {
-            console.log('[Frontend DEBUG] startKimiAutoPolling() called');
             if (kimiPollingActive) {
-                console.log('[Frontend DEBUG] Polling already active, skipping...');
                 return;
             }
             kimiPollingActive = true;
             completeBtn.disabled = true;
             completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>等待授权中...</span>';
 
-            let pollCount = 0;
             // 立即执行一次检查
             const checkStatus = async () => {
-                pollCount++;
-                console.log(`[Frontend DEBUG] checkStatus() #${pollCount}`);
                 try {
-                    console.log(`[Frontend DEBUG] Sending POST /oauth/kimi/check-status with deviceCode:`, authInfo.deviceCode);
                     const result = await window.apiClient.post('/oauth/kimi/check-status', {
                         deviceCode: authInfo.deviceCode
                     });
-                    console.log(`[Frontend DEBUG] check-status result:`, JSON.stringify(result));
 
                     if (result.authorized) {
-                        console.log('[Frontend DEBUG] Authorization SUCCESS!');
                         clearInterval(kimiPollTimer);
                         kimiPollTimer = null;
                         // 关闭小浏览器窗口
@@ -3089,38 +3058,29 @@ function showAuthModal(authUrl, authInfo) {
                         loadConfigList();
                     } else if (result.error) {
                         // 终端错误（授权被拒绝、设备码过期等）
-                        console.error('[Frontend DEBUG] Terminal error:', result.error);
                         clearInterval(kimiPollTimer);
                         kimiPollTimer = null;
                         kimiPollingActive = false;
                         showToast(t('common.error'), `授权失败: ${result.error}`, 'error');
                         completeBtn.disabled = false;
                         completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> <span data-i18n="oauth.kimi.complete">' + t('oauth.kimi.complete', '完成认证') + '</span>';
-                    } else {
-                        console.log(`[Frontend DEBUG] Still waiting... (waiting=${result.waiting})`);
                     }
                     // result.authorized === false 且没有 error 表示还在等待中，继续轮询
                 } catch (error) {
-                    console.error(`[Frontend DEBUG] checkStatus() error #${pollCount}:`, error);
-                    console.error(`[Frontend DEBUG] Error message:`, error.message);
+                    // 网络错误等，继续等待
                 }
             };
 
-            // 立即执行一次
-            console.log('[Frontend DEBUG] Running initial checkStatus()');
+            // 立即执行一次，然后每 2 秒轮询一次
             checkStatus();
-            // 然后每 2 秒轮询一次
-            console.log('[Frontend DEBUG] Starting poll interval (2000ms)');
             kimiPollTimer = setInterval(checkStatus, 2000);
         };
 
         // 模态框打开后立即启动自动轮询
-        console.log('[Frontend DEBUG] Calling startKimiAutoPolling()');
         startKimiAutoPolling();
 
         // 手动点击"完成认证"按钮也可以触发（如果轮询被中断后想重新开始）
         completeBtn.addEventListener('click', () => {
-            console.log('[Frontend DEBUG] Complete button clicked');
             if (!kimiPollTimer) {
                 startKimiAutoPolling();
             }
@@ -3129,11 +3089,13 @@ function showAuthModal(authUrl, authInfo) {
         // 模态框关闭时清理定时器
         const origRemove = modal.remove.bind(modal);
         modal.remove = function () {
-            console.log('[Frontend DEBUG] Modal remove() called');
             if (kimiPollTimer) {
-                console.log('[Frontend DEBUG] Clearing pollTimer');
                 clearInterval(kimiPollTimer);
                 kimiPollTimer = null;
+            }
+            if (kimiWindowCheck) {
+                clearInterval(kimiWindowCheck);
+                kimiWindowCheck = null;
             }
             return origRemove();
         };

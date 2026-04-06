@@ -20,8 +20,7 @@ import {
  * 生成 OAuth 授权 URL
  */
 export async function handleGenerateAuthUrl(req, res, currentConfig, providerType) {
-    console.log('[OAuth API DEBUG] handleGenerateAuthUrl() called');
-    console.log('[OAuth API DEBUG] providerType:', providerType);
+    logger.debug(`[OAuth API] Generating auth URL for provider: ${providerType}`);
 
     try {
         let authUrl = '';
@@ -142,17 +141,16 @@ export async function handleCompleteKimiOAuth(req, res, currentConfig) {
  * 检查 Kimi 设备码授权状态（单次非阻塞检查）
  */
 export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
-    console.log('[OAuth API DEBUG] handleCheckKimiAuthStatus() called');
-    console.log('[OAuth API DEBUG] currentConfig keys:', Object.keys(currentConfig || {}));
+    logger.debug(`[OAuth API] Checking Kimi auth status`);
 
     try {
         const body = await getRequestBody(req);
         const { deviceCode } = body;
 
-        console.log('[OAuth API DEBUG] deviceCode from request:', deviceCode);
+        logger.debug('[OAuth API] deviceCode from request:', deviceCode);
 
         if (!deviceCode) {
-            console.error('[OAuth API DEBUG] Missing deviceCode');
+            logger.warn('[OAuth API] Missing deviceCode');
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 success: false,
@@ -161,17 +159,15 @@ export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
             return true;
         }
 
-        console.log('[OAuth API DEBUG] Calling checkKimiAuthStatus...');
         const result = await checkKimiAuthStatus(currentConfig, deviceCode);
-        console.log('[OAuth API DEBUG] checkKimiAuthStatus result:', JSON.stringify(result));
+        logger.debug(`[OAuth API] checkKimiAuthStatus result:`, result);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
         return true;
 
     } catch (error) {
-        console.error('[OAuth API DEBUG] handleCheckKimiAuthStatus() error:', error.message);
-        console.error('[OAuth API DEBUG] Error stack:', error.stack);
+        logger.error('[OAuth API] handleCheckKimiAuthStatus() error:', error.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             authorized: false,

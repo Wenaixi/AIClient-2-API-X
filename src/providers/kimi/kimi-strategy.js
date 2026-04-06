@@ -187,10 +187,16 @@ export class KimiStrategy extends ProviderStrategy {
             }
 
             // 处理工具调用
-            if (delta.tool_calls) {
+            if (delta.tool_calls && delta.tool_calls.length > 0) {
                 claudeChunk.type = 'content_block_delta';
                 claudeChunk.delta.type = 'input_json_delta';
-                claudeChunk.delta.partial_json = JSON.stringify(delta.tool_calls);
+                // partial_json 应为工具调用参数的 JSON 片段
+                const toolCall = delta.tool_calls[0];
+                if (toolCall?.function?.arguments) {
+                    claudeChunk.delta.partial_json = typeof toolCall.function.arguments === 'string'
+                        ? toolCall.function.arguments
+                        : JSON.stringify(toolCall.function.arguments);
+                }
             }
 
             // 处理结束

@@ -6,6 +6,7 @@
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { startKimiDeviceFlow, refreshKimiToken, KimiTokenStorage, KimiOAuthClient } from './kimi-oauth.js';
 
@@ -102,6 +103,8 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
         }
 
         if (error) {
+            // 终端错误（access_denied, expired_token, 或其他 OAuth 错误）
+            // 这些错误不应该被当作"等待中"，而应该返回给用户
             logger.error('[Kimi OAuth] Terminal error:', error.message);
             return { authorized: false, error: error.message };
         }
@@ -123,7 +126,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             logger.debug('[Kimi OAuth] Created output directory');
         }
 
-        const filename = `kimi-${Date.now()}.json`;
+        const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
         logger.info('[Kimi OAuth] Writing token to:', filepath);
         fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8');
@@ -146,7 +149,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
 
             logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
-            broadcastEvent('oauth_success', {
+            await broadcastEvent('oauth_success', {
                 provider: 'kimi-oauth',
                 credPath: filepath,
                 relativePath: relativePath,
@@ -277,8 +280,8 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
             // 刷新获取完整 token
             const newTokenStorage = await refreshKimiToken(tempStorage, config);
 
-            // 保存到文件
-            const filename = `kimi-token-${Date.now()}-${i}.json`;
+            // 保存到文件（使用 UUID 避免并发冲突）
+            const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
             fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8');
 
@@ -343,8 +346,8 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
             // 刷新获取完整 token
             const newTokenStorage = await refreshKimiToken(tempStorage, config);
 
-            // 保存到文件
-            const filename = `kimi-token-${Date.now()}-${i}.json`;
+            // 保存到文件（使用 UUID 避免并发冲突）
+            const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
             fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8');
 
