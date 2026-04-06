@@ -1,10 +1,16 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import logger from '../utils/logger.js';
 import { getRequestBody } from '../utils/common.js';
-import { getAllProviderModels, getProviderModels } from '../providers/provider-models.js';
+import {
+    extractModelIdsFromNativeList,
+    getConfiguredSupportedModels,
+    getProviderModels,
+    normalizeModelIds,
+    usesManagedModelList
+} from '../providers/provider-models.js';
 import { generateUUID, createProviderConfig, formatSystemPath, detectProviderFromPath, addToUsedPaths, isPathUsed, pathsEqual } from '../utils/provider-utils.js';
 import { broadcastEvent } from './event-broadcast.js';
-import { getRegisteredProviders } from '../providers/adapter.js';
+import { getRegisteredProviders, getServiceAdapter, serviceInstances } from '../providers/adapter.js';
 
 // 文件级互斥锁：防止并发读写导致数据丢失
 // 安全净化：移除用户输入字段中的危险内容，并可选地过滤敏感 API 密钥
@@ -83,6 +89,126 @@ function filterMaskedData(data) {
     }
     
     return result;
+}
+
+function getProviderPoolsFilePath(currentConfig) {
+    return currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
+}
+
+function loadProviderPools(currentConfig, providerPoolManager) {
+    const filePath = getProviderPoolsFilePath(currentConfig);
+
+    if (providerPoolManager?.providerPools) {
+        return providerPoolManager.providerPools;
+    }
+
+    if (!existsSync(filePath)) {
+        return {};
+    }
+
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+}
+
+function getManagedSupportedModels(providerType, providers = []) {
+    return normalizeModelIds(
+        providers.flatMap(provider => getConfiguredSupportedModels(providerType, provider))
+    );
+}
+
+function persistProviderStatusToFile(currentConfig, providerPoolManager) {
+    const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
+    const providerPools = {};
+
+    for (const providerType in providerPoolManager.providerStatus) {
+        providerPools[providerType] = providerPoolManager.providerStatus[providerType].map(providerStatus => providerStatus.config);
+    }
+
+    writeFileSync(filePath, JSON.stringify(providerPools, null, 2), 'utf-8');
+    return filePath;
+}
+
+function isAuthHealthCheckError(errorMessage = '') {
+    return /\b(401|403)\b/.test(errorMessage) ||
+        /\b(Unauthorized|Forbidden|AccessDenied|InvalidToken|ExpiredToken)\b/i.test(errorMessage);
+}
+
+async function runProviderHealthCheck(providerPoolManager, providerType, providerStatus) {
+    const providerConfig = providerStatus.config;
+
+    try {
+        // 对于管理模型列表的提供商，如果配置了支持的模型，从中挑选一个用于健康检查
+        let checkModelName = providerConfig.checkModelName;
+        if (!checkModelName && usesManagedModelList(providerType)) {
+            const supportedModels = getConfiguredSupportedModels(providerType, providerConfig);
+            if (supportedModels.length > 0) {
+                // 优先挑选常见的/轻量级的模型，或者直接取第一个
+                checkModelName = supportedModels.find(m =>
+                    m.includes('flash') || m.includes('mini') || m.includes('3.5') || m.includes('small')
+                ) || supportedModels[0];
+                logger.info(`[UI API] Selected model ${checkModelName} for health check of managed provider ${providerConfig.uuid}`);
+            }
+        }
+
+        const healthResult = await providerPoolManager._checkProviderHealth(providerType, {
+            ...providerConfig,
+            checkModelName
+        });
+
+        if (healthResult.success) {
+            providerPoolManager.markProviderHealthy(providerType, providerConfig, false, healthResult.modelName);
+            return {
+                uuid: providerConfig.uuid,
+                success: true,
+                healthy: true,
+                modelName: healthResult.modelName,
+                message: 'Healthy'
+            };
+        }
+
+        const errorMessage = healthResult.errorMessage || 'Check failed';
+        const isAuthError = isAuthHealthCheckError(errorMessage);
+
+        if (isAuthError) {
+            providerPoolManager.markProviderUnhealthyImmediately(providerType, providerConfig, errorMessage);
+            logger.info(`[UI API] Auth error detected for ${providerConfig.uuid}, immediately marked as unhealthy`);
+        } else {
+            providerPoolManager.markProviderUnhealthy(providerType, providerConfig, errorMessage);
+        }
+
+        providerStatus.config.lastHealthCheckTime = new Date().toISOString();
+        if (healthResult.modelName) {
+            providerStatus.config.lastHealthCheckModel = healthResult.modelName;
+        }
+
+        return {
+            uuid: providerConfig.uuid,
+            success: false,
+            healthy: false,
+            modelName: healthResult.modelName,
+            message: errorMessage,
+            isAuthError
+        };
+    } catch (error) {
+        const errorMessage = error.message || 'Unknown error';
+        const isAuthError = isAuthHealthCheckError(errorMessage);
+
+        if (isAuthError) {
+            providerPoolManager.markProviderUnhealthyImmediately(providerType, providerConfig, errorMessage);
+            logger.info(`[UI API] Auth error detected for ${providerConfig.uuid}, immediately marked as unhealthy`);
+        } else {
+            providerPoolManager.markProviderUnhealthy(providerType, providerConfig, errorMessage);
+        }
+
+        providerStatus.config.lastHealthCheckTime = new Date().toISOString();
+
+        return {
+            uuid: providerConfig.uuid,
+            success: false,
+            healthy: false,
+            message: errorMessage,
+            isAuthError
+        };
+    }
 }
 
 // 使用 Promise 链式队列，确保文件操作顺序执行
@@ -232,26 +358,27 @@ export async function handleGetSupportedProviders(req, res, currentConfig, provi
  */
 export async function handleGetProviderModels(req, res, currentConfig, providerPoolManager) {
     const registeredProviders = getRegisteredProviders();
-    let poolTypes = [];
+    let providerPools = {};
 
     // 获取所有存在的类型（基础 + 动态）
-    const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
     try {
-        if (providerPoolManager && providerPoolManager.providerPools) {
-            poolTypes = Object.keys(providerPoolManager.providerPools);
-        } else if (existsSync(filePath)) {
-            const poolsData = JSON.parse(readFileSync(filePath, 'utf-8'));
-            poolTypes = Object.keys(poolsData);
-        }
+        providerPools = loadProviderPools(currentConfig, providerPoolManager);
     } catch (error) {
         logger.warn('[UI API] Failed to load provider pools for models:', error.message);
     }
 
+    const poolTypes = Object.keys(providerPools);
     const allTypes = [...new Set([...registeredProviders, ...poolTypes])];
     const allModels = {};
 
     allTypes.forEach(type => {
-        const models = getProviderModels(type);
+        let models = getProviderModels(type);
+        if (usesManagedModelList(type)) {
+            const managedModels = getManagedSupportedModels(type, providerPools[type] || []);
+            if (managedModels.length > 0) {
+                models = managedModels;
+            }
+        }
         if (models && models.length > 0) {
             allModels[type] = models;
         }
@@ -265,14 +392,84 @@ export async function handleGetProviderModels(req, res, currentConfig, providerP
 /**
  * 获取特定提供商类型的可用模型
  */
-export async function handleGetProviderTypeModels(req, res, providerType) {
-    const models = getProviderModels(providerType);
+export async function handleGetProviderTypeModels(req, res, currentConfig, providerPoolManager, providerType) {
+    let models = getProviderModels(providerType);
+    if (usesManagedModelList(providerType)) {
+        try {
+            const providerPools = loadProviderPools(currentConfig, providerPoolManager);
+            const managedModels = getManagedSupportedModels(providerType, providerPools[providerType] || []);
+            if (managedModels.length > 0) {
+                models = managedModels;
+            }
+        } catch (error) {
+            logger.warn('[UI API] Failed to load managed provider models:', error.message);
+        }
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         providerType,
         models
     }));
     return true;
+}
+
+/**
+ * Detect available models for a specific provider node.
+ */
+export async function handleDetectProviderModels(req, res, currentConfig, providerPoolManager, providerType, providerUuid) {
+    try {
+        if (!usesManagedModelList(providerType)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: `Model detection is not supported for provider type: ${providerType}` } }));
+            return true;
+        }
+
+        const body = await getRequestBody(req);
+        const draftConfig = filterMaskedData(body?.providerConfig || {});
+
+        const providerPools = loadProviderPools(currentConfig, providerPoolManager);
+        const providers = providerPools[providerType] || [];
+        const existingProvider = providers.find(provider => provider.uuid === providerUuid) || {};
+
+        const detectionUuid = `${providerUuid}-detect-models`;
+        const instanceKey = `${providerType}${detectionUuid}`;
+        const tempConfig = {
+            ...currentConfig,
+            ...existingProvider,
+            ...draftConfig,
+            MODEL_PROVIDER: providerType,
+            uuid: detectionUuid
+        };
+
+        let models = [];
+        try {
+            delete serviceInstances[instanceKey];
+            const serviceAdapter = getServiceAdapter(tempConfig);
+            if (typeof serviceAdapter.listModels !== 'function') {
+                throw new Error(`Provider ${providerType} does not support model detection`);
+            }
+
+            const nativeModels = await serviceAdapter.listModels();
+            models = extractModelIdsFromNativeList(nativeModels, providerType);
+        } finally {
+            delete serviceInstances[instanceKey];
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: true,
+            providerType,
+            uuid: providerUuid,
+            count: models.length,
+            models,
+            selectedModels: getConfiguredSupportedModels(providerType, existingProvider)
+        }));
+        return true;
+    } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: error.message } }));
+        return true;
+    }
 }
 
 /**
@@ -328,6 +525,10 @@ async function _handleAddProvider(req, res, currentConfig, providerPoolManager) 
         
         // 过滤掉脱敏字段
         const filteredConfig = filterMaskedData(providerConfig);
+        if (usesManagedModelList(providerType)) {
+            filteredConfig.supportedModels = normalizeModelIds(filteredConfig.supportedModels);
+            filteredConfig.notSupportedModels = [];
+        }
         providerPools[providerType].push(filteredConfig);
 
         // Save to file
@@ -423,6 +624,10 @@ async function _handleUpdateProvider(req, res, currentConfig, providerPoolManage
         
         // 过滤掉传入配置中的脱敏占位符，避免覆盖真实数据
         const filteredConfig = filterMaskedData(providerConfig);
+        if (usesManagedModelList(providerType)) {
+            filteredConfig.supportedModels = normalizeModelIds(filteredConfig.supportedModels);
+            filteredConfig.notSupportedModels = [];
+        }
         
         const updatedProvider = {
             ...existingProvider,
@@ -1064,6 +1269,63 @@ async function _handleHealthCheck(req, res, currentConfig, providerPoolManager, 
  * 快速链接配置文件到对应的提供商
  * 支持单个文件路径或文件路径数组
  */
+export async function handleSingleProviderHealthCheck(req, res, currentConfig, providerPoolManager, providerType, providerUuid) {
+    try {
+        if (!providerPoolManager) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: 'Provider pool manager not initialized' } }));
+            return true;
+        }
+
+        const providers = providerPoolManager.providerStatus[providerType] || [];
+        const providerStatus = providers.find(item => item.config?.uuid === providerUuid);
+
+        if (!providerStatus) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: 'Provider not found' } }));
+            return true;
+        }
+
+        logger.info(`[UI API] Starting single health check for provider ${providerUuid} in ${providerType}`);
+
+        const result = await runProviderHealthCheck(providerPoolManager, providerType, providerStatus);
+
+        // 使用文件锁进行持久化，防止并发写入冲突
+        const filePath = await withFileLock(async () => {
+            return persistProviderStatusToFile(currentConfig, providerPoolManager);
+        });
+
+        broadcastEvent('config_update', {
+            action: 'health_check_single',
+            filePath,
+            providerType,
+            providerUuid,
+            result: {
+                ...result,
+                message: sanitizeProviderData({ message: result.message }).message
+            },
+            timestamp: new Date().toISOString()
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: true,
+            providerType,
+            uuid: providerUuid,
+            healthy: result.healthy,
+            modelName: result.modelName || null,
+            message: result.message,
+            isAuthError: result.isAuthError || false
+        }));
+        return true;
+    } catch (error) {
+        logger.error('[UI API] Single health check error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: error.message } }));
+        return true;
+    }
+}
+
 export async function handleQuickLinkProvider(req, res, currentConfig, providerPoolManager) {
     return withFileLock(() => _handleQuickLinkProvider(req, res, currentConfig, providerPoolManager)).catch(err => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1170,7 +1432,10 @@ async function _handleQuickLinkProvider(req, res, currentConfig, providerPoolMan
         // Save to file only if there were successful links
         const successCount = results.filter(r => r.success).length;
         if (successCount > 0) {
-            writeFileSync(poolsFilePath, JSON.stringify(providerPools, null, 2), 'utf-8');
+            await withFileLock(async () => {
+                writeFileSync(poolsFilePath, JSON.stringify(providerPools, null, 2), 'utf-8');
+                return poolsFilePath;
+            });
 
             // Update provider pool manager if available
             if (providerPoolManager) {
