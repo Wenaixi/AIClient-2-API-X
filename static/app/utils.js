@@ -73,21 +73,15 @@ function getBaseProviderConfigs() {
             icon: 'fa-cloud',
             defaultPath: 'configs/qwen/'
         },
-        {
-            id: 'openai-iflow',
-            name: t('dashboard.routing.nodeName.iflow'),
+        { 
+            id: 'openai-iflow', 
+            name: t('dashboard.routing.nodeName.iflow'), 
             icon: 'fa-stream',
             defaultPath: 'configs/iflow/'
         },
-        {
-            id: 'kimi-oauth',
-            name: t('dashboard.routing.nodeName.kimi'),
-            icon: 'fa-robot',
-            defaultPath: 'configs/kimi/'
-        },
-        {
-            id: 'grok-custom',
-            name: t('dashboard.routing.nodeName.grok'),
+        { 
+            id: 'grok-custom', 
+            name: t('dashboard.routing.nodeName.grok'), 
             icon: 'fa-user-secret'
         },
         { 
@@ -105,46 +99,13 @@ function getBaseProviderConfigs() {
             name: 'OpenAI Responses', 
             icon: 'fa-reply-all'
         },
+        {
+            id: 'kimi-oauth',
+            name: t('dashboard.routing.nodeName.kimi'),
+            icon: 'fa-moon',
+            defaultPath: 'configs/kimi/'
+        },
     ];
-}
-
-/**
- * 获取所有支持的提供商配置列表
- * @param {string[]} supportedProviders - 已注册的提供商类型列表
- * @returns {Object[]} 提供商配置对象数组
- */
-function getProviderConfigs(supportedProviders = []) {
-    const baseConfigs = getBaseProviderConfigs();
-
-    const result = [];
-    const usedIds = new Set();
-
-    // 1. 处理 supportedProviders 中匹配基础配置的类型
-    baseConfigs.forEach(config => {
-        const isSupported = supportedProviders.includes(config.id);
-        result.push({ ...config, visible: isSupported });
-        usedIds.add(config.id);
-    });
-
-    // 2. 处理带有后缀的自定义类型 (例如 openai-custom-test)
-    supportedProviders.forEach(providerId => {
-        if (usedIds.has(providerId)) return;
-
-        // 查找匹配的前缀
-        const baseConfig = baseConfigs.find(bc => providerId.startsWith(bc.id + '-'));
-        if (baseConfig) {
-            const suffix = providerId.substring(baseConfig.id.length + 1);
-            result.push({
-                ...baseConfig,
-                id: providerId,
-                name: `${baseConfig.name} (${suffix})`,
-                visible: true
-            });
-            usedIds.add(providerId);
-        }
-    });
-
-    return result;
 }
 
 /**

@@ -88,80 +88,73 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
  * @returns {Promise<Object>} 授权状态：{ authorized: boolean, tokenInfo?: Object, error?: string }
  */
 export async function checkKimiAuthStatus(config = {}, deviceCode) {
-    console.log('[Kimi OAuth DEBUG] checkKimiAuthStatus() called');
-    console.log('[Kimi OAuth DEBUG] deviceCode:', deviceCode);
-    console.log('[Kimi OAuth DEBUG] config keys:', Object.keys(config || {}));
+    logger.debug('[Kimi OAuth] checkKimiAuthStatus called, deviceCode:', deviceCode);
 
     try {
         const client = new KimiOAuthClient(config);
-        console.log('[Kimi OAuth DEBUG] KimiOAuthClient created, deviceId:', client.getDeviceId());
+        logger.debug('[Kimi OAuth] Client created, deviceId:', client.getDeviceId());
 
-        console.log('[Kimi OAuth DEBUG] Calling exchangeDeviceCode...');
         const { token, error, shouldContinue } = await client.exchangeDeviceCode(deviceCode);
-        console.log('[Kimi OAuth DEBUG] exchangeDeviceCode result:', { hasToken: !!token, error: error?.message, shouldContinue });
+        logger.debug('[Kimi OAuth] exchangeDeviceCode result:', { hasToken: !!token, error: error?.message, shouldContinue });
 
         if (shouldContinue) {
-            // 还在等待授权（authorization_pending 或 slow_down）
-            console.log('[Kimi OAuth DEBUG] Authorization still pending...');
             return { authorized: false, waiting: true };
         }
 
         if (error) {
-            // 终端错误（expired_token, access_denied 等）
-            console.error(`[Kimi OAuth DEBUG] Terminal error:`, error.message);
+            logger.error('[Kimi OAuth] Terminal error:', error.message);
             return { authorized: false, error: error.message };
         }
 
         // 授权成功，保存 token
-        console.log(`[Kimi OAuth DEBUG] Authorization successful, saving token...`);
+        logger.info('[Kimi OAuth] Authorization successful, saving token...');
 
         const tokenStorage = new KimiTokenStorage({
             ...token,
             last_refresh: new Date().toISOString()
         });
 
-        console.log('[Kimi OAuth DEBUG] TokenStorage created:', JSON.stringify(tokenStorage.toJSON(), null, 2));
+        logger.debug('[Kimi OAuth] TokenStorage created');
 
         const outputDir = path.join(projectRoot, 'configs', 'kimi');
-        console.log('[Kimi OAuth DEBUG] Output directory:', outputDir);
+        logger.debug('[Kimi OAuth] Output directory:', outputDir);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
-            console.log('[Kimi OAuth DEBUG] Created output directory');
+            logger.debug('[Kimi OAuth] Created output directory');
         }
 
         const filename = `kimi-${Date.now()}.json`;
         const filepath = path.join(outputDir, filename);
-        console.log('[Kimi OAuth DEBUG] Writing token to:', filepath);
+        logger.info('[Kimi OAuth] Writing token to:', filepath);
         fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8');
-        console.log('[Kimi OAuth DEBUG] Token saved successfully');
+        logger.info('[Kimi OAuth] Token saved successfully');
 
         // 广播授权成功事件
         const relativePath = path.relative(projectRoot, filepath);
-        console.log('[Kimi OAuth DEBUG] Relative path:', relativePath);
+        logger.debug('[Kimi OAuth] Relative path:', relativePath);
 
         try {
             const { broadcastEvent } = await import('../services/ui-manager.js');
             const { autoLinkProviderConfigs } = await import('../services/service-manager.js');
             const { CONFIG } = await import('../core/config-manager.js');
 
-            console.log('[Kimi OAuth DEBUG] Calling autoLinkProviderConfigs...');
+            logger.debug('[Kimi OAuth] Calling autoLinkProviderConfigs...');
             await autoLinkProviderConfigs(CONFIG, {
                 onlyCurrentCred: true,
                 credPath: relativePath
             });
-            console.log('[Kimi OAuth DEBUG] autoLinkProviderConfigs completed');
+            logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
 
-            console.log('[Kimi OAuth DEBUG] Broadcasting oauth_success event...');
+            logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
             broadcastEvent('oauth_success', {
                 provider: 'kimi-oauth',
                 credPath: filepath,
                 relativePath: relativePath,
                 timestamp: new Date().toISOString()
             });
-            console.log('[Kimi OAuth DEBUG] oauth_success event broadcasted');
+            logger.debug('[Kimi OAuth] oauth_success event broadcasted');
         } catch (err) {
-            console.error('[Kimi OAuth DEBUG] Failed to broadcast success event:', err.message);
-            logger.warn('[Kimi OAuth] Failed to broadcast success event:', err.message);
+            logger.error('[Kimi OAuth] Failed to broadcast success event:', err.message);
         }
 
         return {
@@ -177,8 +170,8 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             }
         };
     } catch (error) {
-        console.error('[Kimi OAuth DEBUG] checkKimiAuthStatus() exception:', error.message);
-        console.error('[Kimi OAuth DEBUG] Error stack:', error.stack);
+        logger.error('[Kimi OAuth] checkKimiAuthStatus exception:', error.message);
+        logger.debug('[Kimi OAuth] Error stack:', error.stack);
 
         // 区分网络错误和其他错误
         const isNetworkError = error.message?.includes('network') ||
@@ -188,13 +181,10 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
                                error.message?.includes('ECONNRESET');
 
         if (isNetworkError) {
-            console.warn(`[Kimi OAuth DEBUG] Network error detected, continuing to wait...`);
-            // 网络错误，继续等待
+            logger.warn('[Kimi OAuth] Network error detected, continuing to wait...');
             return { authorized: false, waiting: true };
         }
 
-        // 其他错误（如文件系统错误等）应该报告给前端
-        console.error(`[Kimi OAuth DEBUG] Non-network error, reporting to frontend:`, error.message);
         return { authorized: false, error: `Server error: ${error.message}` };
     }
 }
@@ -206,22 +196,14 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
  * @returns {Promise<Object>} 认证结果
  */
 export async function handleKimiOAuth(config = {}, options = {}) {
-    console.log('[Kimi OAuth DEBUG] handleKimiOAuth() called');
-    console.log('[Kimi OAuth DEBUG] config keys:', Object.keys(config || {}));
-    console.log('[Kimi OAuth DEBUG] options:', JSON.stringify(options));
-
     try {
         logger.info('[Kimi OAuth] Starting Kimi authentication...');
-        console.log('[Kimi OAuth DEBUG] Creating KimiOAuthClient...');
 
         // 启动设备流认证
         const client = new KimiOAuthClient(config);
-        console.log('[Kimi OAuth DEBUG] KimiOAuthClient created');
 
         // 请求设备码
-        console.log('[Kimi OAuth DEBUG] Requesting device code...');
         const deviceCodeResponse = await client.requestDeviceCode();
-        console.log('[Kimi OAuth DEBUG] Device code response:', JSON.stringify(deviceCodeResponse));
 
         logger.info('[Kimi OAuth] Device code received');
         logger.info('[Kimi OAuth] Verification URL:', deviceCodeResponse.verification_uri_complete || deviceCodeResponse.verification_uri);
@@ -231,7 +213,6 @@ export async function handleKimiOAuth(config = {}, options = {}) {
 
         // 计算过期时间（秒）
         const expiresIn = deviceCodeResponse.expires_in || 300;
-        console.log('[Kimi OAuth DEBUG] expiresIn set to:', expiresIn);
 
         // 返回授权信息，让前端处理用户授权
         const result = {
@@ -246,13 +227,9 @@ export async function handleKimiOAuth(config = {}, options = {}) {
                 interval: deviceCodeResponse.interval || 5
             }
         };
-        console.log('[Kimi OAuth DEBUG] Returning result:', JSON.stringify(result));
         return result;
     } catch (error) {
-        console.error('[Kimi OAuth DEBUG] handleKimiOAuth() error:', error.message);
-        console.error('[Kimi OAuth DEBUG] Error stack:', error.stack);
         logger.error('[Kimi OAuth] Authentication failed:', error.message);
-        logger.error('[Kimi OAuth] Error stack:', error.stack);
         throw error;
     }
 }
@@ -332,7 +309,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
  * @param {Function} progressCallback - 进度回调函数
  * @returns {Promise<Object>} 导入结果
  */
-export async function batchImportKimiRefreshTokensStream(refreshTokens, progressCallback) {
+export async function batchImportKimiRefreshTokensStream(refreshTokens, progressCallback, config = {}) {
     const outputDir = path.join(process.cwd(), 'configs', 'kimi');
 
     if (!fs.existsSync(outputDir)) {
@@ -364,7 +341,7 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
             });
 
             // 刷新获取完整 token
-            const newTokenStorage = await refreshKimiToken(tempStorage);
+            const newTokenStorage = await refreshKimiToken(tempStorage, config);
 
             // 保存到文件
             const filename = `kimi-token-${Date.now()}-${i}.json`;

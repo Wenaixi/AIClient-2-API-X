@@ -18,8 +18,8 @@ beforeAll(async () => {
 
 describe('HEALTH_CHECK Constants', () => {
   test('should have correct minimum interval', () => {
-    // 新范围: 1秒 ~ 24小时
-    expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBe(1000);
+    // 最小间隔：60秒
+    expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBe(60000);
     expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBeGreaterThan(0);
   });
 
@@ -29,8 +29,8 @@ describe('HEALTH_CHECK Constants', () => {
   });
 
   test('should have correct maximum interval', () => {
-    // 新范围支持24小时
-    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(86400000);
+    // 最大范围支持48小时
+    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(172800000);
     expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
   });
 

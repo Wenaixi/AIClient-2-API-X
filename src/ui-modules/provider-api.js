@@ -631,6 +631,13 @@ async function _handleDisableEnableProvider(req, res, currentConfig, providerPoo
  * 重置特定提供商类型的所有提供商健康状态
  */
 export async function handleResetProviderHealth(req, res, currentConfig, providerPoolManager, providerType) {
+    return withFileLock(() => _handleResetProviderHealth(req, res, currentConfig, providerPoolManager, providerType)).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'File operation failed: ' + err.message } }));
+        return true;
+    });
+}
+async function _handleResetProviderHealth(req, res, currentConfig, providerPoolManager, providerType) {
     try {
         const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
         let providerPools = {};
@@ -710,6 +717,13 @@ export async function handleResetProviderHealth(req, res, currentConfig, provide
  * 删除特定提供商类型的所有不健康节点
  */
 export async function handleDeleteUnhealthyProviders(req, res, currentConfig, providerPoolManager, providerType) {
+    return withFileLock(() => _handleDeleteUnhealthyProviders(req, res, currentConfig, providerPoolManager, providerType)).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'File operation failed: ' + err.message } }));
+        return true;
+    });
+}
+async function _handleDeleteUnhealthyProviders(req, res, currentConfig, providerPoolManager, providerType) {
     try {
         const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
         let providerPools = {};
@@ -797,6 +811,13 @@ export async function handleDeleteUnhealthyProviders(req, res, currentConfig, pr
  * 批量刷新特定提供商类型的所有不健康节点的 UUID
  */
 export async function handleRefreshUnhealthyUuids(req, res, currentConfig, providerPoolManager, providerType) {
+    return withFileLock(() => _handleRefreshUnhealthyUuids(req, res, currentConfig, providerPoolManager, providerType)).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'File operation failed: ' + err.message } }));
+        return true;
+    });
+}
+async function _handleRefreshUnhealthyUuids(req, res, currentConfig, providerPoolManager, providerType) {
     try {
         const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
         let providerPools = {};
@@ -888,6 +909,13 @@ export async function handleRefreshUnhealthyUuids(req, res, currentConfig, provi
  * 对特定提供商类型的所有提供商执行健康检查
  */
 export async function handleHealthCheck(req, res, currentConfig, providerPoolManager, providerType) {
+    return withFileLock(() => _handleHealthCheck(req, res, currentConfig, providerPoolManager, providerType)).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'File operation failed: ' + err.message } }));
+        return true;
+    });
+}
+async function _handleHealthCheck(req, res, currentConfig, providerPoolManager, providerType) {
     try {
         if (!providerPoolManager) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1037,6 +1065,13 @@ export async function handleHealthCheck(req, res, currentConfig, providerPoolMan
  * 支持单个文件路径或文件路径数组
  */
 export async function handleQuickLinkProvider(req, res, currentConfig, providerPoolManager) {
+    return withFileLock(() => _handleQuickLinkProvider(req, res, currentConfig, providerPoolManager)).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'File operation failed: ' + err.message } }));
+        return true;
+    });
+}
+async function _handleQuickLinkProvider(req, res, currentConfig, providerPoolManager) {
     try {
         const body = await getRequestBody(req);
         const { filePath, filePaths } = body;

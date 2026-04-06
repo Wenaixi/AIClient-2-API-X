@@ -732,38 +732,6 @@ export class ProviderPoolManager {
 
             // 确保初始化时的默认值补全也能写盘
             this._debouncedSave(providerType);
-                    }
-                    providerConfig.needsRefresh = isColdStart ? false : persistedNeedsRefresh;
-                    providerConfig.refreshCount = isColdStart ? 0 : persistedRefreshCount;
-                    
-                    // 优化2: 简化 lastErrorTime 处理逻辑
-                    providerConfig.lastErrorTime = providerConfig.lastErrorTime instanceof Date
-                        ? providerConfig.lastErrorTime.toISOString()
-                        : (providerConfig.lastErrorTime || null);
-                    
-                    // 健康检测相关字段
-                    providerConfig.lastHealthCheckTime = providerConfig.lastHealthCheckTime || null;
-                    providerConfig.lastHealthCheckModel = providerConfig.lastHealthCheckModel || null;
-                    providerConfig.lastErrorMessage = providerConfig.lastErrorMessage || null;
-                    providerConfig.customName = providerConfig.customName || null;
-
-                    this.providerStatus[providerType].push({
-                        config: providerConfig,
-                        uuid: providerConfig.uuid, // Still keep uuid at the top level for easy access
-                        type: providerType, // 保存 providerType 引用
-                        state: existing ? existing.state : {
-                            activeCount: 0,
-                            waitingCount: 0,
-                            queue: []
-                        }
-                    });
-                } catch (nodeError) {
-                    logger.error(`[ProviderPoolManager] Error initializing node for ${providerType}: ${nodeError.message}`);
-                }
-            });
-            
-            // 确保初始化时的默认值补全也能写盘
-            this._debouncedSave(providerType);
         }
         this._log('info', `Initialized provider statuses: ok (maxErrorCount: ${this.maxErrorCount})`);
     }

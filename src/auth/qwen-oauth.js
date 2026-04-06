@@ -204,10 +204,14 @@ async function pollQwenToken(deviceCode, codeVerifier, interval = 5, expiresIn =
                 activePollingTasks.delete(taskId);
 
                 // 自动关联新生成的凭据到 Pools（必须在广播前完成）
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: relativePath
-                });
+                try {
+                    await autoLinkProviderConfigs(CONFIG, {
+                        onlyCurrentCred: true,
+                        credPath: relativePath
+                    });
+                } catch (err) {
+                    logger.warn(`${QWEN_OAUTH_CONFIG.logPrefix} autoLinkProviderConfigs failed, continuing with OAuth success:`, err.message);
+                }
 
                 // 广播授权成功事件
                 broadcastEvent('oauth_success', {

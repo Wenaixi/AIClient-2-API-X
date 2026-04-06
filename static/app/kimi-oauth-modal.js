@@ -1,6 +1,12 @@
 import { t } from './i18n.js';
 import { showToast } from './utils.js';
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 /**
  * 显示 Kimi OAuth 设备流认证对话框
  * @param {string} providerType - 提供商类型
@@ -124,7 +130,8 @@ export function showKimiBatchImportModal(providerType) {
                     </div>
                 </div>
                 <div class="batch-import-result" id="kimiBatchResult" style="display: none; margin-top: 16px; padding: 12px; border-radius: 8px;"></div>
-                       <div class="modal-footer">
+            </div>
+            <div class="modal-footer">
                 <button class="modal-cancel" data-i18n="modal.provider.cancel">${t('modal.provider.cancel')}</button>
                 <button class="btn btn-primary batch-import-submit" id="kimiBatchSubmit">
                     <i class="fas fa-upload"></i>
@@ -255,11 +262,12 @@ export function showKimiBatchImportModal(providerType) {
             resultDiv.style.display = 'block';
             resultDiv.style.background = '#fee2e2';
             resultDiv.style.border = '1px solid #fca5a5';
+            const safeMessage = escapeHtml(error.message || 'Unknown error');
             resultDiv.innerHTML = `
                 <div style="color: #991b1b;">
                     <i class="fas fa-exclamation-circle"></i>
                     <strong>导入失败</strong>
-                    <div style="margin-top: 8px; font-size: 14px;">${error.message}</div>
+                    <div style="margin-top: 8px; font-size: 14px;">${safeMessage}</div>
                 </div>
             `;
             textarea.disabled = false;

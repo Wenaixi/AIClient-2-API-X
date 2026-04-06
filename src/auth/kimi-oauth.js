@@ -6,7 +6,6 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import os from 'os';
-import https from 'https';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
@@ -15,6 +14,9 @@ const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;
 const KIMI_API_BASE_URL = 'https://api.kimi.com/coding';
+
+// 设备 ID 持久化（模块级单例）
+let _cachedDeviceId = null;
 
 // 轮询配置
 const DEFAULT_POLL_INTERVAL = 5000; // 5秒
@@ -53,11 +55,13 @@ function getHostname() {
 
 /**
  * 获取或创建设备 ID
- * 返回一个内存中的 UUID（不读取/写入文件）
- * 与参考项目的 getOrCreateDeviceID 行为一致
+ * 使用模块级缓存，确保同一进程内所有客户端实例使用相同的设备 ID
  */
 function getOrCreateDeviceId() {
-    return uuidv4();
+    if (!_cachedDeviceId) {
+        _cachedDeviceId = uuidv4();
+    }
+    return _cachedDeviceId;
 }
 
 /**
@@ -71,10 +75,7 @@ export class KimiOAuthClient {
 
         // 配置 axios，支持代理和 TLS
         const axiosConfig = {
-            timeout: 30000,
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false // 允许自签名证书（用于代理）
-            })
+            timeout: 30000
         };
 
         // 如果配置了代理，使用代理
@@ -112,8 +113,7 @@ export class KimiOAuthClient {
      * 返回 DeviceCodeResponse 格式（与参考项目一致）
      */
     async requestDeviceCode() {
-        console.log('[Kimi OAuth DEBUG] requestDeviceCode() called');
-        console.log('[Kimi OAuth DEBUG] Requesting device code from:', KIMI_DEVICE_CODE_URL);
+        logger.debug('[Kimi OAuth] Requesting device code from:', KIMI_DEVICE_CODE_URL);
         try {
             const response = await this.httpClient.post(
                 KIMI_DEVICE_CODE_URL,
@@ -129,8 +129,7 @@ export class KimiOAuthClient {
                 }
             );
 
-            console.log('[Kimi OAuth DEBUG] Response status:', response.status);
-            console.log('[Kimi OAuth DEBUG] Response data:', JSON.stringify(response.data));
+            logger.debug('[Kimi OAuth] Device code response received');
 
             if (response.status !== 200) {
                 throw new Error(`Device code request failed with status ${response.status}`);
@@ -147,11 +146,9 @@ export class KimiOAuthClient {
                 expires_in: data.expires_in,
                 interval: data.interval
             };
-            console.log('[Kimi OAuth DEBUG] Device code response:', JSON.stringify(result));
             return result;
         } catch (error) {
-            console.error('[Kimi OAuth DEBUG] requestDeviceCode() error:', error.message);
-            console.error('[Kimi OAuth DEBUG] Error details:', error);
+            logger.error('[Kimi OAuth] Failed to request device code:', error.message);
             throw new Error(`Failed to request device code: ${error.message}`);
         }
     }
@@ -161,15 +158,10 @@ export class KimiOAuthClient {
      * 完全复刻参考项目的 PollForToken 实现
      */
     async pollForToken(deviceCodeResponse) {
-        console.log('[Kimi OAuth DEBUG] pollForToken() called');
-        console.log('[Kimi OAuth DEBUG] deviceCodeResponse:', JSON.stringify(deviceCodeResponse));
-
         // 计算轮询间隔（秒转毫秒）
         const interval = deviceCodeResponse.interval || 5;
         const expiresIn = deviceCodeResponse.expires_in || 0;
         const pollInterval = Math.max(interval * 1000, DEFAULT_POLL_INTERVAL);
-
-        console.log('[Kimi OAuth DEBUG] Poll interval:', pollInterval, 'ms, expiresIn:', expiresIn, 's');
 
         // 计算截止时间
         const now = Date.now();
@@ -180,34 +172,33 @@ export class KimiOAuthClient {
                 deadline = codeDeadline;
             }
         }
-        console.log('[Kimi OAuth DEBUG] Poll deadline:', new Date(deadline).toISOString());
+        logger.info('[Kimi OAuth] Polling for token (interval: ' + pollInterval + 'ms, expires in: ' + expiresIn + 's)');
 
         // 轮询循环（与Go一致：先等待再执行）
         let pollCount = 0;
         while (Date.now() < deadline) {
             // 先等待（Go的ticker行为）
-            console.log('[Kimi OAuth DEBUG] Waiting', pollInterval, 'ms before poll...');
             await new Promise(resolve => setTimeout(resolve, pollInterval));
 
             pollCount++;
-            console.log('[Kimi OAuth DEBUG] Poll attempt #', pollCount);
+            logger.debug('[Kimi OAuth] Poll attempt #' + pollCount);
 
             const { token, error, shouldContinue } = await this.exchangeDeviceCode(deviceCodeResponse.device_code);
 
             if (token) {
-                console.log('[Kimi OAuth DEBUG] Poll #', pollCount, '- Token received!');
+                logger.info('[Kimi OAuth] Token received on attempt #' + pollCount);
                 return token;
             }
 
             if (!shouldContinue) {
-                console.error('[Kimi OAuth DEBUG] Poll #', pollCount, '- Terminal error:', error.message);
+                logger.error('[Kimi OAuth] Terminal error on attempt #' + pollCount + ': ' + error.message);
                 throw error;
             }
-            console.log('[Kimi OAuth DEBUG] Poll #', pollCount, '- Still waiting for authorization...');
+            logger.debug('[Kimi OAuth] Still waiting for authorization...');
             // 继续轮询
         }
 
-        console.error('[Kimi OAuth DEBUG] Device code expired, deadline reached');
+        logger.error('[Kimi OAuth] Device code expired, deadline reached');
         throw new Error('Device code expired');
     }
 
@@ -217,9 +208,7 @@ export class KimiOAuthClient {
      * 返回 {token, error, shouldContinue} 三元组
      */
     async exchangeDeviceCode(deviceCode) {
-        console.log('[Kimi OAuth DEBUG] exchangeDeviceCode() called with deviceCode:', deviceCode);
         try {
-            console.log('[Kimi OAuth DEBUG] Posting to:', KIMI_TOKEN_URL);
             const response = await this.httpClient.post(
                 KIMI_TOKEN_URL,
                 new URLSearchParams({
@@ -236,21 +225,17 @@ export class KimiOAuthClient {
                 }
             );
 
-            console.log('[Kimi OAuth DEBUG] Token exchange response status:', response.status);
-            console.log('[Kimi OAuth DEBUG] Token exchange response data:', JSON.stringify(response.data));
-
             // Kimi 返回 200 表示成功或 pending
             const data = response.data;
 
             // 处理 OAuth 错误
             if (data.error) {
-                console.log('[Kimi OAuth DEBUG] OAuth error:', data.error, '-', data.error_description);
                 switch (data.error) {
                     case 'authorization_pending':
-                        console.log('[Kimi OAuth DEBUG] Authorization pending...');
+                        logger.debug('[Kimi OAuth] Authorization pending...');
                         return { token: null, error: null, shouldContinue: true };
                     case 'slow_down':
-                        console.log('[Kimi OAuth DEBUG] Slow down, should increase interval...');
+                        logger.warn('[Kimi OAuth] Slow down signal, increasing polling interval');
                         return { token: null, error: null, shouldContinue: true };
                     case 'expired_token':
                         return { token: null, error: new Error('Device code expired'), shouldContinue: false };
@@ -263,7 +248,7 @@ export class KimiOAuthClient {
 
             // 验证 Token
             if (!data.access_token) {
-                console.error('[Kimi OAuth DEBUG] Empty access token in response');
+                logger.error('[Kimi OAuth] Empty access token in response');
                 return { token: null, error: new Error('Empty access token in response'), shouldContinue: false };
             }
 
@@ -280,27 +265,20 @@ export class KimiOAuthClient {
                 scope: data.scope,
                 device_id: this.deviceId
             };
-            console.log('[Kimi OAuth DEBUG] Successfully obtained token, expires_at:', expiresAt);
+            logger.info('[Kimi OAuth] Successfully obtained token, expires_at: ' + expiresAt);
 
             return { token, error: null, shouldContinue: false };
         } catch (error) {
-            console.error('[Kimi OAuth DEBUG] exchangeDeviceCode() error:', error.message);
-            console.error('[Kimi OAuth DEBUG] Error full:', JSON.stringify({
-                message: error.message,
-                code: error.code,
-                status: error.response?.status,
-                data: error.response?.data,
-                headers: error.response?.headers
-            }));
+            logger.debug('[Kimi OAuth] exchangeDeviceCode error:', error.message);
             // 检查是否是 OAuth 错误响应（Kimi 返回 400 但 body 中有 error 信息）
             if (error.response?.data) {
                 const oauthError = error.response.data;
-                console.error('[Kimi OAuth DEBUG] OAuth error response:', JSON.stringify(oauthError));
+                logger.debug('[Kimi OAuth] OAuth error response:', oauthError.error);
                 if (oauthError.error) {
                     return {
                         token: null,
                         error: new Error(`${oauthError.error}: ${oauthError.error_description || 'Unknown error'}`),
-                        shouldContinue: oauthError.error === 'authorization_pending'
+                        shouldContinue: oauthError.error === 'authorization_pending' || oauthError.error === 'slow_down'
                     };
                 }
             }

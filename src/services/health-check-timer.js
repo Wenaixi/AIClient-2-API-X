@@ -68,16 +68,26 @@ async function executeHealthCheck() {
     for (let i = 0; i < config.providerTypes.length; i += MAX_CONCURRENT) {
         const batch = config.providerTypes.slice(i, i + MAX_CONCURRENT);
         await Promise.all(batch.map(async (providerType) => {
-            const customInterval = customIntervals[providerType];
+            let customInterval = customIntervals[providerType];
+
+            // 验证自定义间隔，防止无效值
+            if (customInterval !== undefined) {
+                if (typeof customInterval !== 'number' || customInterval < HEALTH_CHECK.MIN_INTERVAL_MS) {
+                    customInterval = globalInterval;
+                } else if (customInterval > HEALTH_CHECK.MAX_INTERVAL_MS) {
+                    customInterval = HEALTH_CHECK.MAX_INTERVAL_MS;
+                }
+            }
+
             const effectiveInterval = customInterval ?? globalInterval;
 
             const lastTime = lastCheckTimes.get(providerType) || 0;
             const checkStartTime = Date.now();
 
-            // 添加双向随机抖动，防止时序攻击（±jitter）
-            const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS * 2) - HEALTH_CHECK.JITTER_MS;
+            // 添加非负随机抖动，防止时序攻击（0 ~ jitter）
+            const jitter = Math.floor(Math.random() * HEALTH_CHECK.JITTER_MS);
 
-            if (checkStartTime - lastTime < effectiveInterval + jitter) {
+            if (checkStartTime - lastTime + jitter < effectiveInterval) {
                 // 跳过检查是正常行为，不需要记录日志
                 return;
             }
