@@ -1007,7 +1007,6 @@ const translations = {
         'dashboard.routing.nodeName.openai': 'OpenAI Custom',
         'dashboard.routing.nodeName.qwen': 'Qwen OAuth',
         'dashboard.routing.nodeName.iflow': 'iFlow OAuth',
-        'dashboard.routing.nodeName.kimi': 'Kimi OAuth',
         'dashboard.routing.nodeName.codex': 'OpenAI Codex OAuth',
         'dashboard.routing.nodeName.grok': 'Grok Reverse',
         'dashboard.contact.title': 'Contact & Support',
