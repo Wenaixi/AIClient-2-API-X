@@ -275,6 +275,7 @@ export class KimiApiService {
 
             const stream = response.data;
             let buffer = '';
+            let hasYielded = false;
 
             for await (const chunk of stream) {
                 buffer += chunk.toString();
@@ -290,6 +291,7 @@ export class KimiApiService {
                         }
                         try {
                             const parsedChunk = JSON.parse(jsonData);
+                            hasYielded = true;
                             yield parsedChunk;
                         } catch (parseError) {
                             logger.warn('[Kimi API] Failed to parse SSE chunk:', parseError.message);
@@ -303,7 +305,7 @@ export class KimiApiService {
             const errorMessage = error.message || '';
             const isNetworkError = isRetryableNetworkError(error);
 
-            // 401/403 尝试刷新 token
+            // 401/403 尝试刷新 token（仅未在流中产出数据时重试，token 刷新也需要 token 未完全过期）
             if ((status === 401 || status === 403) && !isRetry && this.tokenStorage?.refresh_token) {
                 logger.info('[Kimi API] Token expired in stream, refreshing and retrying...');
                 try {
@@ -315,8 +317,11 @@ export class KimiApiService {
                 }
             }
 
+            // 已产出部分数据后不再重试，避免消费者收到重复/残缺的流
+            const canRetry = !hasYielded && retryCount < maxRetries;
+
             // 429 限流
-            if (status === 429 && retryCount < maxRetries) {
+            if (status === 429 && canRetry) {
                 const delay = baseDelay * Math.pow(2, retryCount);
                 logger.info(`[Kimi API] Rate limited (429) in stream. Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -325,7 +330,7 @@ export class KimiApiService {
             }
 
             // 5xx 服务器错误
-            if (status >= 500 && status < 600 && retryCount < maxRetries) {
+            if (status >= 500 && status < 600 && canRetry) {
                 const delay = baseDelay * Math.pow(2, retryCount);
                 logger.info(`[Kimi API] Server error (${status}) in stream. Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -334,7 +339,7 @@ export class KimiApiService {
             }
 
             // 网络错误
-            if (isNetworkError && retryCount < maxRetries) {
+            if (isNetworkError && canRetry) {
                 const delay = baseDelay * Math.pow(2, retryCount);
                 logger.info(`[Kimi API] Network error in stream. Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));

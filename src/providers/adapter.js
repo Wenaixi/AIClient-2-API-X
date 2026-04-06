@@ -685,7 +685,12 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
             throw new Error(`Kimi credentials file not found: ${fullPath}`);
         }
 
-        const credData = JSON.parse(readFileSync(fullPath, 'utf-8'));
+        let credData;
+        try {
+            credData = JSON.parse(readFileSync(fullPath, 'utf-8'));
+        } catch (parseErr) {
+            throw new Error(`Invalid JSON in Kimi credentials file: ${parseErr.message}`);
+        }
         this.kimiApiService.setTokenStorage(KimiTokenStorage.fromJSON(credData));
         logger.info('[Kimi Adapter] Token loaded successfully');
     }

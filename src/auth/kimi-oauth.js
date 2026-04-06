@@ -6,6 +6,8 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import os from 'os';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { dirname, resolve } from 'path';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
@@ -14,6 +16,7 @@ const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;
 const KIMI_API_BASE_URL = 'https://api.kimi.com/coding';
+const KIMI_DEVICE_ID_FILE = 'configs/.kimi_device_id';
 
 // 设备 ID 持久化（模块级单例）
 let _cachedDeviceId = null;
@@ -56,11 +59,37 @@ function getHostname() {
 /**
  * 获取或创建设备 ID
  * 使用模块级缓存，确保同一进程内所有客户端实例使用相同的设备 ID
+ * 持久化到磁盘，避免进程重启后生成新设备 ID 导致 OAuth token 失效
  */
 function getOrCreateDeviceId() {
-    if (!_cachedDeviceId) {
-        _cachedDeviceId = uuidv4();
+    if (_cachedDeviceId) {
+        return _cachedDeviceId;
     }
+
+    const configDir = process.cwd();
+    const deviceFile = resolve(configDir, KIMI_DEVICE_ID_FILE);
+
+    // 尝试从磁盘加载
+    try {
+        const existingId = readFileSync(deviceFile, 'utf-8').trim();
+        if (existingId) {
+            _cachedDeviceId = existingId;
+            return _cachedDeviceId;
+        }
+    } catch {
+        // 文件不存在或读取失败，继续生成新 ID
+    }
+
+    // 生成并持久化
+    _cachedDeviceId = uuidv4();
+    try {
+        const dir = dirname(deviceFile);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(deviceFile, _cachedDeviceId, 'utf-8');
+    } catch (err) {
+        logger.warn('[Kimi OAuth] Failed to persist device ID:', err.message);
+    }
+
     return _cachedDeviceId;
 }
 
