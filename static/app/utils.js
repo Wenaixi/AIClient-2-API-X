@@ -73,37 +73,37 @@ function getBaseProviderConfigs() {
             icon: 'fa-cloud',
             defaultPath: 'configs/qwen/'
         },
-        { 
-            id: 'openai-iflow', 
-            name: t('dashboard.routing.nodeName.iflow'), 
+        {
+            id: 'openai-iflow',
+            name: t('dashboard.routing.nodeName.iflow'),
             icon: 'fa-stream',
             defaultPath: 'configs/iflow/'
-        },
-        { 
-            id: 'grok-custom', 
-            name: t('dashboard.routing.nodeName.grok'), 
-            icon: 'fa-user-secret'
-        },
-        { 
-            id: 'openai-custom', 
-            name: t('dashboard.routing.nodeName.openai'), 
-            icon: 'fa-microchip'
-        },
-        { 
-            id: 'claude-custom', 
-            name: t('dashboard.routing.nodeName.claude'), 
-            icon: 'fa-brain'
-        },
-        { 
-            id: 'openaiResponses-custom', 
-            name: 'OpenAI Responses', 
-            icon: 'fa-reply-all'
         },
         {
             id: 'kimi-oauth',
             name: t('dashboard.routing.nodeName.kimi'),
             icon: 'fa-moon',
             defaultPath: 'configs/kimi/'
+        },
+        {
+            id: 'grok-custom',
+            name: t('dashboard.routing.nodeName.grok'),
+            icon: 'fa-user-secret'
+        },
+        {
+            id: 'openai-custom',
+            name: t('dashboard.routing.nodeName.openai'),
+            icon: 'fa-microchip'
+        },
+        {
+            id: 'claude-custom',
+            name: t('dashboard.routing.nodeName.claude'),
+            icon: 'fa-brain'
+        },
+        {
+            id: 'openaiResponses-custom',
+            name: 'OpenAI Responses',
+            icon: 'fa-reply-all'
         },
     ];
 }

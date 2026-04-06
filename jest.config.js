@@ -17,6 +17,12 @@ export default {
   testMatch: [
     '**/tests/**/*.test.js'
   ],
+  testPathIgnorePatterns: [
+    // 需要运行服务器的集成测试 - 使用 npm test -- --testPathIgnorePatterns="..." 来运行
+    'security-fixes.test.js$',
+    'api-integration.test.js$',
+    'concurrent-test.js$'
+  ],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/**/*.test.js',

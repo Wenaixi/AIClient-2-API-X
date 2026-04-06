@@ -2650,20 +2650,16 @@ function showAuthModal(authUrl, authInfo) {
         `;
     } else if (authInfo.provider === 'kimi-oauth') {
         // Kimi Device Flow - special handling
+        // 简化UI：移除设备码显示区域，因为浏览器已自动打开授权页面
+        // 授权成功/失败由后端轮询检测，前端自动处理
         instructionsHtml = `
             <div class="auth-instructions">
                 <h4 data-i18n="oauth.modal.steps">${t('oauth.modal.steps')}</h4>
                 <ol>
-                    <li data-i18n="oauth.kimi.step1">${t('oauth.kimi.step1', '点击下方按钮在浏览器中打开授权页面')}</li>
-                    <li data-i18n="oauth.kimi.step2">${t('oauth.kimi.step2', '在页面中输入设备码或使用已填充的链接完成授权')}</li>
-                    <li data-i18n="oauth.kimi.step3">${t('oauth.kimi.step3', '授权完成后点击下方按钮完成认证')}</li>
-                    <li data-i18n="oauth.kimi.step4">${t('oauth.kimi.step4', '凭据文件可在上传配置管理中查看和管理')}</li>
+                    <li data-i18n="oauth.kimi.step1">${t('oauth.kimi.step1', '浏览器已自动打开授权页面')}</li>
+                    <li data-i18n="oauth.kimi.step2">${t('oauth.kimi.step2', '在授权页面中完成登录和授权')}</li>
+                    <li data-i18n="oauth.kimi.step3">${t('oauth.kimi.step3', '授权完成后此窗口将自动关闭')}</li>
                 </ol>
-            </div>
-            <div class="kimi-device-code" style="margin-top: 16px; padding: 16px; background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border: 2px solid #0ea5e9; border-radius: 12px; text-align: center;">
-                <p style="margin: 0 0 8px; font-size: 13px; color: #0369a1; font-weight: 500;" data-i18n="oauth.kimi.enterCode">${t('oauth.kimi.enterCode', '请在授权页面输入以下设备码')}</p>
-                <p style="margin: 8px 0; font-size: 28px; font-family: monospace; letter-spacing: 6px; color: #0284c7; font-weight: bold; user-select: all; cursor: pointer;">${authInfo.userCode || ''}</p>
-                <p style="margin: 8px 0 0; font-size: 11px; color: #64748b;" data-i18n="oauth.kimi.clickToCopy">${t('oauth.kimi.clickToCopy', '点击自动复制')}</p>
             </div>
             <div class="kimi-polling-status" style="margin-top: 12px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
                 <p class="kimi-polling-text" style="margin: 0; color: #64748b; font-size: 13px;">
@@ -2840,26 +2836,8 @@ function showAuthModal(authUrl, authInfo) {
         });
     }
 
-    // Kimi Device Flow: 设备码点击复制
-    const deviceCodeEl = modal.querySelector('.kimi-device-code p:last-of-type');
-    if (deviceCodeEl && authInfo.userCode) {
-        deviceCodeEl.addEventListener('click', () => {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(authInfo.userCode).then(() => {
-                    showToast(t('common.success'), '设备码已复制到剪贴板', 'success');
-                }).catch(() => {
-                    // 降级方案
-                    const range = document.createRange();
-                    range.selectNodeContents(deviceCodeEl);
-                    const sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                    document.execCommand('copy');
-                    showToast(t('common.success'), '设备码已复制到剪贴板', 'success');
-                });
-            }
-        });
-    }
+    // Kimi Device Flow: 授权成功时关闭小浏览器窗口
+    // 注意：设备码显示区域已移除，授权成功/失败由后端轮询检测
     
     // 在浏览器中打开按钮
     const openBtn = modal.querySelector('.open-auth-btn');
@@ -3114,6 +3092,10 @@ function showAuthModal(authUrl, authInfo) {
                         console.log('[Frontend DEBUG] Authorization SUCCESS!');
                         clearInterval(kimiPollTimer);
                         kimiPollTimer = null;
+                        // 关闭小浏览器窗口
+                        if (kimiAuthWindow && !kimiAuthWindow.closed) {
+                            kimiAuthWindow.close();
+                        }
                         modal.remove();
                         showToast(t('common.success'), '授权成功！凭据已保存', 'success');
                         loadProviders();
