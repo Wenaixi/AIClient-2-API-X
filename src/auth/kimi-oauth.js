@@ -176,18 +176,25 @@ export class KimiOAuthClient {
 
         // 轮询循环（与Go一致：先等待再执行）
         let pollCount = 0;
+        let currentPollInterval = pollInterval;
         while (Date.now() < deadline) {
             // 先等待（Go的ticker行为）
-            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            await new Promise(resolve => setTimeout(resolve, currentPollInterval));
 
             pollCount++;
             logger.debug('[Kimi OAuth] Poll attempt #' + pollCount);
 
-            const { token, error, shouldContinue } = await this.exchangeDeviceCode(deviceCodeResponse.device_code);
+            const { token, error, shouldContinue, increaseInterval } = await this.exchangeDeviceCode(deviceCodeResponse.device_code);
 
             if (token) {
                 logger.info('[Kimi OAuth] Token received on attempt #' + pollCount);
                 return token;
+            }
+
+            // slow_down 时增加轮询间隔（按RFC 8628规范要求）
+            if (increaseInterval) {
+                currentPollInterval = Math.min(currentPollInterval * 2, MAX_POLL_INTERVAL);
+                logger.debug('[Kimi OAuth] Increased poll interval to ' + currentPollInterval + 'ms');
             }
 
             if (!shouldContinue) {
@@ -233,16 +240,16 @@ export class KimiOAuthClient {
                 switch (data.error) {
                     case 'authorization_pending':
                         logger.debug('[Kimi OAuth] Authorization pending...');
-                        return { token: null, error: null, shouldContinue: true };
+                        return { token: null, error: null, shouldContinue: true, increaseInterval: false };
                     case 'slow_down':
                         logger.warn('[Kimi OAuth] Slow down signal, increasing polling interval');
-                        return { token: null, error: null, shouldContinue: true };
+                        return { token: null, error: null, shouldContinue: true, increaseInterval: true };
                     case 'expired_token':
-                        return { token: null, error: new Error('Device code expired'), shouldContinue: false };
+                        return { token: null, error: new Error('Device code expired'), shouldContinue: false, increaseInterval: false };
                     case 'access_denied':
-                        return { token: null, error: new Error('Access denied by user'), shouldContinue: false };
+                        return { token: null, error: new Error('Access denied by user'), shouldContinue: false, increaseInterval: false };
                     default:
-                        return { token: null, error: new Error(`OAuth error: ${data.error} - ${data.error_description || ''}`), shouldContinue: false };
+                        return { token: null, error: new Error(`OAuth error: ${data.error} - ${data.error_description || ''}`), shouldContinue: false, increaseInterval: false };
                 }
             }
 
@@ -361,6 +368,7 @@ export class KimiTokenStorage {
      * 检查 Token 是否过期
      */
     isExpired() {
+        // 无过期时间信息时，保守地视为未过期（让 needsRefresh 做额外判断）
         if (!this.expired) {
             return false;
         }

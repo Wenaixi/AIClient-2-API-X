@@ -88,6 +88,12 @@ import {
     initTutorialManager
 } from './tutorial-manager.js';
 
+// 防止 initApp 重复初始化
+let _appInitialized = false;
+
+// 定期刷新系统信息的 interval ID
+let _systemInfoIntervalId = null;
+
 /**
  * 加载初始数据
  */
@@ -102,6 +108,12 @@ function loadInitialData() {
  * 初始化应用
  */
 function initApp() {
+    // 防止重复初始化
+    if (_appInitialized) {
+        return;
+    }
+    _appInitialized = true;
+
     // 设置数据加载器
     setDataLoaders(loadInitialData, saveConfiguration);
     
@@ -135,22 +147,13 @@ function initApp() {
     setInterval(() => {
         updateTimeDisplay();
     }, 5000);
-    
+
     // 定期刷新系统信息
-    setInterval(() => {
+    _systemInfoIntervalId = setInterval(() => {
         loadProviders();
 
         if (providerStats.activeProviders > 0) {
             const stats = getProviderStats(providerStats);
-            // console.log('=== 提供商统计报告 ===');
-            // console.log(`活跃提供商: ${stats.activeProviders}`);
-            // console.log(`健康提供商: ${stats.healthyProviders} (${stats.healthRatio})`);
-            // console.log(`总账户数: ${stats.totalAccounts}`);
-            // console.log(`总请求数: ${stats.totalRequests}`);
-            // console.log(`总错误数: ${stats.totalErrors}`);
-            // console.log(`成功率: ${stats.successRate}`);
-            // console.log(`平均每提供商请求数: ${stats.avgUsagePerProvider}`);
-            // console.log('========================');
         }
     }, REFRESH_INTERVALS.SYSTEM_INFO);
 

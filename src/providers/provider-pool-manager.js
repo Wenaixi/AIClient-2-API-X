@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import axios from 'axios';
+import crypto from 'crypto';
+import { randomUUID } from 'crypto';
 import { getServiceAdapter, getRegisteredProviders } from './adapter.js';
 import logger from '../utils/logger.js';
 import { MODEL_PROVIDER, getProtocolPrefix } from '../utils/common.js';
@@ -330,16 +332,22 @@ export class ProviderPoolManager {
         };
 
         const tryStartProviderQueue = () => {
-            if (queue.activeCount < this.refreshConcurrency.perProvider) {
-                queue.activeCount++;
+            if (this.refreshQueues[providerType].activeCount < this.refreshConcurrency.perProvider) {
+                this.refreshQueues[providerType].activeCount++;
                 runTask();
             } else {
-                queue.waitingTasks.push(runTask);
+                this.refreshQueues[providerType].waitingTasks.push(runTask);
             }
         };
 
         // 检查全局并发限制（按提供商分组）
-        // 情况1: 该提供商已经在运行，直接加入其队列（不占用新的全局槽位）
+        // 确保 refreshQueues[providerType] 已初始化
+        if (!this.refreshQueues[providerType]) {
+            this.refreshQueues[providerType] = {
+                activeCount: 0,
+                waitingTasks: []
+            };
+        }
         const isExistingQueue = this.refreshQueues[providerType].activeCount > 0 || this.refreshQueues[providerType].waitingTasks.length > 0;
         if (isExistingQueue) {
             tryStartProviderQueue();
@@ -1702,11 +1710,7 @@ export class ProviderPoolManager {
         if (provider) {
             const oldUuid = provider.config.uuid;
             // 生成新的 UUID
-            const newUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
+            const newUuid = crypto.randomUUID();
             
             // 更新 provider 的 UUID
             provider.uuid = newUuid;

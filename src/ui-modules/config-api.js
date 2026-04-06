@@ -76,7 +76,6 @@ export async function handleGetConfig(req, res, currentConfig) {
         CRON_NEAR_MINUTES: currentConfig.CRON_NEAR_MINUTES,
         CRON_REFRESH_TOKEN: currentConfig.CRON_REFRESH_TOKEN,
         LOGIN_EXPIRY: currentConfig.LOGIN_EXPIRY,
-        PROVIDER_POOLS_FILE_PATH: currentConfig.PROVIDER_POOLS_FILE_PATH,
         MAX_ERROR_COUNT: currentConfig.MAX_ERROR_COUNT,
         WARMUP_TARGET: currentConfig.WARMUP_TARGET,
         REFRESH_CONCURRENCY_PER_PROVIDER: currentConfig.REFRESH_CONCURRENCY_PER_PROVIDER,
@@ -130,7 +129,9 @@ export async function handleUpdateConfig(req, res, currentConfig) {
             const port = Number(newConfig.SERVER_PORT);
             if (Number.isInteger(port) && port >= NETWORK.MIN_PORT && port <= NETWORK.MAX_PORT) currentConfig.SERVER_PORT = port;
         }
-        if (newConfig.MODEL_PROVIDER !== undefined) currentConfig.MODEL_PROVIDER = newConfig.MODEL_PROVIDER;
+        if (newConfig.MODEL_PROVIDER !== undefined) {
+            if (typeof newConfig.MODEL_PROVIDER === 'string' && newConfig.MODEL_PROVIDER.length > 0) currentConfig.MODEL_PROVIDER = newConfig.MODEL_PROVIDER;
+        }
         if (newConfig.SYSTEM_PROMPT_FILE_PATH !== undefined) {
             const p = String(newConfig.SYSTEM_PROMPT_FILE_PATH);
             // 防止路径遍历：解析后的绝对路径必须在工作目录内
@@ -165,7 +166,21 @@ export async function handleUpdateConfig(req, res, currentConfig) {
         if (newConfig.CRON_NEAR_MINUTES !== undefined) currentConfig.CRON_NEAR_MINUTES = newConfig.CRON_NEAR_MINUTES;
         if (newConfig.CRON_REFRESH_TOKEN !== undefined) currentConfig.CRON_REFRESH_TOKEN = newConfig.CRON_REFRESH_TOKEN;
         if (newConfig.LOGIN_EXPIRY !== undefined) currentConfig.LOGIN_EXPIRY = newConfig.LOGIN_EXPIRY;
-        if (newConfig.PROVIDER_POOLS_FILE_PATH !== undefined) currentConfig.PROVIDER_POOLS_FILE_PATH = newConfig.PROVIDER_POOLS_FILE_PATH;
+        if (newConfig.PROVIDER_POOLS_FILE_PATH !== undefined) {
+            const p = String(newConfig.PROVIDER_POOLS_FILE_PATH);
+            const resolved = path.resolve(process.cwd(), p);
+            const cwd = process.cwd();
+            const relativePath = path.relative(cwd, resolved);
+            const isWindows = process.platform === 'win32';
+            const normalizedResolved = (isWindows ? resolved.toLowerCase() : resolved).replace(/\\/g, '/');
+            const normalizedCwd = (isWindows ? cwd.toLowerCase() : cwd).replace(/\\/g, '/');
+            const startsWithCwd = normalizedResolved.startsWith(normalizedCwd + '/') || normalizedResolved === normalizedCwd;
+            if ((!path.isAbsolute(relativePath) && !relativePath.startsWith('..') && relativePath !== '..') && startsWithCwd) {
+                currentConfig.PROVIDER_POOLS_FILE_PATH = p;
+            } else {
+                logger.warn(`[UI API] Rejected PROVIDER_POOLS_FILE_PATH traversal attempt: ${p}`);
+            }
+        }
         if (newConfig.MAX_ERROR_COUNT !== undefined) currentConfig.MAX_ERROR_COUNT = newConfig.MAX_ERROR_COUNT;
         if (newConfig.WARMUP_TARGET !== undefined) currentConfig.WARMUP_TARGET = newConfig.WARMUP_TARGET;
         if (newConfig.REFRESH_CONCURRENCY_PER_PROVIDER !== undefined) currentConfig.REFRESH_CONCURRENCY_PER_PROVIDER = newConfig.REFRESH_CONCURRENCY_PER_PROVIDER;

@@ -18,8 +18,8 @@ let timerState = {
 // 记录每个 providerType 上次检查时间（毫秒）
 let lastCheckTimes = new Map();
 
-const _getState = () => timerState;
-const _getLastCheckTimes = () => lastCheckTimes;
+const _getState = () => Object.freeze({ ...timerState });
+const _getLastCheckTimes = () => new Map(lastCheckTimes);
 
 /**
  * 执行健康检查
@@ -156,6 +156,11 @@ export function stopHealthCheckTimer() {
  * @returns {number} 实际使用的间隔时间
  */
 export function reloadHealthCheckTimer(newInterval) {
+    const config = globalThis.CONFIG?.SCHEDULED_HEALTH_CHECK;
+    if (!config?.enabled) {
+        stopHealthCheckTimer();
+        return 0;
+    }
     return startHealthCheckTimer(newInterval);
 }
 
@@ -191,14 +196,14 @@ export function updateHealthCheckTimers(scheduledConfig) {
  */
 export function runStartupHealthCheck() {
     logger.info('[HealthCheckTimer] Running startup health check...');
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         setTimeout(async () => {
             try {
                 await executeHealthCheck();
                 resolve();
             } catch (error) {
                 logger.error('[HealthCheckTimer] Startup health check error:', error);
-                resolve();
+                reject(error);
             }
         }, 100);
     });

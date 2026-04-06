@@ -74,7 +74,7 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
         LOGIN_EXPIRY: 3600, // 登录过期时间（秒），默认1小时
         LOGIN_MAX_ATTEMPTS: 5, // 最大失败重试次数
         LOGIN_LOCKOUT_DURATION: 1800, // 锁定持续时间（秒），默认30分钟
-        LOGIN_MIN_INTERVAL: 5000, // 两次尝试之间的最小间隔（毫秒），默认1秒
+        LOGIN_MIN_INTERVAL: 5000, // 两次尝试之间的最小间隔（毫秒），默认5秒
         PROVIDER_POOLS_FILE_PATH: null, // 新增号池配置文件路径
         MAX_ERROR_COUNT: 10, // 提供商最大错误次数
         SCHEDULED_HEALTH_CHECK: {
@@ -132,8 +132,8 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
         { flag: '--login-max-attempts',   configKey: 'LOGIN_MAX_ATTEMPTS',     type: 'int' },
         { flag: '--login-lockout-duration', configKey: 'LOGIN_LOCKOUT_DURATION', type: 'int' },
         { flag: '--login-min-interval',   configKey: 'LOGIN_MIN_INTERVAL',     type: 'int' },
-        { flag: '--scheduled-health-check-enabled', configKey: 'SCHEDULE_HEALTH_CHECK_ENABLED', type: 'bool' },
-        { flag: '--scheduled-health-check-interval', configKey: 'SCHEDULE_HEALTH_CHECK_INTERVAL', type: 'int' },
+        { flag: '--scheduled-health-check-enabled', configKey: 'SCHEDULED_HEALTH_CHECK_ENABLED', type: 'bool' },
+        { flag: '--scheduled-health-check-interval', configKey: 'SCHEDULED_HEALTH_CHECK_INTERVAL', type: 'int' },
     ];
 
     // Parse command-line arguments using definitions
@@ -319,6 +319,11 @@ function validateHealthCheckConfig(config) {
     if (hcConfig.providerTypes && !Array.isArray(hcConfig.providerTypes)) {
         logger.warn('[Config Warning] SCHEDULED_HEALTH_CHECK.providerTypes must be an array, resetting to empty array');
         hcConfig.providerTypes = [];
+    }
+
+    // enabled 为 true 但 providerTypes 为空时给出明确警告
+    if (hcConfig.enabled && (!hcConfig.providerTypes || hcConfig.providerTypes.length === 0)) {
+        logger.warn('[Config Warning] SCHEDULED_HEALTH_CHECK is enabled but has no providerTypes configured — health check will not run');
     }
 
     // 验证 interval

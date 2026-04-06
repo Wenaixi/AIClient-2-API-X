@@ -9,6 +9,9 @@ import { CodexApiService } from './openai/codex-core.js';
 import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
 import { KimiApiService } from './kimi/kimi-core.js';
+import { KimiTokenStorage } from '../auth/kimi-oauth.js';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 import { MODEL_PROVIDER, findByPrefix, hasByPrefix } from '../utils/common.js';
 import logger from '../utils/logger.js';
 
@@ -520,7 +523,6 @@ export class CodexApiServiceAdapter extends ApiServiceAdapter {
             logger.info(`[Codex] Expiry date is near, refreshing token...`);
             await this.codexApiService.initializeAuth(true);
         }
-        return Promise.resolve();
     }
 
     async forceRefreshToken() {
@@ -676,9 +678,6 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
             throw new Error('No KIMI_OAUTH_CREDS_FILE_PATH configured');
         }
 
-        const { readFileSync, existsSync } = await import('fs');
-        const { resolve } = await import('path');
-
         const configDir = process.cwd();
         const fullPath = resolve(configDir, credPath);
 
@@ -687,7 +686,6 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
         }
 
         const credData = JSON.parse(readFileSync(fullPath, 'utf-8'));
-        const { KimiTokenStorage } = await import('../auth/kimi-oauth.js');
         this.kimiApiService.setTokenStorage(KimiTokenStorage.fromJSON(credData));
         logger.info('[Kimi Adapter] Token loaded successfully');
     }
@@ -695,7 +693,6 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
     async refreshToken() {
         // Kimi 的 token 刷新在 KimiApiService 内部自动处理
         logger.info('[Kimi] Token refresh handled automatically by service');
-        return Promise.resolve();
     }
 
     async forceRefreshToken() {
