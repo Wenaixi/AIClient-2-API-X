@@ -134,7 +134,7 @@ export function configureTLSSidecar(axiosConfig, config, providerType, defaultBa
     const sidecar = getTLSSidecar();
     if (sidecar.isReady() && isTLSSidecarEnabledForProvider(config, providerType)) {
         const proxyUrl = config.TLS_SIDECAR_PROXY_URL || null;
-        
+
         // 处理相对路径
         if (axiosConfig.url && !axiosConfig.url.startsWith('http')) {
             const baseUrl = (axiosConfig.baseURL || defaultBaseUrl || '').replace(/\/$/, '');
@@ -143,7 +143,7 @@ export function configureTLSSidecar(axiosConfig, config, providerType, defaultBa
                 axiosConfig.url = baseUrl + path;
             }
         }
-        
+
         sidecar.wrapAxiosConfig(axiosConfig, proxyUrl);
     }
     return axiosConfig;

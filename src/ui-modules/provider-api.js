@@ -7,32 +7,34 @@ import { broadcastEvent } from './event-broadcast.js';
 import { getRegisteredProviders } from '../providers/adapter.js';
 
 // 文件级互斥锁：防止并发读写导致数据丢失
-// 安全净化：移除用户输入字段中的危险内容（script、事件处理器、javascript:协议等），
-// 存储原始文本。HTML 转义统一由前端 escHtml() 负责，避免双编码问题。
 // 安全净化：移除用户输入字段中的危险内容，并可选地过滤敏感 API 密钥
 function sanitizeProviderData(provider, maskSensitive = false) {
     if (!provider || typeof provider !== 'object') return provider;
     const sanitized = { ...provider };
-    
-    // 1. 过滤敏感字段（API Keys, Tokens 等）
+
+    // 1. 过滤敏感字段（API Keys, Tokens 等）- 使用正则表达式动态检测
     if (maskSensitive) {
-        const sensitiveKeys = [
-            'OPENAI_API_KEY', 'CLAUDE_API_KEY', 'FORWARD_API_KEY', 
-            'GROK_COOKIE_TOKEN', 'GROK_CF_CLEARANCE',
-            'refreshToken', 'accessToken', 'clientSecret'
-        ];
-        
-        sensitiveKeys.forEach(key => {
-            if (sanitized[key]) {
+        for (const key in sanitized) {
+            // 排除已知非敏感字段
+            if (key === 'uuid' || key === 'customName' || key === 'isHealthy' || key === 'isDisabled' || key === 'needsRefresh') continue;
+
+            const val = sanitized[key];
+            if (typeof val !== 'string' || !val) continue;
+
+            // 识别敏感字段：包含 KEY, TOKEN, SECRET, PASSWORD, CLEARANCE 等关键词
+            // 同时排除包含 PATH, URL, DIR, ENDPOINT 等关键词的路径/地址字段
+            const isSensitive = /API_KEY|TOKEN|SECRET|PASSWORD|CLEARANCE|ACCESS_KEY|credentials/i.test(key);
+            const isPath = /PATH|URL|DIR|ENDPOINT|REGION/i.test(key);
+
+            if (isSensitive && !isPath) {
                 // 对密钥进行脱敏显示（只保留前 4 位和后 4 位）
-                const val = sanitized[key];
-                if (typeof val === 'string' && val.length > 10) {
+                if (val.length > 10) {
                     sanitized[key] = val.substring(0, 4) + '****' + val.substring(val.length - 4);
                 } else {
                     sanitized[key] = '********';
                 }
             }
-        });
+        }
     }
 
     // 2. 净化 customName 中的 HTML/脚本
@@ -44,6 +46,7 @@ function sanitizeProviderData(provider, maskSensitive = false) {
         }
         name = name.replace(/<[^>]*>/g, '');
         name = name.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+        name = name.replace(/&[#\w]+;/g, '');
         sanitized.customName = name.trim();
     }
     return sanitized;
@@ -59,6 +62,29 @@ function sanitizeProviderPools(pools, maskSensitive = false) {
     }
     return sanitized;
 }
+
+/**
+ * 过滤掉数据中的脱敏占位符，避免在保存时覆盖真实数据
+ */
+function filterMaskedData(data) {
+    if (!data || typeof data !== 'object') return data;
+    const result = { ...data };
+    
+    for (const key in result) {
+        const val = result[key];
+        if (typeof val === 'string') {
+            // 匹配 ******** 或 XXXX****XXXX 格式
+            // 如果值包含 **** 且长度符合脱敏特征，则认为它是脱敏后的回传值，应该忽略
+            // 不再仅限于特定的 sensitiveKeys，而是检查所有字符串字段
+            if (val === '********' || (val.includes('****') && val.length >= 10)) {
+                delete result[key];
+            }
+        }
+    }
+    
+    return result;
+}
+
 // 使用 Promise 链式队列，确保文件操作顺序执行
 let _fileLockChain = Promise.resolve();
 
@@ -106,7 +132,7 @@ export async function handleGetProviders(req, res, currentConfig, providerPoolMa
             waitingRequests: p.state?.waitingCount || 0
         }));
     }
-    
+
     // 3. 补全号池配置文件中的所有组，以及文件中有但内存中缺失的凭据
     const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
     try {
@@ -135,7 +161,6 @@ export async function handleGetProviders(req, res, currentConfig, providerPoolMa
     } catch (error) {
         logger.warn('[UI API] Failed to supplement provider status:', error.message);
     }
-
     // 合并生成支持的类型列表
     const supportedProviders = [...new Set([...registeredProviders, ...poolTypes])];
 
@@ -300,7 +325,10 @@ async function _handleAddProvider(req, res, currentConfig, providerPoolManager) 
         if (!providerPools[providerType]) {
             providerPools[providerType] = [];
         }
-        providerPools[providerType].push(providerConfig);
+        
+        // 过滤掉脱敏字段
+        const filteredConfig = filterMaskedData(providerConfig);
+        providerPools[providerType].push(filteredConfig);
 
         // Save to file
         writeFileSync(filePath, JSON.stringify(providerPools, null, 2), 'utf-8');
@@ -333,7 +361,7 @@ async function _handleAddProvider(req, res, currentConfig, providerPoolManager) 
         res.end(JSON.stringify({
             success: true,
             message: 'Provider added successfully',
-            provider: sanitizeProviderData(providerConfig),
+            provider: sanitizeProviderData(providerConfig, true),
             providerType
         }));
         return true;
@@ -392,9 +420,13 @@ async function _handleUpdateProvider(req, res, currentConfig, providerPoolManage
 
         // Update provider while preserving certain fields
         const existingProvider = providers[providerIndex];
+        
+        // 过滤掉传入配置中的脱敏占位符，避免覆盖真实数据
+        const filteredConfig = filterMaskedData(providerConfig);
+        
         const updatedProvider = {
             ...existingProvider,
-            ...providerConfig,
+            ...filteredConfig,
             uuid: providerUuid, // Ensure UUID doesn't change
             lastUsed: existingProvider.lastUsed, // Preserve usage stats
             usageCount: existingProvider.usageCount,
@@ -427,7 +459,7 @@ async function _handleUpdateProvider(req, res, currentConfig, providerPoolManage
         res.end(JSON.stringify({
             success: true,
             message: 'Provider updated successfully',
-            provider: sanitizeProviderData(updatedProvider)
+            provider: sanitizeProviderData(updatedProvider, true)
         }));
         return true;
     } catch (error) {

@@ -17,7 +17,7 @@ import { handleGeminiAntigravityOAuth } from '../../auth/oauth-handlers.js';
 import { getProxyConfigForProvider, getGoogleAuthProxyConfig } from '../../utils/proxy-utils.js';
 import { cleanJsonSchemaProperties } from '../../converters/utils.js';
 import { getProviderPoolManager } from '../../services/service-manager.js';
-import { MODEL_PROVIDER, ANTIGRAVITY_THINKING } from '../../utils/common.js';
+import { MODEL_PROVIDER } from '../../utils/common.js';
 
 // --- Constants ---
 const CREDENTIALS_DIR = '.antigravity';
@@ -29,8 +29,8 @@ const ANTIGRAVITY_SANDBOX_BASE_URL_DAILY = 'https://daily-cloudcode-pa.sandbox.g
 const ANTIGRAVITY_BASE_URL_PROD = 'https://autopush-cloudcode-pa.sandbox.googleapis.com';
 
 const ANTIGRAVITY_API_VERSION = 'v1internal';
-const OAUTH_CLIENT_ID = process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
-const OAUTH_CLIENT_SECRET = process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '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';
+const OAUTH_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+const OAUTH_CLIENT_SECRET = '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';
 const DEFAULT_USER_AGENT = 'antigravity/1.104.0 darwin/arm64';
 const REFRESH_SKEW = 3000; // 3000秒（50分钟）提前刷新Token
 
@@ -40,7 +40,6 @@ const ANTIGRAVITY_SYSTEM_PROMPT = `You are Antigravity, a powerful agentic AI co
 // Thinking 配置相关常量
 const DEFAULT_THINKING_MIN = 1024;
 const DEFAULT_THINKING_MAX = 100000;
-
 
 // 获取 Antigravity 模型列表
 const ANTIGRAVITY_MODELS = getProviderModels(MODEL_PROVIDER.ANTIGRAVITY);
@@ -676,23 +675,6 @@ function ensureRolesInContents(requestBody, modelName) {
                 content.role = 'user';
             }
             
-            // [FIX] 修复历史记录中的思考块，确保有签名 (messages.1.content.0.thinking.signature 报错修复)
-            if (content.parts && Array.isArray(content.parts)) {
-                content.parts.forEach(part => {
-                    if (part && part.thought === true) {
-                        if (!part.thoughtSignature && !part.thought_signature) {
-                            part.thoughtSignature = ANTIGRAVITY_THINKING.FALLBACK_SIGNATURE;
-                        }
-                        
-                        // [FIX] 额外增加一个 'thinking' 对象以适配某些 Antigravity 内部验证逻辑
-                        if (!part.thinking) {
-                            part.thinking = {
-                                signature: part.thoughtSignature || part.thought_signature || ANTIGRAVITY_THINKING.FALLBACK_SIGNATURE
-                            };
-                        }
-                    }
-                });
-            }
         });
     }
 
