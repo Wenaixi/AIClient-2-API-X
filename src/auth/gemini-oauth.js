@@ -523,7 +523,7 @@ export async function batchImportGeminiTokensStream(providerType, tokens, onProg
             const filename = `${timestamp}_${i}_oauth_creds.json`;
             const credPath = path.join(targetDir, filename);
             
-            await fs.promises.writeFile(credPath, JSON.stringify(token, null, 2));
+            await fs.promises.writeFile(credPath, JSON.stringify(token, null, 2), { mode: 0o600 });
             
             const relativePath = path.relative(process.cwd(), credPath);
             

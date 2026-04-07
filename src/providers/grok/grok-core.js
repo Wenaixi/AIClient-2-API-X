@@ -543,8 +543,7 @@ export class GrokApiService {
         const isMediaModel = modelLower.includes('imagine') || isVideoModel || isEditModel;
         const isNsfw = isGrokNsfwModel(rawModelId) || requestBody.nsfw === true || requestBody.disableNsfwFilter === true;
 
-        const shouldEnableImage = (modelLower.includes('imagine') || modelLower.includes('edit')) && !modelLower.includes('video') || 
-                                 requestBody.enableImageGeneration === true;
+        const shouldEnableImage = requestBody.enableImageGeneration === true || ((modelLower.includes('imagine') || modelLower.includes('edit')) && !modelLower.includes('video'));
 
         const imageGenerationCount = Math.min(parseInt(requestBody.n || requestBody.imageGenerationCount || (shouldEnableImage ? 2 : 0)), 2);
         const returnImageBytes = requestBody.response_format === 'b64_json' || requestBody.responseFormat === 'b64_json';

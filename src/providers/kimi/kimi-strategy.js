@@ -269,8 +269,8 @@ export class KimiStrategy extends ProviderStrategy {
                 }
             }
 
-            // 返回第一个 chunk（如果需要单一响应）或所有 chunks
-            return chunks.length > 0 ? chunks[0] : null;
+            // 返回所有 chunks（流式响应需要返回完整的 delta 数组）
+            return chunks.length > 0 ? chunks : null;
         } catch (error) {
             logger.warn('[Kimi Strategy] Failed to convert stream chunk:', error.message);
             return null;

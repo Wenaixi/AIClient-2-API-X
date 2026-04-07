@@ -135,7 +135,7 @@ export function applySystemPromptReplacements(content, replacements = []) {
             if (typeof replacement.old === 'string') {
                 // 简单字符串全量替换
                 newContent = newContent.split(replacement.old).join(replacement.new);
-            } else if (replacement.old instanceof RegExp || (typeof replacement.old === 'object' && replacement.old !== null)) {
+            } else if (replacement.old instanceof RegExp) {
                 // 正则表达式替换
                 newContent = newContent.replace(replacement.old, replacement.new);
             }

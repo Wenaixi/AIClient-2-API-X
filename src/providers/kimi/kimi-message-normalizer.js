@@ -23,8 +23,6 @@ export function normalizeKimiToolMessageLinks(body) {
     let patched = 0;
     let patchedReasoning = 0;
     let ambiguous = 0;
-    let latestReasoning = '';
-    let hasLatestReasoning = false;
 
     const removePending = (id) => {
         pending.delete(id);

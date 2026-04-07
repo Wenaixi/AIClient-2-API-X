@@ -17,9 +17,14 @@
     "CRON_REFRESH_TOKEN": false,
     "PROVIDER_POOLS_FILE_PATH": "configs/provider_pools.json",
     "MAX_ERROR_COUNT": 3,
-    "GROK_COOKIE_TOKEN": "your-sso-cookie-token",
-    "GROK_CF_CLEARANCE": "your-cf-clearance-cookie",
-    "GROK_USER_AGENT": "Mozilla/5.0 ...",
+    // GROK_API_KEY: Required. Must be replaced with your actual Grok API key
+    "GROK_API_KEY": "YOUR_GROK_API_KEY_HERE",
+    // GROK_COOKIE_TOKEN: Required. Must be replaced with your actual SSO cookie token
+    "GROK_COOKIE_TOKEN": "YOUR_GROK_COOKIE_TOKEN_HERE",
+    // GROK_CF_CLEARANCE: Required. Must be replaced with your actual CF clearance cookie
+    "GROK_CF_CLEARANCE": "YOUR_GROK_CF_CLEARANCE_HERE",
+    // GROK_USER_AGENT: Required. Must be replaced with your actual User-Agent string
+    "GROK_USER_AGENT": "YOUR_BROWSER_USER_AGENT_HERE",
     "GROK_BASE_URL": "https://grok.com",
     "providerFallbackChain": {
       "gemini-cli-oauth": ["gemini-antigravity"],

@@ -249,7 +249,12 @@ async function handleKiroSocialAuth(provider, currentConfig, options = {}) {
     }
     
     // 使用 HTTP localhost 作为 redirect_uri
-    const redirectUri = `http://127.0.0.1:${handlerPort}/oauth/callback`;
+    // 验证 handlerPort 防止恶意重定向
+    const validatedPort = parseInt(handlerPort, 10);
+    if (isNaN(validatedPort) || validatedPort < 1024 || validatedPort > 65535) {
+        throw new Error('Invalid handler port: must be between 1024 and 65535');
+    }
+    const redirectUri = `http://127.0.0.1:${validatedPort}/oauth/callback`;
     
     // 构建授权 URL
     const authUrl = `${KIRO_OAUTH_CONFIG.authServiceEndpoint}/login?` +

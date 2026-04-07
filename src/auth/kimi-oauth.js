@@ -112,11 +112,13 @@ export class KimiOAuthClient {
             validateStatus: (status) => status < 500
         };
 
-        // 如果配置了代理，使用代理
-        if (config.proxy) {
+        // 如果配置了代理，使用代理；否则使用系统默认代理（避免直连）
+        if (config.proxy === false) {
+            // 不禁用代理，让 axios 使用系统默认代理
+            // axios 默认会使用环境变量 HTTP_PROXY / HTTPS_PROXY
+            delete axiosConfig.proxy;
+        } else if (config.proxy) {
             axiosConfig.proxy = config.proxy;
-        } else {
-            axiosConfig.proxy = false;
         }
 
         this.httpClient = axios.create(axiosConfig);

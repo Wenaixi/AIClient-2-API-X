@@ -229,7 +229,7 @@ export function showKimiBatchImportModal(providerType) {
                         try {
                             data = JSON.parse(jsonStr);
                         } catch (parseError) {
-                            console.error('Failed to parse SSE data:', jsonStr);
+                            console.error('Failed to parse SSE data: invalid JSON');
                             continue;
                         }
 
@@ -289,6 +289,11 @@ export function showKimiBatchImportModal(providerType) {
                         <strong>${t('oauth.kimi.importCancelled')}</strong>
                     </div>
                 `;
+
+                // 取消后2秒自动关闭modal
+                setTimeout(() => {
+                    modal.remove();
+                }, 2000);
             } else {
                 progressDiv.style.display = 'none';
                 resultDiv.style.display = 'block';

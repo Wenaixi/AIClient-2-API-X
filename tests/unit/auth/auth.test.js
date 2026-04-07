@@ -295,12 +295,12 @@ describe('Security Best Practices', () => {
   });
 
   test('should generate random salts', async () => {
-    // 减少迭代次数用于测试，避免超时
+    // 使用接近生产环境的参数进行测试
     const testHashPassword = async (password) => {
-      const salt = crypto.randomBytes(8).toString('hex'); // 减少 salt 长度
-      const TEST_ITERATIONS = 500; // 测试用低迭代次数
+      const salt = crypto.randomBytes(32).toString('hex'); // 生产级 salt 长度
+      const TEST_ITERATIONS = 1000; // 测试用迭代次数（生产310000）
       const hash = await new Promise((resolve, reject) =>
-        crypto.pbkdf2(password, salt, TEST_ITERATIONS, 16, 'sha512', (err, key) => // 减少 keylen
+        crypto.pbkdf2(password, salt, TEST_ITERATIONS, 32, 'sha512', (err, key) => // 生产级 keylen
           err ? reject(err) : resolve(key.toString('hex'))
         )
       );

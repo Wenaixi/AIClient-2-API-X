@@ -152,23 +152,19 @@ export class KimiConverter extends BaseConverter {
 
         // 处理结束
         if (choice.finish_reason) {
-            // First return any accumulated content, then return message_delta
-            if (claudeChunk.delta.text || claudeChunk.delta.partial_json) {
-                return [claudeChunk, {
-                    type: 'message_delta',
-                    delta: {
-                        stop_reason: this.mapFinishReason(choice.finish_reason)
-                    },
-                    usage: chunk.usage
-                }];
-            }
-            return {
+            const messageDelta = {
                 type: 'message_delta',
                 delta: {
                     stop_reason: this.mapFinishReason(choice.finish_reason)
                 },
                 usage: chunk.usage
             };
+            // 始终返回数组，保持返回类型一致
+            // 如果有内容，先返回内容块，再返回message_delta
+            if (claudeChunk.delta.text || claudeChunk.delta.partial_json) {
+                return [claudeChunk, messageDelta];
+            }
+            return [messageDelta];
         }
 
         return claudeChunk;

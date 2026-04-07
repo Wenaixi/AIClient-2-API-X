@@ -52,7 +52,7 @@ export class UsageService {
 
             // 检查是否有号池配置
             if (poolManager) {
-                const pools = poolManager.getProviderPools(providerType);
+                const pools = poolManager.providerPools?.[providerType];
                 if (pools && pools.length > 0) {
                     // 使用 Promise.allSettled 并发查询所有池的用量
                     const poolPromises = pools.map(async (pool) => {
@@ -84,15 +84,21 @@ export class UsageService {
         // 使用 Promise.allSettled 收集所有结果，确保一个失败不会影响其他
         const settledResults = await Promise.allSettled(providerPromises);
 
+        // 建立 providerType 映射，用于追踪 rejected 结果
+        const providerTypes = Object.keys(this.providerHandlers);
+
         // 整理最终结果
-        for (const settled of settledResults) {
+        for (let i = 0; i < settledResults.length; i++) {
+            const settled = settledResults[i];
+            const providerType = providerTypes[i];
+
             if (settled.status === 'fulfilled' && settled.value) {
-                const { providerType, result } = settled.value;
-                results[providerType] = result;
+                const { providerType: pt, result } = settled.value;
+                results[pt] = result;
             } else if (settled.status === 'rejected') {
                 // 这应该很少发生，因为内部已经捕获了错误
                 const reason = settled.reason?.message || settled.reason || 'Unknown error';
-                results[settled.reason?.providerType || 'unknown'] = [{ uuid: 'default', error: reason }];
+                results[providerType] = [{ uuid: 'default', error: reason }];
             }
         }
 

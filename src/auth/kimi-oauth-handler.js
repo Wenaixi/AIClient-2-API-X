@@ -225,11 +225,16 @@ export async function handleKimiOAuth(config = {}, options = {}) {
         const expiresIn = deviceCodeResponse.expires_in || 300;
 
         // 返回授权信息，让前端处理用户授权
+        // userCode 仅用于前端展示给用户，不应在后续API调用中使用
+        const maskUserCode = (code) => {
+            if (!code || code.length < 6) return '****';
+            return code.slice(0, 3) + '***' + code.slice(-3);
+        };
         const result = {
             authUrl: deviceCodeResponse.verification_uri_complete || deviceCodeResponse.verification_uri,
             authInfo: {
                 provider: 'kimi-oauth',
-                userCode: deviceCodeResponse.user_code,
+                userCode: maskUserCode(deviceCodeResponse.user_code),
                 deviceCode: deviceCodeResponse.device_code,
                 verificationUri: deviceCodeResponse.verification_uri,
                 verificationUriComplete: deviceCodeResponse.verification_uri_complete,
