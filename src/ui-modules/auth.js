@@ -11,6 +11,21 @@ import { PASSWORD } from '../utils/constants.js';
 const TOKEN_STORE_FILE = path.join(process.cwd(), 'configs', 'token-store.json');
 
 /**
+ * Token 存储操作的互斥锁
+ * 防止并发读写导致文件损坏或读取失败（特别是 Windows 上的 EBUSY）
+ */
+let _tokenStoreQueue = Promise.resolve();
+
+function withTokenStoreLock(fn) {
+    const promise = _tokenStoreQueue.then(
+        () => fn(),
+        () => fn()
+    );
+    _tokenStoreQueue = promise.catch(() => {});
+    return promise;
+}
+
+/**
  * 默认密码（当pwd文件不存在时使用）
  */
 const DEFAULT_PASSWORD = 'admin123';
@@ -116,14 +131,14 @@ function getExpiryTime() {
 /**
  * 读取token存储文件
  */
-async function readTokenStore() {
+async function readTokenStoreLocked() {
     try {
         if (existsSync(TOKEN_STORE_FILE)) {
             const content = await fs.readFile(TOKEN_STORE_FILE, 'utf8');
             return JSON.parse(content);
         } else {
             // 如果文件不存在，创建一个默认的token store
-            await writeTokenStore({ tokens: {} });
+            await writeTokenStoreUnsafe({ tokens: {} });
             return { tokens: {} };
         }
     } catch (error) {
@@ -133,14 +148,32 @@ async function readTokenStore() {
 }
 
 /**
- * 写入token存储文件
+ * 写入token存储文件（内部方法，无锁保护）
  */
-async function writeTokenStore(tokenStore) {
+async function writeTokenStoreUnsafe(tokenStore) {
     try {
         await fs.writeFile(TOKEN_STORE_FILE, JSON.stringify(tokenStore, null, 2), 'utf8');
     } catch (error) {
         logger.error('[Token Store] Failed to write token store file:', error);
     }
+}
+
+/**
+ * 写入token存储文件（带并发锁保护）
+ */
+async function writeTokenStore(tokenStore) {
+    return withTokenStoreLock(async () => {
+        await writeTokenStoreUnsafe(tokenStore);
+    });
+}
+
+/**
+ * 读取token存储文件（带并发锁保护）
+ */
+async function readTokenStore() {
+    return withTokenStoreLock(async () => {
+        return await readTokenStoreLocked();
+    });
 }
 
 /**
@@ -152,13 +185,13 @@ export async function verifyToken(token) {
     if (!tokenInfo) {
         return null;
     }
-    
+
     // 检查是否过期
     if (Date.now() > tokenInfo.expiryTime) {
         await deleteToken(token);
         return null;
     }
-    
+
     return tokenInfo;
 }
 

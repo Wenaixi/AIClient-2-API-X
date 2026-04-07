@@ -1,3 +1,4 @@
+export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as http from 'http'; // Add http for IncomingMessage and ServerResponse types
@@ -6,6 +7,7 @@ import logger from './logger.js';
 import { convertData, getOpenAIStreamChunkStop } from '../convert/convert.js';
 import { ProviderStrategyFactory } from './provider-strategies.js';
 import { getPluginManager } from '../core/plugin-manager.js';
+import { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 
 // ==================== 网络错误处理 ====================
 
@@ -49,6 +51,7 @@ export const API_ACTIONS = {
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
 
+<<<<<<< HEAD
 export const MODEL_PROTOCOL_PREFIX = {
     // Model provider constants
     GEMINI: 'gemini',
@@ -76,7 +79,6 @@ export const MODEL_PROVIDER = {
     KIMI_API: 'kimi-oauth',
     AUTO: 'auto',
 }
-
 import {
     usesManagedModelList,
     getConfiguredSupportedModels

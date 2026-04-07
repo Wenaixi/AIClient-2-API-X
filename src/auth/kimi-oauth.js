@@ -104,7 +104,9 @@ export class KimiOAuthClient {
 
         // 配置 axios，支持代理和 TLS
         const axiosConfig = {
-            timeout: 30000
+            timeout: 30000,
+            // 允许处理 400-499 响应（OAuth 错误如 authorization_pending 返回 400）
+            validateStatus: (status) => status < 500
         };
 
         // 如果配置了代理，使用代理

@@ -77,6 +77,7 @@ export async function handleGetConfig(req, res, currentConfig) {
         CRON_REFRESH_TOKEN: currentConfig.CRON_REFRESH_TOKEN,
         LOGIN_EXPIRY: currentConfig.LOGIN_EXPIRY,
         MAX_ERROR_COUNT: currentConfig.MAX_ERROR_COUNT,
+        SYSTEM_PROMPT_REPLACEMENTS: currentConfig.SYSTEM_PROMPT_REPLACEMENTS,
         WARMUP_TARGET: currentConfig.WARMUP_TARGET,
         REFRESH_CONCURRENCY_PER_PROVIDER: currentConfig.REFRESH_CONCURRENCY_PER_PROVIDER,
         providerFallbackChain: currentConfig.providerFallbackChain,
@@ -155,6 +156,11 @@ export async function handleUpdateConfig(req, res, currentConfig) {
             }
         }
         if (newConfig.SYSTEM_PROMPT_MODE !== undefined) currentConfig.SYSTEM_PROMPT_MODE = newConfig.SYSTEM_PROMPT_MODE;
+        if (newConfig.SYSTEM_PROMPT_REPLACEMENTS !== undefined) {
+            if (Array.isArray(newConfig.SYSTEM_PROMPT_REPLACEMENTS)) {
+                currentConfig.SYSTEM_PROMPT_REPLACEMENTS = newConfig.SYSTEM_PROMPT_REPLACEMENTS;
+            }
+        }
         if (newConfig.PROMPT_LOG_BASE_NAME !== undefined) currentConfig.PROMPT_LOG_BASE_NAME = newConfig.PROMPT_LOG_BASE_NAME;
         if (newConfig.PROMPT_LOG_MODE !== undefined) currentConfig.PROMPT_LOG_MODE = newConfig.PROMPT_LOG_MODE;
         if (newConfig.REQUEST_MAX_RETRIES !== undefined) {
@@ -304,6 +310,7 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 MODEL_PROVIDER: currentConfig.MODEL_PROVIDER,
                 SYSTEM_PROMPT_FILE_PATH: currentConfig.SYSTEM_PROMPT_FILE_PATH,
                 SYSTEM_PROMPT_MODE: currentConfig.SYSTEM_PROMPT_MODE,
+                SYSTEM_PROMPT_REPLACEMENTS: currentConfig.SYSTEM_PROMPT_REPLACEMENTS,
                 PROMPT_LOG_BASE_NAME: currentConfig.PROMPT_LOG_BASE_NAME,
                 PROMPT_LOG_MODE: currentConfig.PROMPT_LOG_MODE,
                 REQUEST_MAX_RETRIES: currentConfig.REQUEST_MAX_RETRIES,

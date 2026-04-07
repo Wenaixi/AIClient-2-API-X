@@ -2813,6 +2813,7 @@ function showAuthModal(authUrl, authInfo) {
     // 在浏览器中打开按钮
     const openBtn = modal.querySelector('.open-auth-btn');
     let kimiWindowCheck = null;
+    let kimiAuthWindow = null; // 提升到外层作用域，以便 startKimiAutoPolling 能访问
     openBtn.addEventListener('click', () => {
         // Kimi Device Flow: 不需要监控子窗口 URL 变化（Device Flow 没有 redirect callback）
         // 直接打开浏览器，然后让 startKimiAutoPolling 在后端轮询等待授权
@@ -2822,7 +2823,7 @@ function showAuthModal(authUrl, authInfo) {
             const left = (window.screen.width - width) / 2 + 600;
             const top = (window.screen.height - height) / 2;
 
-            const kimiAuthWindow = window.open(
+            kimiAuthWindow = window.open(
                 authUrl,
                 'KimiAuthWindow',
                 `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
