@@ -123,12 +123,15 @@ export function startHealthCheckTimer(interval) {
     }
 
     state.timerId = setInterval(async () => {
-        // 使用 Promise 确保原子性，防止竞态条件
         if (state.checkPromise) {
             return;
         }
-        state.checkPromise = executeHealthCheck().finally(() => {
-            state.checkPromise = null;
+        const promise = executeHealthCheck();
+        state.checkPromise = promise;
+        promise.finally(() => {
+            if (state.checkPromise === promise) {
+                state.checkPromise = null;
+            }
         });
     }, safeInterval);
 

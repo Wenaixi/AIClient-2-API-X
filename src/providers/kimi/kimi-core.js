@@ -123,9 +123,16 @@ export class KimiApiService {
     }
 
     /**
-     * 标准化模型名称（移除 kimi- 前缀）
+     * 标准化模型名称
+     * - kimi-k2.5-thinking -> k2.5 (thinking 模型映射到基础模型)
+     * - kimi-k2.5 -> k2.5
+     * - kimi-k2-thinking -> k2-thinking
+     * - 其他以 kimi- 开头 -> 移除前缀
      */
     normalizeModelName(model) {
+        if (model === 'kimi-k2.5-thinking') {
+            return 'k2.5';
+        }
         if (model && model.startsWith('kimi-')) {
             return model.substring(5);
         }

@@ -44,10 +44,7 @@ export const PROVIDER_MODELS = {
     'openai-custom': [],
     'openaiResponses-custom': [],
     'openai-qwen-oauth': [
-        'qwen3-coder-plus',
-        'qwen3-coder-flash',
-        'coder-model',
-        'vision-model'
+        'coder-model'
     ],
     'openai-codex-oauth': [
         'gpt-5',
@@ -91,9 +88,7 @@ export const PROVIDER_MODELS = {
         'grok-imagine-1.0-fast-edit-nsfw'
     ],
     'kimi-oauth': [
-        'kimi-k2',
-        'kimi-k2.5',
-        'kimi-k2-0905',
+        'kimi-k2.5-thinking',
         'kimi-k2-thinking'
     ]
 };

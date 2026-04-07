@@ -51,35 +51,8 @@ export const API_ACTIONS = {
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
 
-<<<<<<< HEAD
-export const MODEL_PROTOCOL_PREFIX = {
-    // Model provider constants
-    GEMINI: 'gemini',
-    OPENAI: 'openai',
-    OPENAI_RESPONSES: 'openaiResponses',
-    CLAUDE: 'claude',
-    CODEX: 'codex',
-    FORWARD: 'forward',
-    GROK: 'grok',
-    KIMI: 'kimi',
-}
-
-export const MODEL_PROVIDER = {
-    // Model provider constants
-    GEMINI_CLI: 'gemini-cli-oauth',
-    ANTIGRAVITY: 'gemini-antigravity',
-    OPENAI_CUSTOM: 'openai-custom',
-    OPENAI_CUSTOM_RESPONSES: 'openaiResponses-custom',
-    CLAUDE_CUSTOM: 'claude-custom',
-    KIRO_API: 'claude-kiro-oauth',
-    QWEN_API: 'openai-qwen-oauth',
-    CODEX_API: 'openai-codex-oauth',
-    FORWARD_API: 'forward-api',
-    GROK_CUSTOM: 'grok-custom',
-    KIMI_API: 'kimi-oauth',
-    AUTO: 'auto',
-}
-import {
+<export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
+import { promises as fs } from 'fs';
     usesManagedModelList,
     getConfiguredSupportedModels
 } from '../providers/provider-models.js';

@@ -408,43 +408,45 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
  * @returns {Promise<Object>} 检查结果
  */
 export async function checkKimiCredentialsDuplicate(tokenPath, compareDir) {
+    let tokenData;
     try {
-        const tokenData = JSON.parse(fs.readFileSync(tokenPath, 'utf-8'));
-
-        if (tokenData.type !== 'kimi') {
-            return { isDuplicate: false, reason: 'not_kimi_token' };
-        }
-
-        const deviceId = tokenData.device_id;
-        if (!deviceId) {
-            return { isDuplicate: false, reason: 'no_device_id' };
-        }
-
-        const files = fs.readdirSync(compareDir);
-        const jsonFiles = files.filter(f => f.endsWith('.json') && f !== path.basename(tokenPath));
-
-        for (const file of jsonFiles) {
-            const filepath = path.join(compareDir, file);
-            try {
-                const data = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-                if (data.type === 'kimi' && data.device_id === deviceId) {
-                    return {
-                        isDuplicate: true,
-                        duplicateFile: filepath,
-                        deviceId
-                    };
-                }
-            } catch (error) {
-                // 忽略无法读取的文件
-                continue;
-            }
-        }
-
-        return { isDuplicate: false };
+        tokenData = JSON.parse(fs.readFileSync(tokenPath, 'utf-8'));
     } catch (error) {
-        logger.error('[Kimi OAuth] Failed to check duplicate:', error.message);
-        throw error;
+        logger.error('[Kimi OAuth] Failed to parse token file:', error.message);
+        throw new Error(`Invalid JSON in token file: ${error.message}`);
     }
+
+    if (tokenData.type !== 'kimi') {
+        return { isDuplicate: false, reason: 'not_kimi_token' };
+    }
+
+    const deviceId = tokenData.device_id;
+    if (!deviceId) {
+        return { isDuplicate: false, reason: 'no_device_id' };
+    }
+
+    const files = fs.readdirSync(compareDir);
+    const jsonFiles = files.filter(f => f.endsWith('.json') && f !== path.basename(tokenPath));
+
+    for (const file of jsonFiles) {
+        const filepath = path.join(compareDir, file);
+        let data;
+        try {
+            data = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
+        } catch (error) {
+            // Ignore files that cannot be read
+            continue;
+        }
+        if (data.type === 'kimi' && data.device_id === deviceId) {
+            return {
+                isDuplicate: true,
+                duplicateFile: filepath,
+                deviceId
+            };
+        }
+    }
+
+    return { isDuplicate: false };
 }
 
 /**
