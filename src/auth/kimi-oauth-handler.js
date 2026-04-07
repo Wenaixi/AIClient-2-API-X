@@ -142,11 +142,15 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             const { CONFIG } = await import('../core/config-manager.js');
 
             logger.debug('[Kimi OAuth] Calling autoLinkProviderConfigs...');
-            await autoLinkProviderConfigs(CONFIG, {
-                onlyCurrentCred: true,
-                credPath: relativePath
-            });
-            logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
+            try {
+                await autoLinkProviderConfigs(CONFIG, {
+                    onlyCurrentCred: true,
+                    credPath: relativePath
+                });
+                logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
+            } catch (err) {
+                logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+            }
 
             logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
             await broadcastEvent('oauth_success', {

@@ -4,10 +4,10 @@
  */
 
 import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
 import os from 'os';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
+import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
@@ -81,7 +81,7 @@ function getOrCreateDeviceId() {
     }
 
     // 生成并持久化
-    _cachedDeviceId = uuidv4();
+    _cachedDeviceId = crypto.randomUUID();
     try {
         const dir = dirname(deviceFile);
         mkdirSync(dir, { recursive: true });
