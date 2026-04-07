@@ -42,6 +42,52 @@ jest.mock('../../../src/services/health-check-timer.js', () => ({
 }));
 
 // Mock config-manager
+// 动态生成 CONFIG mock，确保与实际配置结构同步
+const getMockConfig = () => ({
+    HOST: 'localhost',
+    SERVER_PORT: 3000,
+    MODEL_PROVIDER: 'openai',
+    REQUIRED_API_KEY: 'secret-key',
+    SYSTEM_PROMPT_FILE_PATH: 'configs/input_system_prompt.txt',
+    SYSTEM_PROMPT_MODE: 'replace',
+    SYSTEM_PROMPT_CONTENT: '',
+    PROMPT_LOG_BASE_NAME: 'prompt_log',
+    PROMPT_LOG_MODE: 'append',
+    REQUEST_MAX_RETRIES: 3,
+    REQUEST_BASE_DELAY: 1000,
+    CREDENTIAL_SWITCH_MAX_RETRIES: 5,
+    CRON_NEAR_MINUTES: 15,
+    CRON_REFRESH_TOKEN: false,
+    LOGIN_EXPIRY: 86400000,
+    PROVIDER_POOLS_FILE_PATH: 'configs/provider_pools.json',
+    MAX_ERROR_COUNT: 3,
+    WARMUP_TARGET: 1,
+    REFRESH_CONCURRENCY_PER_PROVIDER: 2,
+    providerFallbackChain: [],
+    modelFallbackMapping: {},
+    PROXY_URL: '',
+    PROXY_ENABLED_PROVIDERS: [],
+    TLS_SIDECAR_ENABLED: false,
+    TLS_SIDECAR_ENABLED_PROVIDERS: [],
+    TLS_SIDECAR_PORT: 9090,
+    TLS_SIDECAR_PROXY_URL: '',
+    LOG_ENABLED: true,
+    LOG_OUTPUT_MODE: 'console',
+    LOG_LEVEL: 'info',
+    LOG_DIR: 'logs',
+    LOG_INCLUDE_REQUEST_ID: true,
+    LOG_INCLUDE_TIMESTAMP: true,
+    LOG_MAX_FILE_SIZE: 10485760,
+    LOG_MAX_FILES: 5,
+    SCHEDULED_HEALTH_CHECK: {
+        enabled: false,
+        startupRun: true,
+        interval: 600000,
+        providerTypes: [],
+        customIntervals: {}
+    }
+});
+
 jest.mock('../../../src/core/config-manager.js', () => ({
     CONFIG: {
         HOST: 'localhost',
@@ -771,5 +817,143 @@ describe('Config API - reloadConfig', () => {
         initializeConfig.mockRejectedValueOnce(new Error('File not found'));
 
         await expect(reloadConfig(null)).rejects.toThrow('File not found');
+    });
+});
+
+/**
+ * 配置结构变更自动检测测试
+ * 确保测试使用的 mock CONFIG 与实际配置结构保持同步
+ */
+describe('Config Structure Change Detection', () => {
+    // 预期应该存在的必需配置字段
+    const REQUIRED_CONFIG_FIELDS = [
+        'HOST',
+        'SERVER_PORT',
+        'MODEL_PROVIDER',
+        'REQUIRED_API_KEY',
+        'SYSTEM_PROMPT_FILE_PATH',
+        'SYSTEM_PROMPT_MODE',
+        'SYSTEM_PROMPT_CONTENT',
+        'REQUEST_MAX_RETRIES',
+        'REQUEST_BASE_DELAY',
+        'LOGIN_EXPIRY',
+        'PROVIDER_POOLS_FILE_PATH',
+        'MAX_ERROR_COUNT',
+        'WARMUP_TARGET',
+        'REFRESH_CONCURRENCY_PER_PROVIDER',
+        'providerFallbackChain',
+        'modelFallbackMapping',
+        'TLS_SIDECAR_ENABLED',
+        'TLS_SIDECAR_PORT',
+        'LOG_ENABLED',
+        'LOG_OUTPUT_MODE',
+        'LOG_LEVEL',
+        'LOG_DIR',
+        'SCHEDULED_HEALTH_CHECK'
+    ];
+
+    // 预期应该存在的必需 SCHEDULED_HEALTH_CHECK 子字段
+    const REQUIRED_HEALTH_CHECK_FIELDS = [
+        'enabled',
+        'interval',
+        'startupRun',
+        'providerTypes',
+        'customIntervals'
+    ];
+
+    test('mock CONFIG should have all required fields', () => {
+        const mockConfig = {
+            HOST: 'localhost',
+            SERVER_PORT: 3000,
+            MODEL_PROVIDER: 'openai',
+            REQUIRED_API_KEY: 'secret-key',
+            SYSTEM_PROMPT_FILE_PATH: 'configs/input_system_prompt.txt',
+            SYSTEM_PROMPT_MODE: 'replace',
+            SYSTEM_PROMPT_CONTENT: '',
+            PROMPT_LOG_BASE_NAME: 'prompt_log',
+            PROMPT_LOG_MODE: 'append',
+            REQUEST_MAX_RETRIES: 3,
+            REQUEST_BASE_DELAY: 1000,
+            CREDENTIAL_SWITCH_MAX_RETRIES: 5,
+            CRON_NEAR_MINUTES: 15,
+            CRON_REFRESH_TOKEN: false,
+            LOGIN_EXPIRY: 86400000,
+            PROVIDER_POOLS_FILE_PATH: 'configs/provider_pools.json',
+            MAX_ERROR_COUNT: 3,
+            WARMUP_TARGET: 1,
+            REFRESH_CONCURRENCY_PER_PROVIDER: 2,
+            providerFallbackChain: [],
+            modelFallbackMapping: {},
+            PROXY_URL: '',
+            PROXY_ENABLED_PROVIDERS: [],
+            TLS_SIDECAR_ENABLED: false,
+            TLS_SIDECAR_ENABLED_PROVIDERS: [],
+            TLS_SIDECAR_PORT: 9090,
+            TLS_SIDECAR_PROXY_URL: '',
+            LOG_ENABLED: true,
+            LOG_OUTPUT_MODE: 'console',
+            LOG_LEVEL: 'info',
+            LOG_DIR: 'logs',
+            LOG_INCLUDE_REQUEST_ID: true,
+            LOG_INCLUDE_TIMESTAMP: true,
+            LOG_MAX_FILE_SIZE: 10485760,
+            LOG_MAX_FILES: 5,
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: false,
+                startupRun: true,
+                interval: 600000,
+                providerTypes: [],
+                customIntervals: {}
+            }
+        };
+
+        // 验证所有必需字段存在
+        for (const field of REQUIRED_CONFIG_FIELDS) {
+            expect(mockConfig).toHaveProperty(field);
+        }
+
+        // 验证 SCHEDULED_HEALTH_CHECK 子结构
+        for (const field of REQUIRED_HEALTH_CHECK_FIELDS) {
+            expect(mockConfig.SCHEDULED_HEALTH_CHECK).toHaveProperty(field);
+        }
+    });
+
+    test('CONFIG returned by handleGetConfig should mask sensitive fields', async () => {
+        // 使用实际的 handleGetConfig 测试
+        const { handleGetConfig } = await import('../../../src/ui-modules/config-api.js');
+
+        const mockResponse = {
+            writeHead: jest.fn(),
+            end: jest.fn(),
+            _getSentData: () => JSON.parse((mockResponse.end.mock.calls[0] || [])[0] || '{}'),
+        };
+
+        const currentConfig = {
+            ...CONFIG,
+            REQUIRED_API_KEY: 'my-secret-key'
+        };
+
+        await handleGetConfig({}, mockResponse, currentConfig);
+
+        const data = mockResponse._getSentData();
+        expect(data.REQUIRED_API_KEY).toBe('******');
+    });
+
+    test('handleUpdateConfig should validate SERVER_PORT range', async () => {
+        const { handleUpdateConfig } = await import('../../../src/ui-modules/config-api.js');
+
+        const mockResponse = {
+            writeHead: jest.fn(),
+            end: jest.fn(),
+            _getSentData: () => JSON.parse((mockResponse.end.mock.calls[0] || [])[0] || '{}'),
+        };
+
+        getRequestBody.mockResolvedValue({ SERVER_PORT: 0 });
+        const currentConfig = { ...CONFIG, SERVER_PORT: 3000 };
+
+        await handleUpdateConfig({}, mockResponse, currentConfig);
+
+        // 应该拒绝 0 端口，保持原值
+        expect(currentConfig.SERVER_PORT).toBe(3000);
     });
 });

@@ -1,6 +1,8 @@
 /**
  * KimiApiService 深度单元测试
  * 覆盖：构造、认证、TLS Sidecar、callApi、streamApi、重试逻辑、错误处理
+ *
+ * 测试策略：使用更真实的mock来提高测试价值，同时验证API调用参数的正确性
  */
 
 import { KimiApiService } from '../../../src/providers/kimi/kimi-core.js';
@@ -281,15 +283,26 @@ describe('KimiApiService', () => {
     // --- callApi ---
 
     describe('callApi', () => {
-        test('should make successful API call', async () => {
+        test('should make successful API call with correct parameters', async () => {
+            const mockRequest = jest.fn(() => Promise.resolve({ data: { id: 'resp-1', choices: [] } }));
             const mockInstance = createMockAxiosInstance({
-                request: jest.fn(() => Promise.resolve({ data: { id: 'resp-1', choices: [] } })),
+                request: mockRequest,
             });
             const service = new KimiApiService(createBasicConfig());
             service.tokenStorage = createMockTokenStorage();
             service.axiosInstance = mockInstance;
 
-            const result = await service.callApi('/v1/chat/completions', { model: 'k2', messages: [] });
+            const result = await service.callApi('/v1/chat/completions', { model: 'k2', messages: [{ role: 'user', content: 'Hi' }] });
+
+            // 验证 API 调用参数
+            expect(mockRequest).toHaveBeenCalledTimes(1);
+            const callArgs = mockRequest.mock.calls[0][0];
+            expect(callArgs.url).toBe('/v1/chat/completions');
+            expect(callArgs.method).toBe('post');
+            expect(callArgs.headers).toHaveProperty('Authorization', 'Bearer test_access_token');
+            expect(callArgs.headers).toHaveProperty('Content-Type', 'application/json');
+            expect(callArgs.data).toEqual({ model: 'k2', messages: [{ role: 'user', content: 'Hi' }] });
+
             expect(result).toEqual({ id: 'resp-1', choices: [] });
         });
 
@@ -488,6 +501,23 @@ describe('KimiApiService', () => {
             isRetryableNetworkError.mockReturnValue(false);
 
             await expect(service.callApi('/v1/chat', { model: 'k2' })).rejects.toThrow('Unknown error');
+        });
+
+        test('should send correct headers including User-Agent and device_id', async () => {
+            const mockRequest = jest.fn(() => Promise.resolve({ data: { choices: [] } }));
+            const mockInstance = createMockAxiosInstance({ request: mockRequest });
+            const service = new KimiApiService(createBasicConfig());
+            service.tokenStorage = createMockTokenStorage({ device_id: 'test-device-456' });
+            service.axiosInstance = mockInstance;
+
+            await service.callApi('/v1/chat/completions', { model: 'k2', messages: [] });
+
+            const callArgs = mockRequest.mock.calls[0][0];
+            expect(callArgs.headers['User-Agent']).toBe('KimiCLI/1.10.6');
+            expect(callArgs.headers['X-Msh-Device-Id']).toBe('test-device-456');
+            expect(callArgs.headers['X-Msh-Platform']).toBe('kimi_cli');
+            expect(callArgs.headers['X-Msh-Version']).toBe('1.10.6');
+            expect(callArgs.headers['Accept']).toBe('application/json');
         });
     });
 

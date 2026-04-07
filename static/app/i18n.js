@@ -241,6 +241,12 @@ const translations = {
         'oauth.kimi.clickToCopy': '点击自动复制',
         'oauth.kimi.waiting': '等待授权中...',
         'oauth.kimi.complete': '完成认证',
+        'oauth.kimi.importComplete': '导入完成！',
+        'oauth.kimi.success': '成功',
+        'oauth.kimi.failed': '失败',
+        'oauth.kimi.importFailed': '导入失败',
+        'oauth.kimi.cancelImport': '取消导入',
+        'oauth.kimi.importCancelled': '导入已取消',
 
         // Config
         'config.title': '配置管理',
@@ -1171,6 +1177,12 @@ const translations = {
         'oauth.kimi.clickToCopy': 'Click to copy automatically',
         'oauth.kimi.waiting': 'Waiting for authorization...',
         'oauth.kimi.complete': 'Complete Authentication',
+        'oauth.kimi.importComplete': 'Import Complete!',
+        'oauth.kimi.success': 'Success',
+        'oauth.kimi.failed': 'Failed',
+        'oauth.kimi.importFailed': 'Import Failed',
+        'oauth.kimi.cancelImport': 'Cancel Import',
+        'oauth.kimi.importCancelled': 'Import Cancelled',
 
         // Config
         'config.title': 'Configuration Management',

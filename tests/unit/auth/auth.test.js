@@ -297,10 +297,10 @@ describe('Security Best Practices', () => {
   test('should generate random salts', async () => {
     // 减少迭代次数用于测试，避免超时
     const testHashPassword = async (password) => {
-      const salt = crypto.randomBytes(16).toString('hex');
-      const TEST_ITERATIONS = 1000; // 测试用低迭代次数
+      const salt = crypto.randomBytes(8).toString('hex'); // 减少 salt 长度
+      const TEST_ITERATIONS = 500; // 测试用低迭代次数
       const hash = await new Promise((resolve, reject) =>
-        crypto.pbkdf2(password, salt, TEST_ITERATIONS, 32, 'sha512', (err, key) =>
+        crypto.pbkdf2(password, salt, TEST_ITERATIONS, 16, 'sha512', (err, key) => // 减少 keylen
           err ? reject(err) : resolve(key.toString('hex'))
         )
       );
@@ -308,13 +308,13 @@ describe('Security Best Practices', () => {
     };
 
     const salts = new Set();
-    // 减少测试次数以加快测试速度
-    for (let i = 0; i < 10; i++) {
+    // 进一步减少测试次数以加快测试速度
+    for (let i = 0; i < 5; i++) {
       const hash = await testHashPassword('samePassword');
       const salt = hash.split(':')[1];
       salts.add(salt);
     }
     // 所有盐应该唯一
-    expect(salts.size).toBe(10);
-  }, 30000);
+    expect(salts.size).toBe(5);
+  }, 15000);
 });

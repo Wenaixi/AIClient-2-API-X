@@ -183,6 +183,20 @@ describe('KimiStrategy', () => {
     // --- handleChatCompletion ---
 
     describe('handleChatCompletion', () => {
+        test('should call apiService.chatCompletion with correct parameters', async () => {
+            const strategy = createStrategy();
+            strategy.apiService.chatCompletion.mockResolvedValue({ choices: [{ message: { content: 'OK' } }] });
+
+            const body = { model: 'k2', messages: [{ role: 'user', content: 'Hi' }] };
+            const result = await strategy.handleChatCompletion(body, 'openai');
+
+            // 验证调用参数的正确性
+            expect(strategy.apiService.chatCompletion).toHaveBeenCalledTimes(1);
+            const callArgs = strategy.apiService.chatCompletion.mock.calls[0];
+            expect(callArgs[0]).toEqual(body); // 原始body应该被传递
+            expect(result).toEqual({ choices: [{ message: { content: 'OK' } }] });
+        });
+
         test('should call apiService.chatCompletion with openai format', async () => {
             const strategy = createStrategy();
             strategy.apiService.chatCompletion.mockResolvedValue({ choices: [{ message: { content: 'OK' } }] });
@@ -206,9 +220,13 @@ describe('KimiStrategy', () => {
             await strategy.handleChatCompletion(claudeBody, 'claude');
 
             const convertedBody = strategy.apiService.chatCompletion.mock.calls[0][0];
+            // 验证转换后的参数正确性
             expect(convertedBody.model).toBe('k2');
             expect(convertedBody.max_tokens).toBe(1000);
             expect(convertedBody.temperature).toBe(0.7);
+            // 验证 claude 特有的字段被正确转换
+            expect(convertedBody).toHaveProperty('messages');
+            expect(convertedBody.messages).toEqual(claudeBody.messages);
         });
 
         test('should convert response to claude format when sourceFormat is claude', async () => {
@@ -236,6 +254,31 @@ describe('KimiStrategy', () => {
 
             await expect(strategy.handleChatCompletion({ model: 'k2' }, 'openai'))
                 .rejects.toThrow('API Error');
+        });
+
+        test('should include all request parameters when calling chatCompletion', async () => {
+            const strategy = createStrategy();
+            strategy.apiService.chatCompletion.mockResolvedValue({ choices: [] });
+
+            const body = {
+                model: 'k2',
+                messages: [{ role: 'system', content: 'You are helpful' }, { role: 'user', content: 'Hello' }],
+                max_tokens: 2000,
+                temperature: 0.5,
+                top_p: 0.9,
+                stream: false
+            };
+
+            await strategy.handleChatCompletion(body, 'openai');
+
+            const callArgs = strategy.apiService.chatCompletion.mock.calls[0][0];
+            // 验证所有必需参数都被正确传递
+            expect(callArgs.model).toBe('k2');
+            expect(callArgs.messages).toEqual(body.messages);
+            expect(callArgs.max_tokens).toBe(2000);
+            expect(callArgs.temperature).toBe(0.5);
+            expect(callArgs.top_p).toBe(0.9);
+            expect(callArgs.stream).toBe(false);
         });
     });
 

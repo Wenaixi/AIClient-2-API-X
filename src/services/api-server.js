@@ -125,6 +125,12 @@ const IS_WORKER_PROCESS = process.env.IS_WORKER_PROCESS === 'true';
 // 存储服务器实例，用于优雅关闭
 let serverInstance = null;
 
+// 连续 unhandledRejection 计数器，用于检测异常行为
+let unhandledRejectionCount = 0;
+const MAX_CONSECUTIVE_REJECTIONS = 10;
+const REJECTION_RESET_INTERVAL_MS = 60000; // 1分钟内超过阈值则退出
+let lastRejectionTime = 0;
+
 /**
  * 发送消息给主进程
  * @param {Object} message - 消息对象
@@ -230,8 +236,23 @@ function setupSignalHandlers() {
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-        logger.error('[Server] Unhandled rejection at:', promise, 'reason:', reason);
-        
+        const now = Date.now();
+        // 检查是否在重置间隔内
+        if (now - lastRejectionTime > REJECTION_RESET_INTERVAL_MS) {
+            unhandledRejectionCount = 0;
+        }
+        lastRejectionTime = now;
+        unhandledRejectionCount++;
+
+        logger.error(`[Server] Unhandled rejection (${unhandledRejectionCount}/${MAX_CONSECUTIVE_REJECTIONS}):`, reason);
+
+        // 连续拒绝超阈值时主动退出
+        if (unhandledRejectionCount >= MAX_CONSECUTIVE_REJECTIONS) {
+            logger.error(`[Server] Too many consecutive unhandled rejections (${unhandledRejectionCount}), initiating shutdown...`);
+            gracefulShutdown();
+            return;
+        }
+
         // 检查是否为可重试的网络错误
         if (reason && isRetryableNetworkError(reason)) {
             logger.warn('[Server] Network error in promise rejection, continuing operation...');

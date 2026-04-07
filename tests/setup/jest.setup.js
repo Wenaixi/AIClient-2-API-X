@@ -16,9 +16,59 @@ const TEST_ROOT = path.resolve(__dirname, '../..');
 const TEST_DATA_DIR = path.join(TEST_ROOT, 'test-data');
 
 /**
+ * 清理测试数据目录
+ */
+function cleanupTestDataDir() {
+  try {
+    if (fs.existsSync(TEST_DATA_DIR)) {
+      const files = fs.readdirSync(TEST_DATA_DIR);
+      for (const file of files) {
+        const filePath = path.join(TEST_DATA_DIR, file);
+        const stat = fs.statSync(filePath);
+        // 只清理测试文件和空目录
+        if (stat.isDirectory()) {
+          try {
+            fs.rmdirSync(filePath);
+          } catch {
+            // 目录非空，忽略
+          }
+        } else if (file.match(/\.(tmp|test\.json|test-\d+\.log)$/)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+  } catch (error) {
+    // 忽略清理错误
+  }
+}
+
+async function cleanupTestFiles() {
+  const tempPatterns = ['*.tmp', '*.test.json', 'test-*.log'];
+
+  try {
+    if (fs.existsSync(TEST_DATA_DIR)) {
+      const files = fs.readdirSync(TEST_DATA_DIR);
+      for (const file of files) {
+        for (const pattern of tempPatterns) {
+          if (file.match(pattern.replace('*', '.*'))) {
+            fs.unlinkSync(path.join(TEST_DATA_DIR, file));
+            break;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // 忽略清理错误
+  }
+}
+
+/**
  * 设置测试环境
  */
 export default async function setup() {
+  // 测试前清理测试数据目录
+  cleanupTestDataDir();
+
   // 确保测试数据目录存在
   if (!fs.existsSync(TEST_DATA_DIR)) {
     fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
@@ -51,26 +101,3 @@ afterEach(async () => {
   // 清理临时文件
   await cleanupTestFiles();
 });
-
-/**
- * 清理测试产生的临时文件
- */
-async function cleanupTestFiles() {
-  const tempPatterns = ['*.tmp', '*.test.json', 'test-*.log'];
-
-  try {
-    if (fs.existsSync(TEST_DATA_DIR)) {
-      const files = fs.readdirSync(TEST_DATA_DIR);
-      for (const file of files) {
-        for (const pattern of tempPatterns) {
-          if (file.match(pattern.replace('*', '.*'))) {
-            fs.unlinkSync(path.join(TEST_DATA_DIR, file));
-            break;
-          }
-        }
-      }
-    }
-  } catch (error) {
-    // 忽略清理错误
-  }
-}

@@ -238,12 +238,13 @@ export class KimiStrategy extends ProviderStrategy {
 
             // 用于收集需要返回的多个 content block delta
             const chunks = [];
+            let blockIndex = 0;
 
             // 处理内容
             if (delta.content) {
                 chunks.push({
                     type: 'content_block_delta',
-                    index: chunks.length,
+                    index: blockIndex++,
                     delta: {
                         type: 'text_delta',
                         text: delta.content
@@ -257,7 +258,7 @@ export class KimiStrategy extends ProviderStrategy {
                 if (toolCall?.function?.arguments) {
                     chunks.push({
                         type: 'content_block_delta',
-                        index: chunks.length,
+                        index: blockIndex++,
                         delta: {
                             type: 'input_json_delta',
                             partial_json: typeof toolCall.function.arguments === 'string'

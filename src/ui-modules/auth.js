@@ -21,7 +21,9 @@ function withTokenStoreLock(fn) {
         () => fn(),
         () => fn()
     );
-    _tokenStoreQueue = promise.catch(() => {});
+    _tokenStoreQueue = promise.catch((err) => {
+        logger.error('[Token Store] Lock operation failed:', err);
+    });
     return promise;
 }
 

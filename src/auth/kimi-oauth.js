@@ -11,7 +11,10 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
-const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID || '17e5f671-d194-4dfb-9706-5516cb48c098';
+const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID;
+if (!KIMI_CLIENT_ID) {
+    throw new Error('KIMI_CLIENT_ID environment variable is required');
+}
 const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;
@@ -467,7 +470,7 @@ export async function startKimiDeviceFlow(config = {}) {
 
     logger.info('[Kimi OAuth] Device code received');
     logger.info('[Kimi OAuth] Please visit:', deviceCodeResponse.verification_uri_complete || deviceCodeResponse.verification_uri);
-    logger.info('[Kimi OAuth] User code:', deviceCodeResponse.user_code);
+    logger.info('[Kimi OAuth] User code: [REDACTED]');
     logger.info('[Kimi OAuth] Waiting for authorization...');
 
     // 轮询获取 Token

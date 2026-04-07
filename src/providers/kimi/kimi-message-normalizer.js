@@ -19,7 +19,7 @@ export function normalizeKimiToolMessageLinks(body) {
         return body;
     }
 
-    const pending = [];
+    const pending = new Set();
     let patched = 0;
     let patchedReasoning = 0;
     let ambiguous = 0;
@@ -27,10 +27,7 @@ export function normalizeKimiToolMessageLinks(body) {
     let hasLatestReasoning = false;
 
     const removePending = (id) => {
-        const idx = pending.indexOf(id);
-        if (idx !== -1) {
-            pending.splice(idx, 1);
-        }
+        pending.delete(id);
     };
 
     for (let msgIdx = 0; msgIdx < messages.length; msgIdx++) {
@@ -54,7 +51,7 @@ export function normalizeKimiToolMessageLinks(body) {
                 for (const tc of toolCalls) {
                     const id = tc.id?.trim();
                     if (id) {
-                        pending.push(id);
+                        pending.add(id);
                     }
                 }
             }
@@ -74,16 +71,19 @@ export function normalizeKimiToolMessageLinks(body) {
 
             // 如果还是没有，尝试推断
             if (!toolCallId) {
-                if (pending.length === 1) {
+                if (pending.size === 1) {
                     // 只有一个待处理的 tool_call，直接使用
-                    toolCallId = pending[0];
+                    const soleId = [...pending][0];
+                    toolCallId = soleId;
                     msg.tool_call_id = toolCallId;
                     patched++;
-                } else if (pending.length > 1) {
+                } else if (pending.size > 1) {
                     // 多个待处理的 tool_call，无法确定，添加占位符
                     toolCallId = `[ambiguous_tool_call_id_${msgIdx}]`;
                     msg.tool_call_id = toolCallId;
                     ambiguous++;
+                    // 清除所有待处理的 pending ID，因为无法确定对应关系
+                    pending.clear();
                     logger.warn(`[Kimi] Multiple pending tool_calls for message ${msgIdx}, using placeholder: ${toolCallId}`);
                 }
             }
@@ -100,7 +100,7 @@ export function normalizeKimiToolMessageLinks(body) {
     }
 
     if (ambiguous > 0) {
-        logger.warn(`[Kimi] Tool messages missing tool_call_id with ambiguous candidates: ambiguous=${ambiguous}, pending=${pending.length}`);
+        logger.warn(`[Kimi] Tool messages missing tool_call_id with ambiguous candidates: ambiguous=${ambiguous}, pending=${pending.size}`);
     }
 
     return body;

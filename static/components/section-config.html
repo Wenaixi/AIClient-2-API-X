@@ -298,7 +298,7 @@
                     <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型，长按/右键已选中的供应商可设置自定义间隔</small>
                 </div>
                 <!-- 自定义间隔列表 -->
-                <div class="form-group" id="customIntervalsSection" style="display: none;">
+                <div class="form-group hidden" id="customIntervalsSection">
                     <label data-i18n="config.healthCheck.customIntervals">自定义间隔</label>
                     <div id="customIntervalsList" class="custom-interval-list">
                         <!-- 动态渲染: [{providerType, customInterval, providerName}, ...] -->
@@ -447,7 +447,8 @@
 </section>
 
 <!-- 自定义间隔弹出框 -->
-<div class="custom-interval-popup" id="customIntervalPopup" style="display: none;">
+<div class="config-popup-overlay" id="customIntervalOverlay"></div>
+<div class="custom-interval-popup hidden" id="customIntervalPopup">
     <div class="popup-header">
         <span class="provider-name" id="popupProviderName">-</span>
         <button class="popup-close" onclick="window.closeCustomIntervalPopup()">&times;</button>

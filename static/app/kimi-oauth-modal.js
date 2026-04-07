@@ -1,5 +1,6 @@
 import { t } from './i18n.js';
 import { showToast } from './utils.js';
+import { getAuthHeaders } from './auth.js';
 
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -137,6 +138,10 @@ export function showKimiBatchImportModal(providerType) {
                     <i class="fas fa-upload"></i>
                     <span data-i18n="oauth.kimi.startImport">开始导入</span>
                 </button>
+                <button class="btn btn-secondary batch-import-cancel" id="kimiBatchCancel" style="display: none;">
+                    <i class="fas fa-stop-circle"></i>
+                    <span data-i18n="oauth.kimi.cancelImport">取消导入</span>
+                </button>
             </div>
         </div>
     `;
@@ -150,6 +155,10 @@ export function showKimiBatchImportModal(providerType) {
     const progressBar = modal.querySelector('#kimiImportProgressBar');
     const resultDiv = modal.querySelector('#kimiBatchResult');
     const submitBtn = modal.querySelector('#kimiBatchSubmit');
+    const cancelBtn = modal.querySelector('#kimiBatchCancel');
+
+    // AbortController for cancelling the import
+    let abortController = null;
 
     // 监听输入变化
     textarea.addEventListener('input', () => {
@@ -180,20 +189,24 @@ export function showKimiBatchImportModal(providerType) {
             return;
         }
 
-        // 禁用输入和按钮
+        // 禁用输入和按钮，显示取消按钮
         textarea.disabled = true;
         submitBtn.disabled = true;
+        submitBtn.style.display = 'none';
+        cancelBtn.style.display = 'inline-flex';
         progressDiv.style.display = 'block';
         resultDiv.style.display = 'none';
+
+        // 创建 AbortController
+        abortController = new AbortController();
+        const signal = abortController.signal;
 
         try {
             const response = await fetch('/api/kimi/batch-import-tokens', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                },
-                body: JSON.stringify({ refreshTokens: tokens })
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ refreshTokens: tokens }),
+                signal: signal
             });
 
             if (!response.ok) {
@@ -206,6 +219,7 @@ export function showKimiBatchImportModal(providerType) {
             let buffer = '';
             let successCount = 0;
             let failedCount = 0;
+            let importComplete = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -217,7 +231,16 @@ export function showKimiBatchImportModal(providerType) {
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
-                        const data = JSON.parse(line.substring(6));
+                        const jsonStr = line.substring(6).trim();
+                        if (!jsonStr) continue;
+
+                        let data;
+                        try {
+                            data = JSON.parse(jsonStr);
+                        } catch (parseError) {
+                            console.error('Failed to parse SSE data:', jsonStr);
+                            continue;
+                        }
 
                         if (data.index) {
                             const progress = (data.index / tokens.length) * 100;
@@ -232,6 +255,7 @@ export function showKimiBatchImportModal(providerType) {
 
                         if (data.total !== undefined) {
                             // 完成
+                            importComplete = true;
                             progressDiv.style.display = 'none';
                             resultDiv.style.display = 'block';
                             resultDiv.style.background = '#d1fae5';
@@ -239,9 +263,9 @@ export function showKimiBatchImportModal(providerType) {
                             resultDiv.innerHTML = `
                                 <div style="color: #065f46;">
                                     <i class="fas fa-check-circle"></i>
-                                    <strong>导入完成！</strong>
+                                    <strong>${t('oauth.kimi.importComplete')}</strong>
                                     <div style="margin-top: 8px; font-size: 14px;">
-                                        成功: ${data.successCount} | 失败: ${data.failedCount}
+                                        ${t('oauth.kimi.success')}: ${data.successCount} | ${t('oauth.kimi.failed')}: ${data.failedCount}
                                     </div>
                                 </div>
                             `;
@@ -257,21 +281,50 @@ export function showKimiBatchImportModal(providerType) {
                     }
                 }
             }
+
+            // 如果未完成（可能是被取消了）
+            if (!importComplete) {
+                throw new Error(t('oauth.kimi.importCancelled'));
+            }
         } catch (error) {
-            progressDiv.style.display = 'none';
-            resultDiv.style.display = 'block';
-            resultDiv.style.background = '#fee2e2';
-            resultDiv.style.border = '1px solid #fca5a5';
-            const safeMessage = escapeHtml(error.message || 'Unknown error');
-            resultDiv.innerHTML = `
-                <div style="color: #991b1b;">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <strong>导入失败</strong>
-                    <div style="margin-top: 8px; font-size: 14px;">${safeMessage}</div>
-                </div>
-            `;
+            // 如果是取消操作，不显示错误
+            if (error.name === 'AbortError') {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fef3c7';
+                resultDiv.style.border = '1px solid #fcd34d';
+                resultDiv.innerHTML = `
+                    <div style="color: #92400e;">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>${t('oauth.kimi.importCancelled')}</strong>
+                    </div>
+                `;
+            } else {
+                progressDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fee2e2';
+                resultDiv.style.border = '1px solid #fca5a5';
+                const safeMessage = escapeHtml(error.message || 'Unknown error');
+                resultDiv.innerHTML = `
+                    <div style="color: #991b1b;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>${t('oauth.kimi.importFailed')}</strong>
+                        <div style="margin-top: 8px; font-size: 14px;">${safeMessage}</div>
+                    </div>
+                `;
+            }
             textarea.disabled = false;
             submitBtn.disabled = false;
+            submitBtn.style.display = 'inline-flex';
+            cancelBtn.style.display = 'none';
+        } finally {
+            abortController = null;
+        }
+    });
+
+    // 取消按钮事件
+    cancelBtn.addEventListener('click', () => {
+        if (abortController) {
+            abortController.abort();
         }
     });
 }

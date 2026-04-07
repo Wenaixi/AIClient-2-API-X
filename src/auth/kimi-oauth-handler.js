@@ -58,7 +58,7 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
-        const filename = `kimi-${Date.now()}.json`;
+        const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
         fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8');
 
@@ -89,7 +89,7 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
  * @returns {Promise<Object>} 授权状态：{ authorized: boolean, tokenInfo?: Object, error?: string }
  */
 export async function checkKimiAuthStatus(config = {}, deviceCode) {
-    logger.debug('[Kimi OAuth] checkKimiAuthStatus called, deviceCode:', deviceCode);
+    logger.debug('[Kimi OAuth] checkKimiAuthStatus called');
 
     try {
         const client = new KimiOAuthClient(config);
@@ -141,6 +141,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             const { autoLinkProviderConfigs } = await import('../services/service-manager.js');
             const { CONFIG } = await import('../core/config-manager.js');
 
+            let autoLinkError = null;
             logger.debug('[Kimi OAuth] Calling autoLinkProviderConfigs...');
             try {
                 await autoLinkProviderConfigs(CONFIG, {
@@ -149,7 +150,8 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
                 });
                 logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
             } catch (err) {
-                logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
+                autoLinkError = err.message;
             }
 
             logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
@@ -169,6 +171,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             filepath: filename,
             fullPath: filepath,
             relativePath: relativePath,
+            autoLinkError: autoLinkError,
             tokenInfo: {
                 type: tokenStorage.type,
                 device_id: tokenStorage.device_id,
@@ -214,7 +217,7 @@ export async function handleKimiOAuth(config = {}, options = {}) {
 
         logger.info('[Kimi OAuth] Device code received');
         logger.info('[Kimi OAuth] Verification URL:', deviceCodeResponse.verification_uri_complete || deviceCodeResponse.verification_uri);
-        logger.info('[Kimi OAuth] User code:', deviceCodeResponse.user_code);
+        logger.info('[Kimi OAuth] User code: [REDACTED]');
         logger.info('[Kimi OAuth] Device code expires in:', deviceCodeResponse.expires_in, 'seconds');
         logger.info('[Kimi OAuth] Poll interval:', deviceCodeResponse.interval || 5, 'seconds');
 

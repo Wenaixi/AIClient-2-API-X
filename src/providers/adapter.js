@@ -10,7 +10,7 @@ import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
 import { KimiApiService } from './kimi/kimi-core.js';
 import { KimiTokenStorage } from '../auth/kimi-oauth.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, promises as fsPromises } from 'fs';
 import { resolve } from 'path';
 import { MODEL_PROVIDER, findByPrefix, hasByPrefix } from '../utils/common.js';
 import logger from '../utils/logger.js';
@@ -687,7 +687,8 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
 
         let credData;
         try {
-            credData = JSON.parse(readFileSync(fullPath, 'utf-8'));
+            const fileContent = await fsPromises.readFile(fullPath, 'utf-8');
+            credData = JSON.parse(fileContent);
         } catch (parseErr) {
             throw new Error(`Invalid JSON in Kimi credentials file: ${parseErr.message}`);
         }
@@ -743,8 +744,52 @@ registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);
 // registerAdapter(MODEL_PROVIDER.FORWARD_API, ForwardApiServiceAdapter);
 
-// 用于存储服务适配器单例的映射
-export const serviceInstances = {};
+/**
+ * LRU缓存类，用于管理服务适配器实例避免内存泄漏
+ */
+class LRUCache {
+    constructor(maxSize = 50) {
+        this.maxSize = maxSize;
+        this.cache = new Map();
+    }
+
+    get(key) {
+        if (!this.cache.has(key)) {
+            return undefined;
+        }
+        // 移动到末尾（最新使用）
+        const value = this.cache.get(key);
+        this.cache.delete(key);
+        this.cache.set(key, value);
+        return value;
+    }
+
+    set(key, value) {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            // 删除最旧的条目
+            const oldestKey = this.cache.keys().next().value;
+            this.cache.delete(oldestKey);
+        }
+        this.cache.set(key, value);
+    }
+
+    has(key) {
+        return this.cache.has(key);
+    }
+
+    clear() {
+        this.cache.clear();
+    }
+
+    get size() {
+        return this.cache.size;
+    }
+}
+
+// 用于存储服务适配器单例的LRU缓存
+const serviceInstancesCache = new LRUCache(50);
 
 /**
  * 检查提供商是否已注册（支持前缀匹配）
@@ -761,16 +806,20 @@ export function getServiceAdapter(config) {
     logger.info(`[Adapter] getServiceAdapter, provider: ${config.MODEL_PROVIDER}, uuid: ${config.uuid}${customNameDisplay}`);
     const provider = config.MODEL_PROVIDER;
     const providerKey = config.uuid ? provider + config.uuid : provider;
-    
-    if (!serviceInstances[providerKey]) {
-        const AdapterClass = findByPrefix(adapterRegistry, provider);
-        
-        if (AdapterClass) {
-            serviceInstances[providerKey] = new AdapterClass(config);
-        } else {
-            throw new Error(`Unsupported model provider: ${provider}`);
-        }
+
+    const cachedInstance = serviceInstancesCache.get(providerKey);
+    if (cachedInstance) {
+        return cachedInstance;
     }
-    return serviceInstances[providerKey];
+
+    const AdapterClass = findByPrefix(adapterRegistry, provider);
+
+    if (AdapterClass) {
+        const newInstance = new AdapterClass(config);
+        serviceInstancesCache.set(providerKey, newInstance);
+        return newInstance;
+    } else {
+        throw new Error(`Unsupported model provider: ${provider}`);
+    }
 }
 

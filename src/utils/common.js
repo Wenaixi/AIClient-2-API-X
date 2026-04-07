@@ -81,16 +81,20 @@ function getConfiguredSupportedModelsFromPool(providerPoolManager, providerType)
  * @returns {string} The protocol prefix (e.g., 'gemini', 'openai', 'claude').
  */
 export function getProtocolPrefix(provider) {
-    // Special case for Codex - it needs its own protocol
-    if (provider === 'openai-codex-oauth') {
-        return 'codex';
+    // Protocol prefix mapping for special cases that don't follow the standard "provider-type" pattern
+    // Standard pattern: "gemini-cli" -> "gemini", "openai-custom" -> "openai"
+    // Special cases: "openai-codex-oauth" -> "codex", "kimi-oauth" -> "kimi"
+    const PROTOCOL_PREFIX_MAP = {
+        'openai-codex-oauth': MODEL_PROTOCOL_PREFIX.CODEX,  // 'codex'
+        'kimi-oauth': MODEL_PROTOCOL_PREFIX.KIMI,          // 'kimi'
+    };
+
+    // Check if this provider has a special mapping
+    if (PROTOCOL_PREFIX_MAP[provider]) {
+        return PROTOCOL_PREFIX_MAP[provider];
     }
 
-    // Special case for Kimi - it needs its own protocol
-    if (provider === 'kimi-oauth') {
-        return 'kimi';
-    }
-
+    // Standard case: extract prefix before the first hyphen
     const hyphenIndex = provider.indexOf('-');
     if (hyphenIndex !== -1) {
         return provider.substring(0, hyphenIndex);
@@ -1395,7 +1399,7 @@ export function formatToLocal(dateInput) {
 /**
  * 通过前缀查找匹配项
  * 支持动态配置组的前缀匹配机制，例如 openai-custom-1 → openai-custom
- * @param {Map|Object} registry - 注册表（Map 或普通对象）
+ * @param {Map|Object|Set} registry - 注册表（Map、Set 或普通对象）
  * @param {string} key - 要查找的键
  * @returns {*} 匹配的值或 undefined
  */
@@ -1403,6 +1407,18 @@ export function findByPrefix(registry, key) {
     if (registry == null) {
         return undefined;
     }
+
+    // Handle Set: iterate over values directly (Set doesn't have keys, only values)
+    if (registry instanceof Set) {
+        for (const v of registry) {
+            if (key === v || key.startsWith(v + '-')) {
+                return v;
+            }
+        }
+        return undefined;
+    }
+
+    // Handle Map and Object
     const entries = registry instanceof Map ? registry.entries() : Object.entries(registry);
     for (const [k, v] of entries) {
         if (key === k || key.startsWith(k + '-')) {
@@ -1414,7 +1430,7 @@ export function findByPrefix(registry, key) {
 
 /**
  * 检查键是否存在于注册表中（支持前缀匹配）
- * @param {Map|Object} registry - 注册表
+ * @param {Map|Object|Set} registry - 注册表
  * @param {string} key - 要检查的键
  * @returns {boolean}
  */
@@ -1425,16 +1441,39 @@ export function hasByPrefix(registry, key) {
 /**
  * 根据键获取基础类型（用于查找配置和模型）
  * 例如：openai-custom-1 → openai-custom
- * @param {Object|Map} registry - 包含键的对象或 Map
+ * @param {Object|Map|Set} registry - 包含键的对象、Map 或 Set
  * @param {string} key - 要查找的键
  * @returns {string} 基础类型或原始键
  */
 export function getBaseType(registry, key) {
-    if (registry instanceof Map ? registry.has(key) : registry[key]) {
+    // Handle Set: check if key equals any value in the set
+    if (registry instanceof Set) {
+        for (const v of registry) {
+            if (key === v || key.startsWith(v + '-')) {
+                return v;
+            }
+        }
         return key;
     }
-    const keys = registry instanceof Map ? Array.from(registry.keys()) : Object.keys(registry);
-    for (const k of keys) {
+
+    // Handle Map
+    if (registry instanceof Map) {
+        if (registry.has(key)) {
+            return key;
+        }
+        for (const k of registry.keys()) {
+            if (key.startsWith(k + '-')) {
+                return k;
+            }
+        }
+        return key;
+    }
+
+    // Handle Object
+    if (Object.prototype.hasOwnProperty.call(registry, key)) {
+        return key;
+    }
+    for (const k of Object.keys(registry)) {
         if (key.startsWith(k + '-')) {
             return k;
         }

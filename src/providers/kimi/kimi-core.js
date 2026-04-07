@@ -29,6 +29,25 @@ function getSharedAgents() {
 }
 
 /**
+ * 清理共享 HTTP agents
+ */
+function cleanupSharedAgents() {
+    if (_sharedHttpAgent) {
+        _sharedHttpAgent.destroy();
+        _sharedHttpAgent = null;
+    }
+    if (_sharedHttpsAgent) {
+        _sharedHttpsAgent.destroy();
+        _sharedHttpsAgent = null;
+    }
+}
+
+// 注册进程信号处理，在进程退出时清理共享 agent
+process.on('SIGTERM', cleanupSharedAgents);
+process.on('SIGINT', cleanupSharedAgents);
+process.on('exit', cleanupSharedAgents);
+
+/**
  * 获取主机名
  */
 function getHostname() {

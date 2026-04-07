@@ -165,25 +165,35 @@ function initApp() {
 function initMobileMenu() {
     const mobileMenuToggle = document.getElementById('mobileMenuToggle');
     const headerControls = document.getElementById('headerControls');
-    
+
     if (!mobileMenuToggle || !headerControls) {
         // console.log('Mobile menu elements not found');
         return;
     }
-    
-    // 默认隐藏header-controls
-    headerControls.style.display = 'none';
-    
-    let isMenuOpen = false;
-    
+
+    // 从 sessionStorage 恢复菜单状态
+    let isMenuOpen = sessionStorage.getItem('mobileMenuOpen') === 'true';
+
+    // 根据恢复的状态设置初始显示
+    if (isMenuOpen) {
+        headerControls.style.display = 'flex';
+        mobileMenuToggle.innerHTML = '<i class="fas fa-times"></i>';
+    } else {
+        headerControls.style.display = 'none';
+        mobileMenuToggle.innerHTML = '<i class="fas fa-bars"></i>';
+    }
+
     mobileMenuToggle.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // console.log('Mobile menu toggle clicked, current state:', isMenuOpen);
-        
+
         isMenuOpen = !isMenuOpen;
-        
+
+        // 保存状态到 sessionStorage
+        sessionStorage.setItem('mobileMenuOpen', isMenuOpen);
+
         if (isMenuOpen) {
             headerControls.style.display = 'flex';
             mobileMenuToggle.innerHTML = '<i class="fas fa-times"></i>';
@@ -194,11 +204,12 @@ function initMobileMenu() {
             // console.log('Menu closed');
         }
     });
-    
+
     // 点击页面其他地方关闭菜单
     document.addEventListener('click', (e) => {
         if (isMenuOpen && !mobileMenuToggle.contains(e.target) && !headerControls.contains(e.target)) {
             isMenuOpen = false;
+            sessionStorage.setItem('mobileMenuOpen', 'false');
             headerControls.style.display = 'none';
             mobileMenuToggle.innerHTML = '<i class="fas fa-bars"></i>';
             // console.log('Menu closed by clicking outside');

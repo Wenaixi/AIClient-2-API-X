@@ -19,7 +19,11 @@ let timerState = {
 let lastCheckTimes = new Map();
 
 const _getState = () => Object.freeze({ ...timerState });
+// 深拷贝 lastCheckTimes，避免外部修改影响模块内部状态
 const _getLastCheckTimes = () => new Map(lastCheckTimes);
+
+// 用于更新模块内部的 lastCheckTimes 引用（返回真实 Map，非拷贝）
+const _getMutableLastCheckTimes = () => lastCheckTimes;
 
 /**
  * 执行健康检查
@@ -39,35 +43,39 @@ async function executeHealthCheck() {
     const customIntervals = config.customIntervals || {};
     const configuredProviderTypes = new Set(config.providerTypes || []);
     const now = Date.now();
-    const lastCheckTimes = _getLastCheckTimes();
+    // 使用深拷贝避免外部修改影响，同时获取可变引用用于后续更新
+    const lastCheckTimesCopy = _getLastCheckTimes();
+    const mutableLastCheckTimes = _getMutableLastCheckTimes();
 
     // 清理不再配置的 providerType 条目
-    for (const key of lastCheckTimes.keys()) {
+    for (const key of lastCheckTimesCopy.keys()) {
         if (!configuredProviderTypes.has(key)) {
-            lastCheckTimes.delete(key);
+            mutableLastCheckTimes.delete(key);
         }
     }
 
     // 防止内存泄漏：限制 Map 大小（仅在超过阈值时清理）
-    if (lastCheckTimes.size > HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES) {
-        logger.warn(`[HealthCheckTimer] lastCheckTimes Map size (${lastCheckTimes.size}) exceeds limit, clearing oldest entries`);
+    if (mutableLastCheckTimes.size > HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES) {
+        logger.warn(`[HealthCheckTimer] lastCheckTimes Map size (${mutableLastCheckTimes.size}) exceeds limit, clearing oldest entries`);
         // 使用更高效的清理策略：只删除最旧的20%条目
         const targetSize = Math.floor(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES * 0.8);
-        const entriesToRemove = lastCheckTimes.size - targetSize;
+        const entriesToRemove = mutableLastCheckTimes.size - targetSize;
 
         // 找出最旧的条目并删除
-        const entries = Array.from(lastCheckTimes.entries());
+        const entries = Array.from(mutableLastCheckTimes.entries());
         entries.sort((a, b) => a[1] - b[1]); // 按时间戳升序排序
 
         for (let i = 0; i < entriesToRemove; i++) {
-            lastCheckTimes.delete(entries[i][0]);
+            mutableLastCheckTimes.delete(entries[i][0]);
         }
     }
 
     // 并行执行各类型健康检查，限制并发数
     const MAX_CONCURRENT = HEALTH_CHECK.MAX_CONCURRENT_CHECKS;
-    for (let i = 0; i < config.providerTypes.length; i += MAX_CONCURRENT) {
-        const batch = config.providerTypes.slice(i, i + MAX_CONCURRENT);
+    const totalTypes = config.providerTypes.length;
+    for (let i = 0; i < totalTypes; i += MAX_CONCURRENT) {
+        const batchEnd = Math.min(i + MAX_CONCURRENT, totalTypes);
+        const batch = config.providerTypes.slice(i, batchEnd);
         await Promise.all(batch.map(async (providerType) => {
             let customInterval = customIntervals[providerType];
 
@@ -96,8 +104,8 @@ async function executeHealthCheck() {
             logger.info(`[HealthCheckTimer] Executing health check for ${providerType} (custom interval: ${customInterval ? customInterval + 'ms' : 'using global ' + globalInterval + 'ms'})`);
             try {
                 await poolManager.performHealthChecksByType(providerType);
-                // 使用实际完成时间而非批次开始时间
-                lastCheckTimes.set(providerType, Date.now());
+                // 使用实际完成时间而非批次开始时间，更新到模块级状态
+                mutableLastCheckTimes.set(providerType, Date.now());
             } catch (error) {
                 logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:`, error);
             }

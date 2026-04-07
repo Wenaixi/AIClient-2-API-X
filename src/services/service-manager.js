@@ -126,6 +126,8 @@ export async function autoLinkProviderConfigs(config, options = {}) {
     // Update provider pool manager if available
     if (providerPoolManager) {
         providerPoolManager.providerPools = config.providerPools;
+        // 清理旧的 SelectionLock，避免旧锁状态残留导致并发问题
+        providerPoolManager.clearSelectionLocks();
         providerPoolManager.initializeProviderStatus();
     }
 

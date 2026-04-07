@@ -114,6 +114,24 @@ export async function handleCompleteKimiOAuth(req, res, currentConfig) {
             return true;
         }
 
+        // 参数类型校验
+        if (interval !== undefined && (typeof interval !== 'number' || interval <= 0)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'interval must be a positive number'
+            }));
+            return true;
+        }
+        if (expiresIn !== undefined && (typeof expiresIn !== 'number' || expiresIn <= 0)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'expiresIn must be a positive number'
+            }));
+            return true;
+        }
+
         logger.info('[Kimi OAuth Complete] Waiting for user authorization...');
 
         const result = await completeKimiOAuth(currentConfig, {
@@ -223,7 +241,17 @@ export async function handleManualOAuthCallback(req, res) {
         logger.info(`[OAuth Manual Callback] Callback URL: ${callbackUrl}`);
 
         // 解析回调URL
-        const url = new URL(callbackUrl);
+        let url;
+        try {
+            url = new URL(callbackUrl);
+        } catch (urlError) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'Invalid callback URL format'
+            }));
+            return true;
+        }
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
         const token = url.searchParams.get('token');

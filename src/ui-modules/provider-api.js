@@ -319,7 +319,7 @@ export async function handleGetProviderType(req, res, currentConfig, providerPoo
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         providerType,
-        providers: providers.map(p => sanitizeProviderData(p, false)), // 详情页（用于编辑）不打码
+        providers: providers.map(p => sanitizeProviderData(p, true)), // 详情页（用于编辑）仍需打码
         totalCount: providers.length,
         healthyCount: providers.filter(p => p.isHealthy).length
     }));

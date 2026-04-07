@@ -709,11 +709,11 @@ function renderCustomIntervalsList() {
     const keys = Object.keys(customIntervals).filter(k => customIntervals[k] > 0);
 
     if (keys.length === 0) {
-        sectionEl.style.display = 'none';
+        sectionEl.classList.add('hidden');
         return;
     }
 
-    sectionEl.style.display = 'block';
+    sectionEl.classList.remove('hidden');
 
     // 获取供应商友好名称（从渲染好的 provider-tag 中查找）
     const providerTagMap = {};
@@ -835,6 +835,7 @@ function setupProviderLongPressHandlers() {
 function showCustomIntervalPopup(providerType) {
     currentEditingProviderType = providerType;
     const popup = document.getElementById('customIntervalPopup');
+    const overlay = document.getElementById('customIntervalOverlay');
     const nameSpan = document.getElementById('popupProviderName');
 
     // 获取供应商友好名称
@@ -852,7 +853,8 @@ function showCustomIntervalPopup(providerType) {
 
     nameSpan.textContent = providerName;
 
-    popup.style.display = 'block';
+    popup.classList.remove('hidden');
+    overlay.classList.add('show');
 }
 
 // 初始化快捷按钮事件（只绑定一次）
@@ -906,7 +908,9 @@ function saveCustomInterval() {
  */
 function closeCustomIntervalPopup() {
     const popup = document.getElementById('customIntervalPopup');
-    if (popup) popup.style.display = 'none';
+    const overlay = document.getElementById('customIntervalOverlay');
+    if (popup) popup.classList.add('hidden');
+    if (overlay) overlay.classList.remove('show');
     currentEditingProviderType = null;
 }
 

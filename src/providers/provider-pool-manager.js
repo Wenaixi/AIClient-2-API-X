@@ -653,20 +653,24 @@ export class ProviderPoolManager {
      */
     _isPrivateHostname(hostname) {
         const h = hostname.toLowerCase();
-        if (h === 'localhost' || h === '::1' || h === '127.0.0.1' || /^127\./.test(h)) return true;
+        if (h === 'localhost' || h === '127.0.0.1' || /^127\./.test(h)) return true;
         if (h.startsWith('10.')) return true;
         if (h.startsWith('192.168.')) return true;
         if (h.startsWith('169.254.')) return true;
+        // 172.16-31.x.x (标准私有) + Docker/容器常用段 172.17-30.x.x
         if (h.startsWith('172.')) {
             const second = parseInt(h.split('.')[1], 10);
             if (second >= 16 && second <= 31) return true;
+            if (second >= 17 && second <= 30) return true; // Docker bridge network
         }
-        // IPv6 checks to prevent SSRF bypass
-        if (h === '::1') return true; // IPv6 loopback
-        if (h === '::ffff:127.0.0.1' || h === '::ffff:0:0') return true; // IPv4-mapped IPv6
-        if (h.startsWith('fc00:') || h.startsWith('fc')) return true; // IPv6 unique local (fc00::/7)
-        if (h.startsWith('fe80:') || h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb')) return true; // IPv6 link-local (fe80::/10)
-        if (h === '0.0.0.0' || h === '::' || h === '::0') return true; // Unspecified addresses
+        // IPv6 loopback and unique local addresses
+        if (h === '::1') return true;
+        if (h.startsWith('fc00:') || h.startsWith('fc')) return true;
+        if (h.startsWith('fe80:')) return true; // IPv6 link-local
+        // IPv4-mapped IPv6
+        if (h === '::ffff:127.0.0.1' || h === '::ffff:0:0') return true;
+        // Unspecified addresses
+        if (h === '0.0.0.0' || h === '::' || h === '::0') return true;
         return false;
     }
 
@@ -910,14 +914,24 @@ export class ProviderPoolManager {
         const lockPromise = previousLock.then(() => {
             return this._doSelectProvider(providerType, requestedModel, options);
         }).catch((err) => {
-            // 重新抛出，让调用方感知错误
-            throw err;
+            // 捕获错误但不让锁 Promise 进入 rejected 状态
+            // 避免后续链接到该锁的调用被阻塞（Promise 链断裂）
+            this._log('warn', `selectProvider lock error for ${providerType}: ${err.message || err}`);
+            return null; // 返回 null 而非抛出，保持锁链健康
         });
 
         // 立即更新锁，后续调用会链接到当前 Promise 之后
         this._selectionLocks[providerType] = lockPromise;
 
         return lockPromise;
+    }
+
+    /**
+     * 清理所有 SelectionLock
+     * 在 providerPools 更新后调用，避免旧锁状态残留导致并发问题
+     */
+    clearSelectionLocks() {
+        this._selectionLocks = {};
     }
 
     /**

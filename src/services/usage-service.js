@@ -45,41 +45,57 @@ export class UsageService {
     async getAllUsage() {
         const results = {};
         const poolManager = getProviderPoolManager();
-        
-        for (const [providerType, handler] of Object.entries(this.providerHandlers)) {
-            try {
-                // 检查是否有号池配置
-                if (poolManager) {
-                    const pools = poolManager.getProviderPools(providerType);
-                    if (pools && pools.length > 0) {
-                        results[providerType] = [];
-                        for (const pool of pools) {
-                            try {
-                                const usage = await handler(pool.uuid);
-                                results[providerType].push({
-                                    uuid: pool.uuid,
-                                    usage
-                                });
-                            } catch (error) {
-                                results[providerType].push({
-                                    uuid: pool.uuid,
-                                    error: error.message
-                                });
-                            }
+
+        // 收集所有 providerType 的查询 Promise
+        const providerPromises = Object.entries(this.providerHandlers).map(async ([providerType, handler]) => {
+            const providerResult = [];
+
+            // 检查是否有号池配置
+            if (poolManager) {
+                const pools = poolManager.getProviderPools(providerType);
+                if (pools && pools.length > 0) {
+                    // 使用 Promise.allSettled 并发查询所有池的用量
+                    const poolPromises = pools.map(async (pool) => {
+                        try {
+                            const usage = await handler(pool.uuid);
+                            return { uuid: pool.uuid, usage };
+                        } catch (error) {
+                            return { uuid: pool.uuid, error: error.message };
                         }
-                    }
+                    });
+                    const settledResults = await Promise.all(poolPromises);
+                    providerResult.push(...settledResults);
                 }
-                
-                // 如果没有号池配置，尝试获取单个实例的用量
-                if (!results[providerType] || results[providerType].length === 0) {
+            }
+
+            // 如果没有号池配置，尝试获取单个实例的用量
+            if (providerResult.length === 0) {
+                try {
                     const usage = await handler(null);
-                    results[providerType] = [{ uuid: 'default', usage }];
+                    providerResult.push({ uuid: 'default', usage });
+                } catch (error) {
+                    providerResult.push({ uuid: 'default', error: error.message });
                 }
-            } catch (error) {
-                results[providerType] = [{ uuid: 'default', error: error.message }];
+            }
+
+            return { providerType, result: providerResult };
+        });
+
+        // 使用 Promise.allSettled 收集所有结果，确保一个失败不会影响其他
+        const settledResults = await Promise.allSettled(providerPromises);
+
+        // 整理最终结果
+        for (const settled of settledResults) {
+            if (settled.status === 'fulfilled' && settled.value) {
+                const { providerType, result } = settled.value;
+                results[providerType] = result;
+            } else if (settled.status === 'rejected') {
+                // 这应该很少发生，因为内部已经捕获了错误
+                const reason = settled.reason?.message || settled.reason || 'Unknown error';
+                results[settled.reason?.providerType || 'unknown'] = [{ uuid: 'default', error: reason }];
             }
         }
-        
+
         return results;
     }
 

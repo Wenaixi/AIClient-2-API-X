@@ -482,3 +482,160 @@ describe('Configuration Validation', () => {
     expect(manager.healthCheckInterval).toBe(0);
   });
 });
+
+/**
+ * 真实 ProviderPoolManager 集成测试
+ * 测试实际实现与 TestableProviderPoolManager 行为一致性
+ */
+describe('ProviderPoolManager Integration', () => {
+  let RealProviderPoolManager;
+  let mockLogger;
+
+  beforeEach(() => {
+    // 动态导入真实实现
+    jest.resetModules();
+
+    // Mock logger
+    mockLogger = {
+      trace: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    jest.doMock('../../../src/utils/logger.js', () => mockLogger);
+
+    // Mock fs
+    jest.doMock('fs', () => ({
+      existsSync: jest.fn().mockReturnValue(false),
+      readFileSync: jest.fn(),
+      writeFileSync: jest.fn(),
+    }));
+
+    // Mock broadcastEvent
+    jest.doMock('../../../src/ui-modules/event-broadcast.js', () => ({
+      broadcastEvent: jest.fn(),
+    }));
+
+    // Mock adapter
+    jest.doMock('../../../src/providers/adapter.js', () => ({
+      getServiceAdapter: jest.fn(),
+      getRegisteredProviders: jest.fn().mockReturnValue([]),
+    }));
+
+    // Mock constants
+    jest.doMock('../../../src/utils/constants.js', () => ({
+      PROVIDER_POOL: {
+        DEFAULT_MAX_ERROR_COUNT: 10,
+        DEFAULT_HEALTH_CHECK_INTERVAL_MS: 600000,
+        DEFAULT_SAVE_DEBOUNCE_MS: 1000,
+        DEFAULT_REFRESH_CONCURRENCY_GLOBAL: 2,
+        DEFAULT_REFRESH_CONCURRENCY_PER_PROVIDER: 1,
+        DEFAULT_WARMUP_TARGET: 0,
+        DEFAULT_REFRESH_BUFFER_DELAY_MS: 5000,
+        FRESH_NODE_BASE_SCORE_OFFSET: 100,
+        USAGE_SCORE_MULTIPLIER: 0.1,
+        LOAD_SCORE_MULTIPLIER: 1,
+        SEQUENCE_MULTIPLIER: 0.001,
+        MAX_RELATIVE_SEQUENCE: 1000,
+        FRESHNESS_WINDOW_MS: 300000,
+        DEFAULT_LRU_FALLBACK_MS: 3600000,
+      },
+      MODEL_PROVIDER: {
+        GEMINI_CLI: 'gemini-cli-oauth',
+        GEMINI_ANTIGRAVITY: 'gemini-antigravity',
+        OPENAI_CUSTOM: 'openai-custom',
+        CLAUDE_CUSTOM: 'claude-custom',
+        CLAUDE_KIRO_OAUTH: 'claude-kiro-oauth',
+        OPENAI_QWEN_OAUTH: 'openai-qwen-oauth',
+        OPENAI_CODEX_OAUTH: 'openai-codex-oauth',
+        OPENAI_RESPONSES_CUSTOM: 'openaiResponses-custom',
+        FORWARD_API: 'forward-api',
+        KIMI_OAUTH: 'kimi-oauth',
+      },
+    }));
+
+    // Mock convert
+    jest.doMock('../../../src/convert/convert.js', () => ({
+      convertData: jest.fn(),
+    }));
+
+    const module = require('../../../src/providers/provider-pool-manager.js');
+    RealProviderPoolManager = module.ProviderPoolManager;
+  });
+
+  test('should create instance with provider pools', () => {
+    const pools = {
+      'test': [
+        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
+        { uuid: 'test-2', customName: 'Test 2', isHealthy: false },
+      ]
+    };
+    const manager = new RealProviderPoolManager(pools);
+
+    expect(manager.getTotalCount('test')).toBe(2);
+    expect(manager.getHealthyCount('test')).toBe(1);
+  });
+
+  test('should mark provider healthy and unhealthy correctly', () => {
+    const pools = {
+      'test': [
+        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
+      ]
+    };
+    const manager = new RealProviderPoolManager(pools);
+
+    const provider = pools['test'][0];
+
+    // Mark unhealthy
+    manager.markProviderUnhealthy('test', provider, 'Test error');
+    let status = manager.getProviderStatus('test', 'test-1');
+    expect(status.consecutiveErrors).toBe(1);
+    expect(status.isHealthy).toBe(true); // Not yet unhealthy
+
+    // Mark healthy again
+    manager.markProviderHealthy('test', provider);
+    status = manager.getProviderStatus('test', 'test-1');
+    expect(status.consecutiveErrors).toBe(0);
+    expect(status.isHealthy).toBe(true);
+  });
+
+  test('should disable and enable providers', () => {
+    const pools = {
+      'test': [
+        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
+      ]
+    };
+    const manager = new RealProviderPoolManager(pools);
+
+    const provider = pools['test'][0];
+
+    // Disable
+    manager.disableProvider('test', provider);
+    expect(manager.getHealthyCount('test')).toBe(0);
+
+    // Enable
+    manager.enableProvider('test', provider);
+    expect(manager.getHealthyCount('test')).toBe(1);
+  });
+
+  test('should respect maxErrorCount threshold', () => {
+    const pools = {
+      'test': [
+        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
+      ]
+    };
+    const manager = new RealProviderPoolManager(pools, { maxErrorCount: 3 });
+
+    const provider = pools['test'][0];
+
+    // Trigger 3 errors
+    manager.markProviderUnhealthy('test', provider, 'Error 1');
+    manager.markProviderUnhealthy('test', provider, 'Error 2');
+    manager.markProviderUnhealthy('test', provider, 'Error 3');
+
+    const status = manager.getProviderStatus('test', 'test-1');
+    expect(status.isHealthy).toBe(false);
+    expect(status.consecutiveErrors).toBe(3);
+  });
+});
