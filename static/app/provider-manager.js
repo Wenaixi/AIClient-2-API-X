@@ -1,7 +1,7 @@
 // 提供商管理功能模块
 
 import { providerStats, updateProviderStats } from './constants.js';
-import { showToast, formatUptime, getProviderConfigs, getBaseProviderConfigs } from './utils.js';
+import { showToast, formatUptime, getProviderConfigs, getBaseProviderConfigs, escapeHtml } from './utils.js';
 import { fileUploadHandler } from './file-upload.js';
 import { t, getCurrentLanguage } from './i18n.js';
 import { renderRoutingExamples } from './routing-examples.js';
@@ -852,12 +852,12 @@ function showCodexBatchImportModal(providerType) {
                                     const resultItem = document.createElement('div');
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     resultsList.appendChild(resultItem);
                                     resultsList.scrollTop = resultsList.scrollHeight;
@@ -1316,12 +1316,12 @@ function showGeminiBatchImportModal(providerType) {
                                     const resultItem = document.createElement('div');
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     resultsList.appendChild(resultItem);
                                     resultsList.scrollTop = resultsList.scrollHeight;
@@ -1580,12 +1580,12 @@ function showKiroBatchImportModal() {
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     
                                     resultsList.appendChild(resultItem);

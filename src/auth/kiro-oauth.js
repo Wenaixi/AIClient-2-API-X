@@ -255,9 +255,9 @@ async function handleKiroSocialAuth(provider, currentConfig, options = {}) {
     const authUrl = `${KIRO_OAUTH_CONFIG.authServiceEndpoint}/login?` +
         `idp=${provider}&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `code_challenge=${codeChallenge}&` +
+        `code_challenge=${encodeURIComponent(codeChallenge)}&` +
         `code_challenge_method=S256&` +
-        `state=${state}&` +
+        `state=${encodeURIComponent(state)}&` +
         `prompt=select_account`;
     
     return {
@@ -432,7 +432,7 @@ async function pollKiroBuilderIDToken(clientId, clientSecret, deviceCode, interv
                     expiresAt: new Date(Date.now() + data.expiresIn * 1000).toISOString(),
                     authMethod: 'builder-id',
                     clientId,
-                    clientSecret,
+                    // clientSecret excluded - keep in memory only for refresh operations
                     idcRegion: options.region || 'us-east-1'
                 };
                 
@@ -631,7 +631,7 @@ function createKiroHttpCallbackServer(port, codeVerifier, expectedState, options
                     };
                     
                     await fs.promises.mkdir(path.dirname(credPath), { recursive: true });
-                    await fs.promises.writeFile(credPath, JSON.stringify(saveData, null, 2));
+                    await fs.promises.writeFile(credPath, JSON.stringify(saveData, null, 2), { mode: 0o600 });
                     
                     logger.info(`${KIRO_OAUTH_CONFIG.logPrefix} 令牌已保存: ${credPath}`);
 
@@ -1103,7 +1103,6 @@ export async function importAwsCredentials(credentials, skipDuplicateCheck = fal
         // 准备凭据数据 - 四个字段都是必需的
         const credentialsData = {
             clientId: credentials.clientId,
-            clientSecret: credentials.clientSecret,
             accessToken: credentials.accessToken,
             refreshToken: credentials.refreshToken,
             authMethod: credentials.authMethod || 'builder-id',

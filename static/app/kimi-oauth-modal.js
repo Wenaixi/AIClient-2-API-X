@@ -171,15 +171,6 @@ export function showKimiBatchImportModal(providerType) {
         }
     });
 
-    // 关闭按钮事件
-    const closeBtn = modal.querySelector('.modal-close');
-    const cancelBtn = modal.querySelector('.modal-cancel');
-    [closeBtn, cancelBtn].forEach(btn => {
-        btn.addEventListener('click', () => {
-            modal.remove();
-        });
-    });
-
     // 提交按钮事件
     submitBtn.addEventListener('click', async () => {
         const tokens = textarea.value.trim().split('\n').filter(t => t.trim());

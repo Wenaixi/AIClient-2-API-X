@@ -320,6 +320,9 @@ export class ProviderPoolManager {
                     // 只有持有全局槽位的任务才能递减计数器
                     if (ownsGlobalSlot) {
                         this.activeProviderRefreshes--;
+                    } else if (this.globalRefreshWaiters.length > 0) {
+                        // 如果是从全局等待队列启动的回调，它持有自己的本地槽位
+                        // 由该回调负责递减
                     }
 
                     // 3. 尝试启动下一个等待中的提供商队列
@@ -360,19 +363,21 @@ export class ProviderPoolManager {
         }
         // 情况3: 全局槽位已满，进入等待队列，由等待回调负责标记持槽
         else {
-            this.globalRefreshWaiters.push(() => {
-                // 重新获取最新的队列引用
-                if (!this.refreshQueues[providerType]) {
-                    this.refreshQueues[providerType] = {
-                        activeCount: 0,
-                        waitingTasks: []
-                    };
-                }
-                // 从等待队列启动时持有全局槽位
-                ownsGlobalSlot = true;
-                this.activeProviderRefreshes++;
-                tryStartProviderQueue();
-            });
+            this.globalRefreshWaiters.push((() => {
+                const ownsSlot = true;  // Each callback captures its own local flag
+                return () => {
+                    // 重新获取最新的队列引用
+                    if (!this.refreshQueues[providerType]) {
+                        this.refreshQueues[providerType] = {
+                            activeCount: 0,
+                            waitingTasks: []
+                        };
+                    }
+                    // 从等待队列启动时持有全局槽位
+                    this.activeProviderRefreshes++;
+                    tryStartProviderQueue();
+                };
+            })());
         }
     }
 

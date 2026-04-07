@@ -60,7 +60,7 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
 
         const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
-        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8');
+        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
         logger.info(`[Kimi OAuth] Token saved to: ${filepath}`);
 
@@ -129,7 +129,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
         const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
         logger.info('[Kimi OAuth] Writing token to:', filepath);
-        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8');
+        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
         logger.info('[Kimi OAuth] Token saved successfully');
 
         // 广播授权成功事件

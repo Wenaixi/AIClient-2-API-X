@@ -254,23 +254,23 @@ export function isAuthorized(req, requestUrl, REQUIRED_API_KEY) {
     // Check for Bearer token in Authorization header (OpenAI style)
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        if (token === REQUIRED_API_KEY) {
+        if (token && token.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(REQUIRED_API_KEY))) {
             return true;
         }
     }
 
     // Check for API key in URL query parameter (Gemini style)
-    if (queryKey === REQUIRED_API_KEY) {
+    if (queryKey && queryKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 
     // Check for API key in x-goog-api-key header (Gemini style)
-    if (googApiKey === REQUIRED_API_KEY) {
+    if (googApiKey && googApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 
     // Check for API key in x-api-key header (Claude style)
-    if (claudeApiKey === REQUIRED_API_KEY) {
+    if (claudeApiKey && claudeApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 

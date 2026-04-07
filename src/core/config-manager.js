@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import { promises as pfs } from 'fs';
+import crypto from 'crypto';
 import { INPUT_SYSTEM_PROMPT_FILE } from '../utils/common.js';
 import { MODEL_PROVIDER } from '../utils/constants.js';
 import logger from '../utils/logger.js';
@@ -57,7 +58,7 @@ function normalizeConfiguredProviders(config) {
  */
 export async function initializeConfig(args = process.argv.slice(2), configFilePath = 'configs/config.json') {
     const defaultConfig = {
-        REQUIRED_API_KEY: "123456",
+        REQUIRED_API_KEY: null, // Will be generated securely on first startup if not configured
         SERVER_PORT: 3000,
         HOST: '0.0.0.0',
         MODEL_PROVIDER: MODEL_PROVIDER.GEMINI_CLI,
@@ -176,6 +177,12 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
     }
     if (currentConfig.SCHEDULE_HEALTH_CHECK_INTERVAL !== undefined) {
         currentConfig.SCHEDULED_HEALTH_CHECK.interval = currentConfig.SCHEDULE_HEALTH_CHECK_INTERVAL;
+    }
+
+    // Generate a secure random API key if none is configured
+    if (!currentConfig.REQUIRED_API_KEY) {
+        currentConfig.REQUIRED_API_KEY = crypto.randomBytes(32).toString('hex');
+        logger.info('[Config] Generated secure random API key on first startup');
     }
 
     normalizeConfiguredProviders(currentConfig);

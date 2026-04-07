@@ -195,7 +195,7 @@ async function pollQwenToken(deviceCode, codeVerifier, interval = 5, expiresIn =
 
                 // 保存令牌到文件
                 await fs.promises.mkdir(path.dirname(credPath), { recursive: true });
-                await fs.promises.writeFile(credPath, JSON.stringify(data, null, 2));
+                await fs.promises.writeFile(credPath, JSON.stringify(data, null, 2), { mode: 0o600 });
                 logger.info(`${QWEN_OAUTH_CONFIG.logPrefix} 令牌已保存到 ${credPath}`);
                 
                 const relativePath = path.relative(process.cwd(), credPath);

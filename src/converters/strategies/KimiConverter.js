@@ -152,6 +152,16 @@ export class KimiConverter extends BaseConverter {
 
         // 处理结束
         if (choice.finish_reason) {
+            // First return any accumulated content, then return message_delta
+            if (claudeChunk.delta.text || claudeChunk.delta.partial_json) {
+                return [claudeChunk, {
+                    type: 'message_delta',
+                    delta: {
+                        stop_reason: this.mapFinishReason(choice.finish_reason)
+                    },
+                    usage: chunk.usage
+                }];
+            }
             return {
                 type: 'message_delta',
                 delta: {
