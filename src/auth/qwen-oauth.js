@@ -13,7 +13,7 @@ import { getProxyConfigForProvider } from '../utils/proxy-utils.js';
  * Qwen OAuth 配置
  */
 const QWEN_OAUTH_CONFIG = {
-    clientId: 'f0304373b74a44d2b584a3fb70ca9e56',
+    clientId: process.env.QWEN_OAUTH_CLIENT_ID || 'f0304373b74a44d2b584a3fb70ca9e56',
     scope: 'openid profile email model.completion',
     deviceCodeEndpoint: 'https://chat.qwen.ai/api/v1/oauth2/device/code',
     tokenEndpoint: 'https://chat.qwen.ai/api/v1/oauth2/token',

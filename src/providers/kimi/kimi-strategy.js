@@ -65,11 +65,13 @@ export class KimiStrategy extends ProviderStrategy {
             logger.info(`[Kimi Strategy] Processing chat completion request (format: ${sourceFormat})`);
 
             let openaiBody = requestBody;
+            let model = requestBody.model || '';
 
             // 如果是 Claude 格式，转换为 OpenAI 格式
             if (sourceFormat === 'claude') {
                 logger.debug('[Kimi Strategy] Converting Claude format to OpenAI format');
                 openaiBody = this.convertClaudeToOpenAI(requestBody);
+                model = requestBody.model || '';
             }
 
             // 调用 Kimi API
@@ -78,7 +80,7 @@ export class KimiStrategy extends ProviderStrategy {
             // 如果需要返回 Claude 格式，进行转换
             if (sourceFormat === 'claude') {
                 logger.debug('[Kimi Strategy] Converting OpenAI response to Claude format');
-                return this.convertOpenAIResponseToClaude(response);
+                return this.convertOpenAIResponseToClaude(response, model);
             }
 
             return response;
@@ -128,7 +130,7 @@ export class KimiStrategy extends ProviderStrategy {
     convertClaudeToOpenAI(claudeRequest) {
         const openaiRequest = {
             model: claudeRequest.model,
-            messages: claudeRequest.messages,
+            messages: this.convertClaudeMessagesToOpenAI(claudeRequest.messages),
             system: claudeRequest.system || claudeRequest.system_instruction,
             max_tokens: claudeRequest.max_tokens,
             temperature: claudeRequest.temperature,
@@ -144,6 +146,56 @@ export class KimiStrategy extends ProviderStrategy {
         });
 
         return openaiRequest;
+    }
+
+    /**
+     * 将 Claude 格式的 messages 转换为 OpenAI 格式
+     * Claude 的 tool_use/tool_result 需要转换为 OpenAI 的 tool_calls 和 tool 角色消息
+     */
+    convertClaudeMessagesToOpenAI(claudeMessages) {
+        const openaiMessages = [];
+
+        for (const msg of claudeMessages) {
+            if (msg.role === 'user') {
+                // user 消息直接保留
+                openaiMessages.push({
+                    role: 'user',
+                    content: msg.content
+                });
+            } else if (msg.role === 'assistant') {
+                // assistant 消息需要处理 tool_use 转换为 tool_calls
+                const assistantMsg = {
+                    role: 'assistant',
+                    content: msg.content || null
+                };
+
+                // 收集 tool_use 转换为 tool_calls
+                if (msg.tool_use && msg.tool_use.length > 0) {
+                    assistantMsg.tool_calls = msg.tool_use.map(toolUse => ({
+                        id: toolUse.id,
+                        type: 'function',
+                        function: {
+                            name: toolUse.name,
+                            arguments: typeof toolUse.input === 'string' ? toolUse.input : JSON.stringify(toolUse.input)
+                        }
+                    }));
+                }
+
+                openaiMessages.push(assistantMsg);
+            } else if (msg.role === 'tool') {
+                // tool 结果消息保留，但格式调整为 OpenAI 的 tool 角色
+                openaiMessages.push({
+                    role: 'tool',
+                    tool_call_id: msg.tool_call_id,
+                    content: msg.content
+                });
+            } else {
+                // 其他角色直接保留
+                openaiMessages.push(msg);
+            }
+        }
+
+        return openaiMessages;
     }
 
     /**
@@ -173,32 +225,6 @@ export class KimiStrategy extends ProviderStrategy {
             const delta = choice.delta;
             if (!delta) return null;
 
-            // 构建 Claude 流式响应
-            const claudeChunk = {
-                type: 'content_block_delta',
-                index: 0,
-                delta: {}
-            };
-
-            // 处理内容
-            if (delta.content) {
-                claudeChunk.delta.type = 'text_delta';
-                claudeChunk.delta.text = delta.content;
-            }
-
-            // 处理工具调用
-            if (delta.tool_calls && delta.tool_calls.length > 0) {
-                claudeChunk.type = 'content_block_delta';
-                claudeChunk.delta.type = 'input_json_delta';
-                // partial_json 应为工具调用参数的 JSON 片段
-                const toolCall = delta.tool_calls[0];
-                if (toolCall?.function?.arguments) {
-                    claudeChunk.delta.partial_json = typeof toolCall.function.arguments === 'string'
-                        ? toolCall.function.arguments
-                        : JSON.stringify(toolCall.function.arguments);
-                }
-            }
-
             // 处理结束
             if (choice.finish_reason) {
                 return {
@@ -210,7 +236,40 @@ export class KimiStrategy extends ProviderStrategy {
                 };
             }
 
-            return claudeChunk;
+            // 用于收集需要返回的多个 content block delta
+            const chunks = [];
+
+            // 处理内容
+            if (delta.content) {
+                chunks.push({
+                    type: 'content_block_delta',
+                    index: chunks.length,
+                    delta: {
+                        type: 'text_delta',
+                        text: delta.content
+                    }
+                });
+            }
+
+            // 处理工具调用
+            if (delta.tool_calls && delta.tool_calls.length > 0) {
+                const toolCall = delta.tool_calls[0];
+                if (toolCall?.function?.arguments) {
+                    chunks.push({
+                        type: 'content_block_delta',
+                        index: chunks.length,
+                        delta: {
+                            type: 'input_json_delta',
+                            partial_json: typeof toolCall.function.arguments === 'string'
+                                ? toolCall.function.arguments
+                                : JSON.stringify(toolCall.function.arguments)
+                        }
+                    });
+                }
+            }
+
+            // 返回第一个 chunk（如果需要单一响应）或所有 chunks
+            return chunks.length > 0 ? chunks[0] : null;
         } catch (error) {
             logger.warn('[Kimi Strategy] Failed to convert stream chunk:', error.message);
             return null;
@@ -266,7 +325,7 @@ export class KimiStrategy extends ProviderStrategy {
         }
 
         const filePromptContent = config.SYSTEM_PROMPT_CONTENT;
-        if (filePromptContent === null) {
+        if (filePromptContent == null) {
             return requestBody;
         }
 

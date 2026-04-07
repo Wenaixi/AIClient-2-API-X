@@ -11,10 +11,25 @@ import { CONFIG } from '../core/config-manager.js';
 import { getProxyConfigForProvider } from '../utils/proxy-utils.js';
 
 /**
+ * HTML 转义函数，防止 XSS 攻击
+ * @param {string} str - 需要转义的字符串
+ * @returns {string} 转义后的字符串
+ */
+function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
+/**
  * Codex OAuth 配置
  */
 const CODEX_OAUTH_CONFIG = {
-    clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
+    clientId: process.env.CODEX_OAUTH_CLIENT_ID || 'app_EMoamEEZ73f0CkXaXp7hrann',
     authUrl: 'https://auth.openai.com/oauth/authorize',
     tokenUrl: 'https://auth.openai.com/oauth/token',
     redirectUri: 'http://localhost:1455/auth/callback',
@@ -295,7 +310,7 @@ class CodexAuth {
                             </head>
                             <body>
                                 <h1>❌ Authentication Failed</h1>
-                                <p>${errorDescription || error}</p>
+                                <p>${escapeHtml(errorDescription) || escapeHtml(error)}</p>
                                 <p>You can close this window and try again.</p>
                             </body>
                             </html>

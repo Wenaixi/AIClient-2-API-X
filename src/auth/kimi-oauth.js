@@ -11,7 +11,7 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
-const KIMI_CLIENT_ID = '17e5f671-d194-4dfb-9706-5516cb48c098';
+const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID || '17e5f671-d194-4dfb-9706-5516cb48c098';
 const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;

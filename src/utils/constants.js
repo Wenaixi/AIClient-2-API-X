@@ -120,6 +120,7 @@ export const MODEL_PROTOCOL_PREFIX = {
     CODEX: 'codex',
     FORWARD: 'forward',
     GROK: 'grok',
+    KIMI: 'kimi',
 };
 
 // 提供商标识符常量

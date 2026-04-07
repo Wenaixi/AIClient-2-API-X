@@ -112,6 +112,10 @@ export class KimiApiService {
             }
         }
 
+        if (!this.tokenStorage.access_token) {
+            throw new Error('Kimi token refresh response missing access_token field');
+        }
+
         return this.tokenStorage.access_token;
     }
 
@@ -178,13 +182,14 @@ export class KimiApiService {
             // 获取访问令牌
             const accessToken = await this.getAccessToken();
 
-            // 标准化模型名称
-            if (body.model) {
-                body.model = this.normalizeModelName(body.model);
+            // 标准化模型名称（使用浅拷贝避免修改原始对象）
+            const requestBody = { ...body };
+            if (requestBody.model) {
+                requestBody.model = this.normalizeModelName(requestBody.model);
             }
 
-            // 标准化消息格式
-            const normalizedBody = normalizeKimiToolMessageLinks(body);
+            // 标准化消息格式（使用浅拷贝避免修改原始对象）
+            const normalizedBody = normalizeKimiToolMessageLinks(requestBody);
 
             const axiosConfig = {
                 method: 'post',
@@ -286,9 +291,13 @@ export class KimiApiService {
 
             const stream = response.data;
             let buffer = '';
+            const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB limit
 
             for await (const chunk of stream) {
                 buffer += chunk.toString();
+                if (buffer.length > MAX_BUFFER_SIZE) {
+                    throw new Error('SSE buffer exceeded maximum size limit of 10MB');
+                }
                 let newlineIndex;
                 while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
                     const line = buffer.substring(0, newlineIndex).trim();

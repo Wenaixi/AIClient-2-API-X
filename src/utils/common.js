@@ -51,7 +51,7 @@ export const API_ACTIONS = {
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
 
-<export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
+export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 import { promises as fs } from 'fs';
     usesManagedModelList,
     getConfiguredSupportedModels
@@ -1400,6 +1400,9 @@ export function formatToLocal(dateInput) {
  * @returns {*} 匹配的值或 undefined
  */
 export function findByPrefix(registry, key) {
+    if (registry == null) {
+        return undefined;
+    }
     const entries = registry instanceof Map ? registry.entries() : Object.entries(registry);
     for (const [k, v] of entries) {
         if (key === k || key.startsWith(k + '-')) {

@@ -40,18 +40,13 @@ export function normalizeKimiToolMessageLinks(body) {
         if (role === 'assistant') {
             // 处理 reasoning_content
             const reasoning = msg.reasoning_content;
-            if (reasoning && reasoning.trim()) {
-                latestReasoning = reasoning;
-                hasLatestReasoning = true;
-            }
 
             // 处理 tool_calls
             const toolCalls = msg.tool_calls;
             if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-                // 如果没有 reasoning_content，使用回退逻辑
+                // 如果没有 reasoning_content，使用占位符（向前看逻辑：不让后续的 reasoning 填充前面的消息）
                 if (!reasoning || !reasoning.trim()) {
-                    const reasoningText = fallbackAssistantReasoning(msg, hasLatestReasoning, latestReasoning);
-                    msg.reasoning_content = reasoningText;
+                    msg.reasoning_content = '[reasoning unavailable]';
                     patchedReasoning++;
                 }
 
@@ -85,8 +80,11 @@ export function normalizeKimiToolMessageLinks(body) {
                     msg.tool_call_id = toolCallId;
                     patched++;
                 } else if (pending.length > 1) {
-                    // 多个待处理的 tool_call，无法确定
+                    // 多个待处理的 tool_call，无法确定，添加占位符
+                    toolCallId = `[ambiguous_tool_call_id_${msgIdx}]`;
+                    msg.tool_call_id = toolCallId;
                     ambiguous++;
+                    logger.warn(`[Kimi] Multiple pending tool_calls for message ${msgIdx}, using placeholder: ${toolCallId}`);
                 }
             }
 

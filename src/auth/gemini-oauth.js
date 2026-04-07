@@ -14,8 +14,8 @@ import { getGoogleAuthProxyConfig } from '../utils/proxy-utils.js';
  */
 const OAUTH_PROVIDERS = {
     'gemini-cli-oauth': {
-        clientId: '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com',
-        clientSecret: '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',
+        clientId: process.env.GEMINI_CLI_OAUTH_CLIENT_ID || '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com',
+        clientSecret: process.env.GEMINI_CLI_OAUTH_CLIENT_SECRET || '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',
         port: 8085,
         credentialsDir: '.gemini',
         credentialsFile: 'oauth_creds.json',
@@ -23,8 +23,8 @@ const OAUTH_PROVIDERS = {
         logPrefix: '[Gemini Auth]'
     },
     'gemini-antigravity': {
-        clientId: '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
-        clientSecret: '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',
+        clientId: process.env.GEMINI_ANTIGRAVITY_OAUTH_CLIENT_ID || '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
+        clientSecret: process.env.GEMINI_ANTIGRAVITY_OAUTH_CLIENT_SECRET || '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',
         port: 8086,
         credentialsDir: '.antigravity',
         credentialsFile: 'oauth_creds.json',

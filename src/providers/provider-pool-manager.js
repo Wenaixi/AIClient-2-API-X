@@ -661,6 +661,12 @@ export class ProviderPoolManager {
             const second = parseInt(h.split('.')[1], 10);
             if (second >= 16 && second <= 31) return true;
         }
+        // IPv6 checks to prevent SSRF bypass
+        if (h === '::1') return true; // IPv6 loopback
+        if (h === '::ffff:127.0.0.1' || h === '::ffff:0:0') return true; // IPv4-mapped IPv6
+        if (h.startsWith('fc00:') || h.startsWith('fc')) return true; // IPv6 unique local (fc00::/7)
+        if (h.startsWith('fe80:') || h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb')) return true; // IPv6 link-local (fe80::/10)
+        if (h === '0.0.0.0' || h === '::' || h === '::0') return true; // Unspecified addresses
         return false;
     }
 
