@@ -792,6 +792,42 @@ class LRUCache {
 const serviceInstancesCache = new LRUCache(50);
 
 /**
+ * 服务适配器实例的兼容层导出
+ * 使用Proxy使其既能像普通对象一样使用，又能与LRU缓存交互
+ */
+export const serviceInstances = new Proxy({}, {
+    get(target, prop) {
+        if (prop === 'keys') {
+            return () => Array.from(serviceInstancesCache.cache.keys());
+        }
+        if (typeof prop === 'string') {
+            return serviceInstancesCache.get(prop);
+        }
+        return target[prop];
+    },
+    set(target, prop, value) {
+        if (typeof prop === 'string') {
+            serviceInstancesCache.set(prop, value);
+            return true;
+        }
+        target[prop] = value;
+        return true;
+    },
+    deleteProperty(target, prop) {
+        // 从LRU缓存中删除（通过重建缓存实现）
+        if (typeof prop === 'string') {
+            const currentEntries = Array.from(serviceInstancesCache.cache.entries());
+            const filtered = currentEntries.filter(([k]) => k !== prop);
+            // 清空并重建缓存
+            serviceInstancesCache.cache.clear();
+            filtered.forEach(([k, v]) => serviceInstancesCache.cache.set(k, v));
+            return true;
+        }
+        return delete target[prop];
+    }
+});
+
+/**
  * 检查提供商是否已注册（支持前缀匹配）
  * @param {string} provider - 提供商名称
  * @returns {boolean} - 是否有效

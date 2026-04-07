@@ -11,10 +11,8 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 // Kimi OAuth 常量
-const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID;
-if (!KIMI_CLIENT_ID) {
-    throw new Error('KIMI_CLIENT_ID environment variable is required');
-}
+// 内置默认值，支持通过环境变量覆盖
+const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID || 'kimi-device-client';
 const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;
@@ -310,7 +308,7 @@ export class KimiOAuthClient {
             };
             logger.info('[Kimi OAuth] Successfully obtained token, expires_at: ' + expiresAt);
 
-            return { token, error: null, shouldContinue: false };
+            return { token, error: null, shouldContinue: false, increaseInterval: false };
         } catch (error) {
             logger.debug('[Kimi OAuth] exchangeDeviceCode error:', error.message);
             // 检查是否是 OAuth 错误响应（Kimi 返回 400 但 body 中有 error 信息）

@@ -1,13 +1,18 @@
-export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import * as http from 'http'; // Add http for IncomingMessage and ServerResponse types
-import * as crypto from 'crypto'; // Import crypto for MD5 hashing
+import * as http from 'http';
+import * as crypto from 'crypto';
 import logger from './logger.js';
 import { convertData, getOpenAIStreamChunkStop } from '../convert/convert.js';
 import { ProviderStrategyFactory } from './provider-strategies.js';
 import { getPluginManager } from '../core/plugin-manager.js';
 import { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
+import {
+    usesManagedModelList,
+    getConfiguredSupportedModels
+} from '../providers/provider-models.js';
+
+export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 
 // ==================== 网络错误处理 ====================
 
@@ -50,12 +55,6 @@ export const API_ACTIONS = {
     GENERATE_CONTENT: 'generateContent',
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
-
-export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
-import { promises as fs } from 'fs';
-    usesManagedModelList,
-    getConfiguredSupportedModels
-} from '../providers/provider-models.js';
 
 /**
  * 获取指定提供商类型下，所有节点配置的已选模型列表（去重聚合）
@@ -252,7 +251,7 @@ export function isAuthorized(req, requestUrl, REQUIRED_API_KEY) {
     const claudeApiKey = req.headers['x-api-key']; // Claude-specific header
 
     // Check for Bearer token in Authorization header (OpenAI style)
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (REQUIRED_API_KEY && authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         if (token && token.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(REQUIRED_API_KEY))) {
             return true;
@@ -260,17 +259,17 @@ export function isAuthorized(req, requestUrl, REQUIRED_API_KEY) {
     }
 
     // Check for API key in URL query parameter (Gemini style)
-    if (queryKey && queryKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(REQUIRED_API_KEY))) {
+    if (REQUIRED_API_KEY && queryKey && queryKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 
     // Check for API key in x-goog-api-key header (Gemini style)
-    if (googApiKey && googApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(REQUIRED_API_KEY))) {
+    if (REQUIRED_API_KEY && googApiKey && googApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 
     // Check for API key in x-api-key header (Claude style)
-    if (claudeApiKey && claudeApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(REQUIRED_API_KEY))) {
+    if (REQUIRED_API_KEY && claudeApiKey && claudeApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(REQUIRED_API_KEY))) {
         return true;
     }
 
