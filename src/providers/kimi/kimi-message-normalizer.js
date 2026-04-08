@@ -140,5 +140,6 @@ function fallbackAssistantReasoning(msg, hasLatest, latest) {
 }
 
 export default {
-    normalizeKimiToolMessageLinks
+    normalizeKimiToolMessageLinks,
+    fallbackAssistantReasoning
 };

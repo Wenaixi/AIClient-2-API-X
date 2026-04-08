@@ -60,7 +60,7 @@ export const RETRY = {
 // 提供商池管理相关常量
 export const PROVIDER_POOL = {
     // 默认最大错误次数（超过后标记为不健康）
-    DEFAULT_MAX_ERROR_COUNT: 10,
+    DEFAULT_MAX_ERROR_COUNT: 3,
     // 默认健康检查间隔（10分钟）
     DEFAULT_HEALTH_CHECK_INTERVAL_MS: 600000,
     // 默认保存防抖时间（1秒）

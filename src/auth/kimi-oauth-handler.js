@@ -295,7 +295,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
             // 保存到文件（使用 UUID 避免并发冲突）
             const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
-            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8');
+            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
             logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
             results.success++;
@@ -361,7 +361,7 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
             // 保存到文件（使用 UUID 避免并发冲突）
             const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
-            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8');
+            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
             logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
             results.success++;

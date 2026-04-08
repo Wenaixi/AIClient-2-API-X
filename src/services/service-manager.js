@@ -308,7 +308,7 @@ export async function initApiService(config, isReady = false) {
     } else {
         providerPoolManager = new ProviderPoolManager(config.providerPools || {}, {
             globalConfig: config,
-            maxErrorCount: config.MAX_ERROR_COUNT ?? 10,
+            maxErrorCount: config.MAX_ERROR_COUNT ?? 3,
             providerFallbackChain: config.providerFallbackChain || {},
         });
         logger.info('[Initialization] ProviderPoolManager initialized.');

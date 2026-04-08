@@ -291,7 +291,7 @@ async function loadConfiguration() {
         if (loginExpirySecondsEl) loginExpirySecondsEl.value = loginExpiryHms.seconds;
 
         if (providerPoolsFilePathEl) providerPoolsFilePathEl.value = data.PROVIDER_POOLS_FILE_PATH || '';
-        if (maxErrorCountEl) maxErrorCountEl.value = data.MAX_ERROR_COUNT || 10;
+        if (maxErrorCountEl) maxErrorCountEl.value = data.MAX_ERROR_COUNT || 3;
         if (warmupTargetEl) warmupTargetEl.value = data.WARMUP_TARGET || 0;
         if (refreshConcurrencyPerProviderEl) refreshConcurrencyPerProviderEl.value = data.REFRESH_CONCURRENCY_PER_PROVIDER || 1;
         
@@ -507,7 +507,7 @@ async function saveConfiguration() {
     config.LOGIN_EXPIRY = (loginExpiryHours * 3600) + (loginExpiryMinutes * 60) + loginExpirySeconds;
 
     config.PROVIDER_POOLS_FILE_PATH = document.getElementById('providerPoolsFilePath')?.value || '';
-    config.MAX_ERROR_COUNT = parseInt(document.getElementById('maxErrorCount')?.value || 10);
+    config.MAX_ERROR_COUNT = parseInt(document.getElementById('maxErrorCount')?.value || 3);
     config.WARMUP_TARGET = parseInt(document.getElementById('warmupTarget')?.value || 0);
     config.REFRESH_CONCURRENCY_PER_PROVIDER = parseInt(document.getElementById('refreshConcurrencyPerProvider')?.value || 1);
     
