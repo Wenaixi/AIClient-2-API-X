@@ -57,16 +57,14 @@ async function executeHealthCheck() {
     // 防止内存泄漏：限制 Map 大小（仅在超过阈值时清理）
     if (mutableLastCheckTimes.size > HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES) {
         logger.warn(`[HealthCheckTimer] lastCheckTimes Map size (${mutableLastCheckTimes.size}) exceeds limit, clearing oldest entries`);
-        // 使用更高效的清理策略：只删除最旧的20%条目
+        // 使用迭代器直接删除最旧的条目，避免完整排序
         const targetSize = Math.floor(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES * 0.8);
         const entriesToRemove = mutableLastCheckTimes.size - targetSize;
-
-        // 找出最旧的条目并删除
-        const entries = Array.from(mutableLastCheckTimes.entries());
-        entries.sort((a, b) => a[1] - b[1]); // 按时间戳升序排序
-
-        for (let i = 0; i < entriesToRemove; i++) {
-            mutableLastCheckTimes.delete(entries[i][0]);
+        let deleted = 0;
+        for (const [key, ts] of mutableLastCheckTimes.entries()) {
+            if (deleted >= entriesToRemove) break;
+            mutableLastCheckTimes.delete(key);
+            deleted++;
         }
     }
 

@@ -84,19 +84,18 @@ export class UsageService {
         // 使用 Promise.allSettled 收集所有结果，确保一个失败不会影响其他
         const settledResults = await Promise.allSettled(providerPromises);
 
-        // 建立 providerType 映射，用于追踪 rejected 结果
-        const providerTypes = Object.keys(this.providerHandlers);
-
-        // 整理最终结果
+        // 整理最终结果，直接使用 Promise.allSettled 返回的索引匹配
         for (let i = 0; i < settledResults.length; i++) {
             const settled = settledResults[i];
-            const providerType = providerTypes[i];
 
             if (settled.status === 'fulfilled' && settled.value) {
-                const { providerType: pt, result } = settled.value;
-                results[pt] = result;
+                const { providerType, result } = settled.value;
+                results[providerType] = result;
             } else if (settled.status === 'rejected') {
                 // 这应该很少发生，因为内部已经捕获了错误
+                // 获取 providerType 通过原始 providerHandlers 的键顺序
+                const providerTypes = Object.keys(this.providerHandlers);
+                const providerType = providerTypes[i];
                 const reason = settled.reason?.message || settled.reason || 'Unknown error';
                 results[providerType] = [{ uuid: 'default', error: reason }];
             }
