@@ -16,7 +16,7 @@ import { getProxyConfigForProvider } from '../utils/proxy-utils.js';
  * @returns {string} 转义后的字符串
  */
 function escapeHtml(str) {
-    if (typeof str !== 'string') return str;
+    if (str == null || typeof str !== 'string') return '';
     return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -926,7 +926,7 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
                         credPath: credentials.relativePath
                     });
                 } catch (err) {
-                    logger.warn('[Codex Auth] autoLinkProviderConfigs failed, continuing with OAuth success:', err.message);
+                    logger.error('[Codex Auth] autoLinkProviderConfigs failed:', err.message);
                 }
 
                 // 广播认证成功事件
@@ -1042,7 +1042,7 @@ export async function handleCodexOAuthCallback(code, state) {
                 credPath: result.relativePath
             });
         } catch (err) {
-            logger.warn('[Codex Auth] autoLinkProviderConfigs failed, continuing with OAuth success:', err.message);
+            logger.error('[Codex Auth] autoLinkProviderConfigs failed:', err.message);
         }
 
         // 广播认证成功事件（与 gemini 格式一致）

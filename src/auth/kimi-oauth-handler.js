@@ -146,7 +146,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             });
             logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
         } catch (err) {
-            logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
+            logger.error('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
             autoLinkError = err.message;
         }
 

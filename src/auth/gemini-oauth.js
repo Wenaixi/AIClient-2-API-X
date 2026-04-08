@@ -228,7 +228,7 @@ async function createOAuthCallbackServer(config, redirectUri, authClient, credPa
                                 credPath: relativePath
                             });
                         } catch (err) {
-                            logger.warn('[Gemini OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                            logger.error('[Gemini OAuth] autoLinkProviderConfigs failed:', err.message);
                         }
 
                         // 广播授权成功事件
@@ -522,8 +522,10 @@ export async function batchImportGeminiTokensStream(providerType, tokens, onProg
             
             const filename = `${timestamp}_${i}_oauth_creds.json`;
             const credPath = path.join(targetDir, filename);
-            
-            await fs.promises.writeFile(credPath, JSON.stringify(token, null, 2), { mode: 0o600 });
+
+            // 设置文件权限 0o600（仅所有者读写）- 在 Windows 上被忽略
+            const fileMode = os.platform() === 'win32' ? undefined : 0o600;
+            await fs.promises.writeFile(credPath, JSON.stringify(token, null, 2), fileMode ? { mode: fileMode } : undefined);
             
             const relativePath = path.relative(process.cwd(), credPath);
             
@@ -543,7 +545,7 @@ export async function batchImportGeminiTokensStream(providerType, tokens, onProg
                     credPath: relativePath
                 });
             } catch (err) {
-                logger.warn('[Gemini OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                logger.error('[Gemini OAuth] autoLinkProviderConfigs failed:', err.message);
             }
             
         } catch (error) {

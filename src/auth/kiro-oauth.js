@@ -453,7 +453,7 @@ async function pollKiroBuilderIDToken(clientId, clientSecret, deviceCode, interv
                         credPath: path.relative(process.cwd(), credPath)
                     });
                 } catch (err) {
-                    logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                    logger.error('[Kiro OAuth] autoLinkProviderConfigs failed:', err.message);
                 }
 
                 // 广播成功事件
@@ -647,7 +647,7 @@ function createKiroHttpCallbackServer(port, codeVerifier, expectedState, options
                             credPath: path.relative(process.cwd(), credPath)
                         });
                     } catch (err) {
-                        logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+                        logger.error('[Kiro OAuth] autoLinkProviderConfigs failed:', err.message);
                     }
 
                     // 广播成功事件
@@ -1181,7 +1181,7 @@ export async function importAwsCredentials(credentials, skipDuplicateCheck = fal
                 credPath: relativePath
             });
         } catch (err) {
-            logger.warn('[Kiro OAuth] autoLinkProviderConfigs failed, continuing:', err.message);
+            logger.error('[Kiro OAuth] autoLinkProviderConfigs failed:', err.message);
         }
 
         // 广播事件

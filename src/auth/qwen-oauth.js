@@ -210,7 +210,7 @@ async function pollQwenToken(deviceCode, codeVerifier, interval = 5, expiresIn =
                         credPath: relativePath
                     });
                 } catch (err) {
-                    logger.warn(`${QWEN_OAUTH_CONFIG.logPrefix} autoLinkProviderConfigs failed, continuing with OAuth success:`, err.message);
+                    logger.error(`${QWEN_OAUTH_CONFIG.logPrefix} autoLinkProviderConfigs failed:`, err.message);
                 }
 
                 // 广播授权成功事件
