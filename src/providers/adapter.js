@@ -779,6 +779,15 @@ class LRUCache {
         return this.cache.has(key);
     }
 
+    /**
+     * 删除指定键值（O(1)操作）
+     * @param {string} key - 要删除的键
+     * @returns {boolean} 是否成功删除
+     */
+    delete(key) {
+        return this.cache.delete(key);
+    }
+
     clear() {
         this.cache.clear();
     }
@@ -814,14 +823,9 @@ export const serviceInstances = new Proxy({}, {
         return true;
     },
     deleteProperty(target, prop) {
-        // 从LRU缓存中删除（通过重建缓存实现）
+        // 直接使用 LRU Cache 的 delete 方法（O(1) 操作）
         if (typeof prop === 'string') {
-            const currentEntries = Array.from(serviceInstancesCache.cache.entries());
-            const filtered = currentEntries.filter(([k]) => k !== prop);
-            // 清空并重建缓存
-            serviceInstancesCache.cache.clear();
-            filtered.forEach(([k, v]) => serviceInstancesCache.cache.set(k, v));
-            return true;
+            return serviceInstancesCache.delete(prop);
         }
         return delete target[prop];
     }

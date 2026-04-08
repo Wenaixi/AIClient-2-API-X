@@ -138,6 +138,14 @@ export function applySystemPromptReplacements(content, replacements = []) {
             } else if (replacement.old instanceof RegExp) {
                 // 正则表达式替换
                 newContent = newContent.replace(replacement.old, replacement.new);
+            } else if (typeof replacement.old === 'object' && replacement.old !== null) {
+                // 尝试将普通对象当作正则表达式处理（兼容性处理）
+                try {
+                    newContent = newContent.replace(replacement.old, replacement.new);
+                } catch (e) {
+                    // 如果失败则忽略该替换规则
+                    logger.warn('[Converter] Invalid replacement rule:', replacement);
+                }
             }
         }
     }

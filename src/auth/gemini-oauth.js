@@ -10,6 +10,21 @@ import { CONFIG } from '../core/config-manager.js';
 import { getGoogleAuthProxyConfig } from '../utils/proxy-utils.js';
 
 /**
+ * HTML 转义函数，防止 XSS 攻击
+ * @param {string} str - 需要转义的字符串
+ * @returns {string} 转义后的字符串
+ */
+function escapeHtml(str) {
+    if (str == null || typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
+/**
  * OAuth 提供商配置
  */
 const OAUTH_PROVIDERS = {
@@ -47,6 +62,7 @@ const activeServers = new Map();
  */
 function generateResponsePage(isSuccess, message, provider = null) {
     const title = isSuccess ? '授权成功！' : '授权失败';
+    const escapedMessage = escapeHtml(message);
     const countdownHtml = isSuccess ? `
         <p>此窗口将在 <span id="countdown" style="font-weight: bold; color: #2196f3;">10</span> 秒后自动关闭。</p>
         <script>
@@ -111,7 +127,7 @@ function generateResponsePage(isSuccess, message, provider = null) {
 <body>
     <div class="container">
         <h1>${isSuccess ? '✅' : '❌'} ${title}</h1>
-        <p>${message}</p>
+        <p>${escapedMessage}</p>
         ${countdownHtml}
     </div>
 </body>
