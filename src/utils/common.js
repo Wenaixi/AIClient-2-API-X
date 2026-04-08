@@ -1660,3 +1660,18 @@ function createStreamErrorResponse(error, fromProvider) {
 
 // 重新导出 constants.js 中的常量，便于统一导入
 export { ANTIGRAVITY_THINKING } from './constants.js';
+
+/**
+ * HTML 转义函数，防止 XSS 攻击
+ * @param {string} str - 需要转义的字符串
+ * @returns {string} 转义后的字符串
+ */
+export function escapeHtml(str) {
+    if (str == null || typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}

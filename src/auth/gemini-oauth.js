@@ -8,21 +8,7 @@ import { broadcastEvent } from '../services/ui-manager.js';
 import { autoLinkProviderConfigs } from '../services/service-manager.js';
 import { CONFIG } from '../core/config-manager.js';
 import { getGoogleAuthProxyConfig } from '../utils/proxy-utils.js';
-
-/**
- * HTML 转义函数，防止 XSS 攻击
- * @param {string} str - 需要转义的字符串
- * @returns {string} 转义后的字符串
- */
-function escapeHtml(str) {
-    if (str == null || typeof str !== 'string') return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#x27;');
-}
+import { escapeHtml } from '../utils/common.js';
 
 /**
  * OAuth 提供商配置

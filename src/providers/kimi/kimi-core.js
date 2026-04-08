@@ -57,6 +57,7 @@ export class KimiApiService {
         this.baseUrl = KIMI_API_BASE_URL;
         this.tokenStorage = null;
         this.useSystemProxy = config?.USE_SYSTEM_PROXY_KIMI ?? false;
+        this._refreshPromise = null; // 用于防止并发刷新 token
 
         logger.info(`[Kimi] System proxy ${this.useSystemProxy ? 'enabled' : 'disabled'}`);
 
@@ -106,7 +107,7 @@ export class KimiApiService {
         if (this.tokenStorage.needsRefresh()) {
             logger.info('[Kimi] Token expired, refreshing...');
             try {
-                this.tokenStorage = await refreshKimiToken(this.tokenStorage, this.config);
+                await this._refreshTokenSafe();
                 logger.info('[Kimi] Token refreshed successfully');
             } catch (error) {
                 logger.error('[Kimi] Failed to refresh token:', error.message);
@@ -119,6 +120,27 @@ export class KimiApiService {
         }
 
         return this.tokenStorage.access_token;
+    }
+
+    /**
+     * 线程安全的 token 刷新（防止并发刷新）
+     * @returns {Promise<void>}
+     */
+    async _refreshTokenSafe() {
+        if (this._refreshPromise) {
+            return this._refreshPromise;
+        }
+        if (!this.tokenStorage?.refresh_token) {
+            throw new Error('No refresh token available');
+        }
+        this._refreshPromise = refreshKimiToken(this.tokenStorage, this.config)
+            .then(newStorage => {
+                this.tokenStorage = newStorage;
+            })
+            .finally(() => {
+                this._refreshPromise = null;
+            });
+        return this._refreshPromise;
     }
 
     /**
@@ -217,7 +239,7 @@ export class KimiApiService {
                 if (!isRetry && this.tokenStorage?.refresh_token) {
                     logger.info('[Kimi API] Attempting to refresh token and retry...');
                     try {
-                        this.tokenStorage = await refreshKimiToken(this.tokenStorage, this.config);
+                        await this._refreshTokenSafe();
                         return this.callApi(endpoint, body, true, 0);
                     } catch (refreshError) {
                         logger.error('[Kimi API] Token refresh failed:', refreshError.message);
@@ -330,7 +352,7 @@ export class KimiApiService {
             if ((status === 401 || status === 403) && !isRetry && this.tokenStorage?.refresh_token) {
                 logger.info('[Kimi API] Token expired in stream, refreshing and retrying...');
                 try {
-                    this.tokenStorage = await refreshKimiToken(this.tokenStorage, this.config);
+                    await this._refreshTokenSafe();
                     yield* this.streamApi(endpoint, body, true, 0);
                     return;
                 } catch (refreshError) {

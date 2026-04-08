@@ -21,6 +21,7 @@ const KIMI_DEVICE_ID_FILE = 'configs/.kimi_device_id';
 
 // 设备 ID 持久化（模块级单例）
 let _cachedDeviceId = null;
+let _initDeviceIdPromise = null; // 用于防止竞态条件的 Promise 锁
 
 // 轮询配置
 const DEFAULT_POLL_INTERVAL = 5000; // 5秒
@@ -67,31 +68,38 @@ function getOrCreateDeviceId() {
         return _cachedDeviceId;
     }
 
-    const configDir = process.cwd();
-    const deviceFile = resolve(configDir, KIMI_DEVICE_ID_FILE);
+    // 如果正在初始化，返回同一个 Promise，确保所有调用者等待同一个结果
+    if (_initDeviceIdPromise) {
+        return _initDeviceIdPromise.then(() => _cachedDeviceId);
+    }
 
-    // 尝试从磁盘加载
-    try {
-        const existingId = readFileSync(deviceFile, 'utf-8').trim();
-        if (existingId) {
-            _cachedDeviceId = existingId;
-            return _cachedDeviceId;
+    _initDeviceIdPromise = (async () => {
+        const configDir = process.cwd();
+        const deviceFile = resolve(configDir, KIMI_DEVICE_ID_FILE);
+
+        // 尝试从磁盘加载
+        try {
+            const existingId = readFileSync(deviceFile, 'utf-8').trim();
+            if (existingId) {
+                _cachedDeviceId = existingId;
+                return;
+            }
+        } catch {
+            // 文件不存在或读取失败，继续生成新 ID
         }
-    } catch {
-        // 文件不存在或读取失败，继续生成新 ID
-    }
 
-    // 生成并持久化
-    _cachedDeviceId = crypto.randomUUID();
-    try {
-        const dir = dirname(deviceFile);
-        mkdirSync(dir, { recursive: true });
-        writeFileSync(deviceFile, _cachedDeviceId, 'utf-8');
-    } catch (err) {
-        logger.warn('[Kimi OAuth] Failed to persist device ID:', err.message);
-    }
+        // 生成并持久化
+        _cachedDeviceId = crypto.randomUUID();
+        try {
+            const dir = dirname(deviceFile);
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(deviceFile, _cachedDeviceId, 'utf-8');
+        } catch (err) {
+            logger.warn('[Kimi OAuth] Failed to persist device ID:', err.message);
+        }
+    })();
 
-    return _cachedDeviceId;
+    return _initDeviceIdPromise.then(() => _cachedDeviceId);
 }
 
 /**
