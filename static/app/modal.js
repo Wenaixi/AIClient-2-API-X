@@ -1211,7 +1211,7 @@ function cancelEdit(uuid, event) {
         const originalValue = input.dataset.configValue;
         // 恢复原始值
         if (input.type === 'password') {
-            input.value = originalValue ? '••••••••' : '';
+            input.value = originalValue || '';
         } else {
             input.value = originalValue || '';
         }

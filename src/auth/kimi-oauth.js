@@ -402,9 +402,9 @@ export class KimiTokenStorage {
      * 检查 Token 是否过期
      */
     isExpired() {
-        // 无过期时间信息时，保守地视为未过期（让 needsRefresh 做额外判断）
+        // 无过期时间信息时视为已过期，需要刷新
         if (!this.expired) {
-            return false;
+            return true;
         }
 
         try {
