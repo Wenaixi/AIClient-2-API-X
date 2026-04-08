@@ -21,5 +21,6 @@ AGENTS.md
 coverage/
 logs/
 
-# 本地配置（完全覆盖上游）
-configs/
+# 本地配置（完全覆盖上游，只保留 .example 模板文件）
+configs/*
+!configs/*.example
