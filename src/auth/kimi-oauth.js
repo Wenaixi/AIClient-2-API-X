@@ -30,7 +30,7 @@ const REFRESH_THRESHOLD_SECONDS = 300; // 5分钟
 /**
  * 获取设备模型信息
  */
-function getDeviceModel() {
+export function getDeviceModel() {
     const platform = os.platform();
     const arch = os.arch();
 
@@ -49,7 +49,7 @@ function getDeviceModel() {
 /**
  * 获取主机名
  */
-function getHostname() {
+export function getHostname() {
     try {
         return os.hostname();
     } catch (error) {
@@ -512,5 +512,7 @@ export default {
     KimiTokenStorage,
     startKimiDeviceFlow,
     refreshKimiToken,
+    getHostname,
+    getDeviceModel,
     KIMI_API_BASE_URL
 };

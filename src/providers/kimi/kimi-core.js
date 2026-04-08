@@ -10,12 +10,13 @@ import * as https from 'https';
 import os from 'os';
 import { configureAxiosProxy, configureTLSSidecar } from '../../utils/proxy-utils.js';
 import { isRetryableNetworkError, MODEL_PROVIDER } from '../../utils/common.js';
-import { KimiTokenStorage, refreshKimiToken } from '../../auth/kimi-oauth.js';
+import { KimiTokenStorage, refreshKimiToken, getHostname, getDeviceModel } from '../../auth/kimi-oauth.js';
 import { normalizeKimiToolMessageLinks } from './kimi-message-normalizer.js';
 
 const KIMI_API_BASE_URL = 'https://api.kimi.com/coding';
 
-// 共享 HTTP agent（避免每个实例创建独立连接池）
+// Kimi 版本常量
+const KIMI_VERSION = '1.10.6';
 let _sharedHttpAgent = null;
 let _sharedHttpsAgent = null;
 function getSharedAgents() {
@@ -46,24 +47,6 @@ function cleanupSharedAgents() {
 process.on('SIGTERM', cleanupSharedAgents);
 process.on('SIGINT', cleanupSharedAgents);
 process.on('exit', cleanupSharedAgents);
-
-/**
- * 获取主机名
- */
-function getHostname() {
-    try {
-        return os.hostname();
-    } catch (error) {
-        return 'unknown';
-    }
-}
-
-/**
- * 获取设备模型
- */
-function getDeviceModel() {
-    return `${os.platform()} ${os.arch()}`;
-}
 
 /**
  * Kimi API 服务类
@@ -173,9 +156,9 @@ export class KimiApiService {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
             // 与 kimi-cli 客户端完全一致
-            'User-Agent': 'KimiCLI/1.10.6',
+            'User-Agent': `KimiCLI/${KIMI_VERSION}`,
             'X-Msh-Platform': 'kimi_cli',
-            'X-Msh-Version': '1.10.6',
+            'X-Msh-Version': KIMI_VERSION,
             'X-Msh-Device-Name': getHostname(),
             'X-Msh-Device-Model': getDeviceModel(),
             'X-Msh-Device-Id': deviceId
@@ -466,17 +449,23 @@ export class KimiApiService {
             const status = error.response?.status;
             const errorMessage = error.message || '';
 
-            // 如果端点不存在（404）或其他错误，返回基本信息
-            logger.warn(`[Kimi] Usage query returned ${status}: ${errorMessage}. Returning basic account info.`);
+            // 404 端点不存在，返回基本信息
+            if (status === 404) {
+                logger.warn(`[Kimi] Usage endpoint not found (404). Returning basic account info.`);
+                return {
+                    raw: error.response?.data || null,
+                    status,
+                    error: null
+                };
+            }
 
-            // 尝试从 token 中提取基本信息
-            const result = {
+            // 其他错误，记录并返回错误信息
+            logger.warn(`[Kimi] Usage query returned ${status}: ${errorMessage}. Returning basic account info.`);
+            return {
                 raw: error.response?.data || null,
                 status,
-                error: (status && status !== 404) ? errorMessage : (status === undefined ? errorMessage : null)
+                error: errorMessage
             };
-
-            return result;
         }
     }
 }

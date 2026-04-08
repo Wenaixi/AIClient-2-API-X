@@ -5,15 +5,22 @@
 
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
+import { broadcastEvent } from '../services/ui-manager.js';
+import { autoLinkProviderConfigs } from '../services/service-manager.js';
+import { CONFIG } from '../core/config-manager.js';
 import { startKimiDeviceFlow, refreshKimiToken, KimiTokenStorage, KimiOAuthClient } from './kimi-oauth.js';
 
 // 获取项目根目录
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../..');
+
+// Kimi 配置目录
+const KIMI_CONFIG_DIR = 'configs/kimi';
 
 /**
  * 完成 Kimi OAuth 授权（轮询等待用户授权并保存凭证）
@@ -53,14 +60,12 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
         });
 
         // 保存到文件（使用项目根目录确保 Docker 容器内路径正确）
-        const outputDir = path.join(projectRoot, 'configs', 'kimi');
-        if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-        }
+        const outputDir = path.join(projectRoot, KIMI_CONFIG_DIR);
+        await fsPromises.mkdir(outputDir, { recursive: true });
 
         const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
-        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+        await fsPromises.writeFile(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
         logger.info(`[Kimi OAuth] Token saved to: ${filepath}`);
 
@@ -119,52 +124,40 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
 
         logger.debug('[Kimi OAuth] TokenStorage created');
 
-        const outputDir = path.join(projectRoot, 'configs', 'kimi');
-        logger.debug('[Kimi OAuth] Output directory:', outputDir);
-        if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-            logger.debug('[Kimi OAuth] Created output directory');
-        }
+        const outputDir = path.join(projectRoot, KIMI_CONFIG_DIR);
+        await fsPromises.mkdir(outputDir, { recursive: true });
 
         const filename = `kimi-${crypto.randomUUID()}.json`;
         const filepath = path.join(outputDir, filename);
         logger.info('[Kimi OAuth] Writing token to:', filepath);
-        fs.writeFileSync(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+        await fsPromises.writeFile(filepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
         logger.info('[Kimi OAuth] Token saved successfully');
 
         // 广播授权成功事件
         const relativePath = path.relative(projectRoot, filepath);
         logger.debug('[Kimi OAuth] Relative path:', relativePath);
 
+        let autoLinkError = null;
+        logger.debug('[Kimi OAuth] Calling autoLinkProviderConfigs...');
         try {
-            const { broadcastEvent } = await import('../services/ui-manager.js');
-            const { autoLinkProviderConfigs } = await import('../services/service-manager.js');
-            const { CONFIG } = await import('../core/config-manager.js');
-
-            let autoLinkError = null;
-            logger.debug('[Kimi OAuth] Calling autoLinkProviderConfigs...');
-            try {
-                await autoLinkProviderConfigs(CONFIG, {
-                    onlyCurrentCred: true,
-                    credPath: relativePath
-                });
-                logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
-            } catch (err) {
-                logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
-                autoLinkError = err.message;
-            }
-
-            logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
-            await broadcastEvent('oauth_success', {
-                provider: 'kimi-oauth',
-                credPath: filepath,
-                relativePath: relativePath,
-                timestamp: new Date().toISOString()
+            await autoLinkProviderConfigs(CONFIG, {
+                onlyCurrentCred: true,
+                credPath: relativePath
             });
-            logger.debug('[Kimi OAuth] oauth_success event broadcasted');
+            logger.debug('[Kimi OAuth] autoLinkProviderConfigs completed');
         } catch (err) {
-            logger.error('[Kimi OAuth] Failed to broadcast success event:', err.message);
+            logger.warn('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
+            autoLinkError = err.message;
         }
+
+        logger.debug('[Kimi OAuth] Broadcasting oauth_success event...');
+        await broadcastEvent('oauth_success', {
+            provider: 'kimi-oauth',
+            credPath: filepath,
+            relativePath: relativePath,
+            timestamp: new Date().toISOString()
+        });
+        logger.debug('[Kimi OAuth] oauth_success event broadcasted');
 
         return {
             authorized: true,
@@ -261,9 +254,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
         throw new Error('No refresh tokens provided');
     }
 
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-    }
+    await fsPromises.mkdir(outputDir, { recursive: true });
 
     const results = {
         total: refreshTokens.length,
@@ -295,7 +286,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
             // 保存到文件（使用 UUID 避免并发冲突）
             const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
-            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+            await fsPromises.writeFile(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
             logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
             results.success++;
@@ -327,9 +318,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
 export async function batchImportKimiRefreshTokensStream(refreshTokens, progressCallback, config = {}) {
     const outputDir = path.join(process.cwd(), 'configs', 'kimi');
 
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-    }
+    await fsPromises.mkdir(outputDir, { recursive: true });
 
     const results = {
         total: refreshTokens.length,
@@ -361,7 +350,7 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
             // 保存到文件（使用 UUID 避免并发冲突）
             const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
             const filepath = path.join(outputDir, filename);
-            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+            await fsPromises.writeFile(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
 
             logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
             results.success++;
@@ -505,7 +494,7 @@ export async function refreshKimiTokens(directory, config = {}) {
             const tokenStorage = KimiTokenStorage.fromJSON(tokenData);
             const newTokenStorage = await refreshKimiToken(tokenStorage, config);
 
-            fs.writeFileSync(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8');
+            await fsPromises.writeFile(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
             logger.info(`[Kimi OAuth] Refreshed: ${file}`);
             results.success++;
 
