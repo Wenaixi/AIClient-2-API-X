@@ -29,6 +29,7 @@ function withTokenStoreLock(fn) {
 
 /**
  * 默认密码（当pwd文件不存在时使用）
+ * 注意：首次部署后应立即通过 UI 更改此密码
  */
 const DEFAULT_PASSWORD = 'admin123';
 
@@ -44,7 +45,7 @@ export async function readPasswordFile() {
         const trimmedPassword = password.trim();
         // 如果密码文件为空，使用默认密码
         if (!trimmedPassword) {
-            logger.info('[Auth] Password file is empty, using default password: ' + DEFAULT_PASSWORD);
+            logger.info('[Auth] Password file is empty, using default password');
             return DEFAULT_PASSWORD;
         }
         logger.info('[Auth] Successfully read password file');
@@ -52,10 +53,10 @@ export async function readPasswordFile() {
     } catch (error) {
         // ENOENT means file does not exist, which is normal
         if (error.code === 'ENOENT') {
-            logger.info('[Auth] Password file does not exist, using default password: ' + DEFAULT_PASSWORD);
+            logger.info('[Auth] Password file does not exist, using default password');
         } else {
             logger.error('[Auth] Failed to read password file:', error.code || error.message);
-            logger.info('[Auth] Using default password: ' + DEFAULT_PASSWORD);
+            logger.info('[Auth] Using default password');
         }
         return DEFAULT_PASSWORD;
     }
