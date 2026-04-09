@@ -315,6 +315,112 @@ describe('normalizeKimiToolMessageLinks', () => {
             expect(result.messages[0]).toEqual({ role: 'user', content: 'Hello' });
             expect(result.messages[1]).toEqual({ role: 'system', content: 'You are helpful' });
         });
+
+        test('should handle tool message with whitespace-only call_id', () => {
+            const body = {
+                messages: [
+                    {
+                        role: 'assistant',
+                        content: 'Using tool',
+                        tool_calls: [
+                            { id: 'call_1', function: { name: 'search', arguments: '{}' } }
+                        ]
+                    },
+                    {
+                        role: 'tool',
+                        call_id: '   ',
+                        content: 'Result'
+                    }
+                ]
+            };
+            const result = normalizeKimiToolMessageLinks(body);
+            // whitespace-only call_id should be treated as missing
+            expect(result.messages[1].tool_call_id).toBe('call_1');
+        });
+
+        test('should handle empty tool_calls array', () => {
+            const body = {
+                messages: [
+                    {
+                        role: 'assistant',
+                        content: 'No tools',
+                        tool_calls: []
+                    }
+                ]
+            };
+            const result = normalizeKimiToolMessageLinks(body);
+            expect(result.messages[0].reasoning_content).toBeUndefined();
+        });
+
+        test('should preserve original body structure', () => {
+            const body = {
+                model: 'k2',
+                messages: [
+                    { role: 'user', content: 'Hello' }
+                ],
+                temperature: 0.7
+            };
+            const result = normalizeKimiToolMessageLinks(body);
+            expect(result.model).toBe('k2');
+            expect(result.temperature).toBe(0.7);
+            expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
+        });
+
+        test('should handle tool message without role', () => {
+            const body = {
+                messages: [
+                    {
+                        role: 'assistant',
+                        content: 'Using tool',
+                        tool_calls: [
+                            { id: 'call_1', function: { name: 'search', arguments: '{}' } }
+                        ]
+                    },
+                    {
+                        tool_call_id: 'call_1',
+                        content: 'Result'
+                        // missing role
+                    }
+                ]
+            };
+            const result = normalizeKimiToolMessageLinks(body);
+            expect(result.messages[1].tool_call_id).toBe('call_1');
+        });
+
+        test('should clear pending after ambiguous resolution', () => {
+            const body = {
+                messages: [
+                    {
+                        role: 'assistant',
+                        content: 'Multiple tools',
+                        tool_calls: [
+                            { id: 'call_1', function: { name: 'search', arguments: '{}' } },
+                            { id: 'call_2', function: { name: 'calc', arguments: '{}' } }
+                        ]
+                    },
+                    {
+                        role: 'tool',
+                        content: 'First result'
+                    },
+                    {
+                        role: 'assistant',
+                        content: 'Another tool',
+                        tool_calls: [
+                            { id: 'call_3', function: { name: 'search', arguments: '{}' } }
+                        ]
+                    },
+                    {
+                        role: 'tool',
+                        content: 'Third result'
+                    }
+                ]
+            };
+            const result = normalizeKimiToolMessageLinks(body);
+            // First tool message should be ambiguous
+            expect(result.messages[1].tool_call_id).toMatch(/^\[ambiguous_tool_call_id_1\]$/);
+            // Third tool message should use call_3 (inferred from pending)
+            expect(result.messages[3].tool_call_id).toBe('call_3');
+        });
     });
 
     describe('logging behavior', () => {
