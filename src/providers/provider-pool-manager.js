@@ -31,6 +31,30 @@ export class ProviderPoolManager {
         'kimi-oauth': 'kimi-k2.5-thinking',
     };
 
+    // per-provider 刷新提前期配置（毫秒）
+    // 用于在 token 过期前提前触发刷新
+    static REFRESH_LEAD_CONFIG = {
+        'gemini-cli-oauth': 20 * 60 * 1000,      // 20 分钟
+        'gemini-antigravity': 20 * 60 * 1000,    // 20 分钟
+        'claude-kiro-oauth': 30 * 60 * 1000,     // 30 分钟
+        'openai-qwen-oauth': 30 * 1000,          // 30 秒
+        'openai-iflow': 30 * 60 * 1000,          // 30 分钟
+        'openai-codex-oauth': 5 * 60 * 1000,    // 5 分钟
+        'kimi-oauth': 5 * 60 * 1000,             // 5 分钟
+        'grok-custom': 10 * 60 * 1000,           // 10 分钟
+        'default': 10 * 60 * 1000                 // 默认 10 分钟
+    };
+
+    /**
+     * 获取指定 provider 的刷新提前期
+     * @param {string} providerType - 提供商类型
+     * @returns {number} 刷新提前期（毫秒）
+     */
+    static getRefreshLead(providerType) {
+        return ProviderPoolManager.REFRESH_LEAD_CONFIG[providerType]
+            ?? ProviderPoolManager.REFRESH_LEAD_CONFIG['default'];
+    }
+
     constructor(providerPools, options = {}) {
         this.providerPools = providerPools;
         this.globalConfig = options.globalConfig || {}; // 存储全局配置
@@ -78,7 +102,23 @@ export class ProviderPoolManager {
         this.refreshBufferTimers = {}; // 按 providerType 分组的定时器
         this.bufferDelay = options.globalConfig?.REFRESH_BUFFER_DELAY ?? 5000; // 默认5秒缓冲延迟
         this.refreshTaskTimeoutMs = options.globalConfig?.REFRESH_TASK_TIMEOUT_MS ?? 60000; // 默认60秒刷新超时
-        
+
+        // --- 429 指数退避配置 (参考 CLIProxyAPI-6.9.15) ---
+        this.quotaBackoff = {
+            base: options.globalConfig?.QUOTA_BACKOFF_BASE ?? 1000,           // 基础延迟 1s
+            max: options.globalConfig?.QUOTA_BACKOFF_MAX ?? 1800000,          // 最大 30min
+            maxRetries: options.globalConfig?.QUOTA_BACKOFF_MAX_RETRIES ?? 3, // 默认3次重试
+            quotaResetTimes: {}  // 存储每个 provider 的 quota 重置时间
+        };
+
+        // --- 冷却队列配置 ---
+        this.cooldownQueue = {
+            enabled: options.globalConfig?.COOLDOWN_QUEUE_ENABLED ?? true,
+            defaultCooldown: options.globalConfig?.COOLDOWN_DEFAULT ?? 60000,  // 默认 60s
+            maxCooldown: options.globalConfig?.COOLDOWN_MAX ?? 300000,          // 最大 5min
+            queues: {}  // per-type 冷却队列: { providerType: { uuid: expireAt } }
+        };
+
         // 用于并发选点时的原子排序辅助（自增序列）
         this._selectionSequence = 0;
  
@@ -121,7 +161,8 @@ export class ProviderPoolManager {
                         const fileContent = fs.readFileSync(configPath, 'utf-8');
                         const credData = JSON.parse(fileContent);
                         const expiryTime = credData.expiry_date || credData.expiry || credData.expires_at;
-                        const nearExpiryMs = (this.globalConfig?.CRON_NEAR_MINUTES || 10) * 60 * 1000;
+                        // 使用 per-provider 的刷新提前期（参考 CLIProxyAPI-6.9.15 ProviderRefreshLead）
+                        const nearExpiryMs = ProviderPoolManager.getRefreshLead(providerType);
                         if (!expiryTime) {
                             // 凭据文件缺少 expiry 字段，无法判断是否快过期，作为安全措施强制刷新
                             this._log('warn', `Node ${providerStatus.uuid} (${providerType}) has no expiry field. Forcing refresh as safety measure...`);
@@ -558,6 +599,126 @@ export class ProviderPoolManager {
         }
     }
 
+    // ==================== 429 指数退避方法 ====================
+
+    /**
+     * 计算 429 错误的指数退避延迟（带 jitter）
+     * @param {string} providerType - 提供商类型
+     * @param {number} attempt - 当前重试次数（从1开始）
+     * @returns {number} 延迟毫秒数
+     * @private
+     */
+    _calculateBackoffDelay(providerType, attempt = 1) {
+        const { base, max } = this.quotaBackoff;
+        const delay = Math.min(base * Math.pow(2, attempt - 1), max);
+        // 添加 jitter 避免多节点同时重试
+        const jitter = Math.random() * 0.3 * delay;
+        return Math.floor(delay + jitter);
+    }
+
+    /**
+     * 检查是否有预设的 quota 重置时间
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 节点 UUID
+     * @returns {boolean}
+     * @private
+     */
+    _hasQuotaResetTime(providerType, uuid) {
+        const key = `${providerType}:${uuid}`;
+        const resetTime = this.quotaBackoff.quotaResetTimes[key];
+        if (resetTime && Date.now() < resetTime) {
+            return true;
+        }
+        delete this.quotaBackoff.quotaResetTimes[key];
+        return false;
+    }
+
+    /**
+     * 设置 quota 重置时间（从 429 响应的 Retry-After header 或 quota reset 时间）
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 节点 UUID
+     * @param {number} resetTimeMs - 重置时间戳（毫秒）
+     */
+    setQuotaResetTime(providerType, uuid, resetTimeMs) {
+        const key = `${providerType}:${uuid}`;
+        this.quotaBackoff.quotaResetTimes[key] = resetTimeMs;
+        this._log('debug', `Set quota reset time for ${uuid}: ${new Date(resetTimeMs).toISOString()}`);
+    }
+
+    // ==================== 冷却队列方法 ====================
+
+    /**
+     * 将 provider 加入冷却队列
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 节点 UUID
+     * @param {number} [cooldownMs] - 冷却时间（毫秒），默认 60s
+     */
+    addToCooldown(providerType, uuid, cooldownMs = null) {
+        if (!this.cooldownQueue.enabled) return;
+
+        const cooldown = cooldownMs ?? this.cooldownQueue.defaultCooldown;
+        const key = `${providerType}:${uuid}`;
+        const expireAt = Date.now() + cooldown;
+
+        if (!this.cooldownQueue.queues[providerType]) {
+            this.cooldownQueue.queues[providerType] = new Map();
+        }
+
+        this.cooldownQueue.queues[providerType].set(uuid, expireAt);
+        this._log('info', `Added ${uuid} to cooldown for ${cooldown}ms`);
+    }
+
+    /**
+     * 检查 provider 是否在冷却中
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 节点 UUID
+     * @returns {boolean}
+     */
+    isInCooldown(providerType, uuid) {
+        const queue = this.cooldownQueue.queues[providerType];
+        if (!queue) return false;
+
+        const expireAt = queue.get(uuid);
+        if (!expireAt) return false;
+
+        if (Date.now() >= expireAt) {
+            queue.delete(uuid);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 获取 provider 冷却剩余时间
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 节点 UUID
+     * @returns {number} 剩余毫秒数
+     */
+    getCooldownRemaining(providerType, uuid) {
+        const queue = this.cooldownQueue.queues[providerType];
+        if (!queue) return 0;
+
+        const expireAt = queue.get(uuid);
+        if (!expireAt) return 0;
+
+        return Math.max(0, expireAt - Date.now());
+    }
+
+    /**
+     * 清理过期的冷却条目
+     */
+    cleanupCooldownQueue() {
+        const now = Date.now();
+        for (const type in this.cooldownQueue.queues) {
+            const queue = this.cooldownQueue.queues[type];
+            for (const [uuid, expireAt] of queue.entries()) {
+                if (now >= expireAt) {
+                    queue.delete(uuid);
+                }
+            }
+        }
+    }
+
     /**
      * 记录健康状态变化日志
      * @param {string} providerType - 提供商类型
@@ -743,77 +904,138 @@ export class ProviderPoolManager {
 
     /**
      * 获取一个可用的提供商插槽，考虑并发限制和队列
-     * @param {string} providerType 
-     * @param {string} requestedModel 
-     * @param {object} options 
+     * 429 时自动退避重试（指数退避 + 冷却队列）
+     * @param {string} providerType
+     * @param {string} requestedModel
+     * @param {object} options
      */
     async acquireSlot(providerType, requestedModel = null, options = {}) {
-        // 使用 selectProvider 进行初次选择（评分逻辑已经包含了并发考虑）
-        const selectedConfig = await this.selectProvider(providerType, requestedModel, { ...options, skipUsageCount: true });
-        
-        if (!selectedConfig) {
-            return null;
-        }
+        const maxRetries = this.quotaBackoff.maxRetries;
+        let lastError = null;
+        let selectedConfig = null;
 
-        const provider = this._findProvider(providerType, selectedConfig.uuid);
-        if (!provider) return selectedConfig;
-
-        const config = provider.config;
-        const state = provider.state;
-        const concurrencyLimit = parseInt(config.concurrencyLimit || 0);
-        const queueLimit = parseInt(config.queueLimit || 0);
-
-        // 如果没有限制，直接增加活跃计数并返回
-        if (concurrencyLimit <= 0) {
-            state.activeCount++;
-            return config;
-        }
-
-        // 检查是否在并发限制内
-        if (state.activeCount < concurrencyLimit) {
-            state.activeCount++;
-            return config;
-        }
-
-        // 超过并发限制，尝试进入队列
-        if (queueLimit > 0 && state.waitingCount < queueLimit) {
-            this._log('info', `[Concurrency] Node ${config.uuid} busy (${state.activeCount}/${concurrencyLimit}), enqueuing request (queue: ${state.waitingCount + 1}/${queueLimit})`);
-            
-            state.waitingCount++;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                // 等待释放信号
-                await new Promise((resolve, reject) => {
-                    // 设置较短的超时用于测试验证，或者由外部控制
-                    const timeoutMs = options.queueTimeout || 300000;
-                    const timeout = setTimeout(() => {
-                        const idx = state.queue.indexOf(handler);
-                        if (idx !== -1) {
-                            state.queue.splice(idx, 1);
-                            reject(new Error(`Queue timeout after ${timeoutMs/1000}s`));
-                        }
-                    }, timeoutMs);
+                // 每次重试前清理过期的冷却条目
+                this.cleanupCooldownQueue();
 
-                    const handler = () => {
-                        clearTimeout(timeout);
-                        resolve();
-                    };
-                    state.queue.push(handler);
-                });
-            } finally {
-                state.waitingCount--;
+                // 使用 selectProvider 进行初次选择（评分逻辑已经包含了并发考虑）
+                selectedConfig = await this.selectProvider(providerType, requestedModel, { ...options, skipUsageCount: true });
+
+                if (!selectedConfig) {
+                    return null;
+                }
+
+                const provider = this._findProvider(providerType, selectedConfig.uuid);
+                if (!provider) return selectedConfig;
+
+                const config = provider.config;
+                const state = provider.state;
+                const concurrencyLimit = parseInt(config.concurrencyLimit || 0);
+                const queueLimit = parseInt(config.queueLimit || 0);
+
+                // 如果没有限制，直接增加活跃计数并返回
+                if (concurrencyLimit <= 0) {
+                    state.activeCount++;
+                    return config;
+                }
+
+                // 检查是否在并发限制内
+                if (state.activeCount < concurrencyLimit) {
+                    state.activeCount++;
+                    return config;
+                }
+
+                // 超过并发限制，尝试进入队列
+                if (queueLimit > 0 && state.waitingCount < queueLimit) {
+                    this._log('info', `[Concurrency] Node ${config.uuid} busy (${state.activeCount}/${concurrencyLimit}), enqueuing request (queue: ${state.waitingCount + 1}/${queueLimit})`);
+
+                    state.waitingCount++;
+                    try {
+                        // 等待释放信号
+                        await new Promise((resolve, reject) => {
+                            const timeoutMs = options.queueTimeout || 300000;
+                            const timeout = setTimeout(() => {
+                                const idx = state.queue.indexOf(handler);
+                                if (idx !== -1) {
+                                    state.queue.splice(idx, 1);
+                                    reject(new Error(`Queue timeout after ${timeoutMs/1000}s`));
+                                }
+                            }, timeoutMs);
+
+                            const handler = () => {
+                                clearTimeout(timeout);
+                                resolve();
+                            };
+                            state.queue.push(handler);
+                        });
+                    } finally {
+                        state.waitingCount--;
+                    }
+
+                    // 获得信号后，增加活跃计数
+                    state.activeCount++;
+                    return config;
+                }
+
+                // 队列也满了 - 抛出 429 供外层重试处理
+                throw this._createQuotaError(config, state);
+
+            } catch (error) {
+                if (error.status !== 429) {
+                    throw error;
+                }
+
+                lastError = error;
+
+                // 检查是否有预设的 quota 重置时间
+                const uuid = lastError.providerUuid || selectedConfig?.uuid;
+                if (uuid && this._hasQuotaResetTime(providerType, uuid)) {
+                    const key = `${providerType}:${uuid}`;
+                    const waitMs = this.quotaBackoff.quotaResetTimes[key] - Date.now();
+                    this._log('info', `Quota reset scheduled for ${uuid}, waiting ${waitMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, Math.max(0, waitMs)));
+                    continue;
+                }
+
+                if (attempt >= maxRetries) {
+                    this._log('warn', `Quota exhausted for ${providerType} after ${attempt} attempts`);
+                    throw lastError;
+                }
+
+                // 将 provider 加入冷却队列
+                if (uuid) {
+                    const cooldownMultiplier = Math.pow(2, attempt - 1);
+                    const cooldownMs = Math.min(
+                        this.cooldownQueue.defaultCooldown * cooldownMultiplier,
+                        this.cooldownQueue.maxCooldown
+                    );
+                    this.addToCooldown(providerType, uuid, cooldownMs);
+                }
+
+                // 计算退避延迟
+                const delay = this._calculateBackoffDelay(providerType, attempt);
+                this._log('info', `Received 429 for ${providerType}, attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
-
-            // 获得信号后，增加活跃计数
-            state.activeCount++;
-            return config;
         }
 
-        // 队列也满了
-        this._log('warn', `[Concurrency] Node ${config.uuid} full capacity (${state.activeCount}/${concurrencyLimit}, queue: ${state.waitingCount}/${queueLimit}), returning 429`);
+        throw lastError;
+    }
+
+    /**
+     * 创建 quota 错误对象
+     * @param {object} config - 提供商配置
+     * @param {object} state - 提供商状态
+     * @returns {Error}
+     * @private
+     */
+    _createQuotaError(config, state) {
         const error = new Error('Too many requests: account concurrency limit and queue reached');
         error.status = 429;
         error.code = 429;
-        throw error;
+        error.providerUuid = config.uuid;
+        return error;
     }
 
     /**
@@ -891,7 +1113,7 @@ export class ProviderPoolManager {
         const minSeq = Math.min(...availableProviders.map(p => p.config._lastSelectionSeq || 0));
 
         let availableAndHealthyProviders = availableProviders.filter(p =>
-            p.config.isHealthy && !p.config.isDisabled && !p.config.needsRefresh
+            p.config.isHealthy && !p.config.isDisabled && !p.config.needsRefresh && !this.isInCooldown(providerType, p.uuid)
         );
 
         // 如果指定了模型，则排除不支持该模型的提供商
