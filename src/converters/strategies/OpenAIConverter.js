@@ -644,7 +644,7 @@ export class OpenAIConverter extends BaseConverter {
             const mapping = { auto: 'auto', none: 'none', required: 'any' };
             return { type: mapping[toolChoice] };
         }
-        if (typeof toolChoice === 'object') {
+        if (typeof toolChoice === 'object' && toolChoice !== null) {
             // Claude 原生格式：{ type, name }
             if (toolChoice.type && toolChoice.name) {
                 return { type: toolChoice.type, name: toolChoice.name };
