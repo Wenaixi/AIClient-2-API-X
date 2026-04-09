@@ -9,6 +9,7 @@ import { broadcastEvent } from '../services/ui-manager.js';
 import { autoLinkProviderConfigs } from '../services/service-manager.js';
 import { CONFIG } from '../core/config-manager.js';
 import { getProxyConfigForProvider } from '../utils/proxy-utils.js';
+import { escapeHtml } from '../utils/common.js';
 
 /**
  * Kiro OAuth 配置（支持多种认证方式）
@@ -128,6 +129,7 @@ async function fetchWithProxy(url, options = {}, providerType) {
  */
 function generateResponsePage(isSuccess, message) {
     const title = isSuccess ? '授权成功！' : '授权失败';
+    const escapedMessage = escapeHtml(message);
     const countdownHtml = isSuccess ? `
         <p>此窗口将在 <span id="countdown" style="font-weight: bold; color: #2196f3;">10</span> 秒后自动关闭。</p>
         <script>
@@ -175,7 +177,7 @@ function generateResponsePage(isSuccess, message) {
 <body>
     <div class="container">
         <h1>${isSuccess ? '✅' : '❌'} ${title}</h1>
-        <p>${message}</p>
+        <p>${escapedMessage}</p>
         ${countdownHtml}
     </div>
 </body>
