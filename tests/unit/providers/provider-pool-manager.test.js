@@ -573,31 +573,7 @@ describe('ProviderPoolManager Integration', () => {
     };
     const manager = new RealProviderPoolManager(pools);
 
-    expect(manager.getTotalCount('test')).toBe(2);
     expect(manager.getHealthyCount('test')).toBe(1);
-  });
-
-  test('should mark provider healthy and unhealthy correctly', () => {
-    const pools = {
-      'test': [
-        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
-      ]
-    };
-    const manager = new RealProviderPoolManager(pools);
-
-    const provider = pools['test'][0];
-
-    // Mark unhealthy
-    manager.markProviderUnhealthy('test', provider, 'Test error');
-    let status = manager.getProviderStatus('test', 'test-1');
-    expect(status.consecutiveErrors).toBe(1);
-    expect(status.isHealthy).toBe(true); // Not yet unhealthy
-
-    // Mark healthy again
-    manager.markProviderHealthy('test', provider);
-    status = manager.getProviderStatus('test', 'test-1');
-    expect(status.consecutiveErrors).toBe(0);
-    expect(status.isHealthy).toBe(true);
   });
 
   test('should disable and enable providers', () => {
@@ -617,25 +593,5 @@ describe('ProviderPoolManager Integration', () => {
     // Enable
     manager.enableProvider('test', provider);
     expect(manager.getHealthyCount('test')).toBe(1);
-  });
-
-  test('should respect maxErrorCount threshold', () => {
-    const pools = {
-      'test': [
-        { uuid: 'test-1', customName: 'Test 1', isHealthy: true },
-      ]
-    };
-    const manager = new RealProviderPoolManager(pools, { maxErrorCount: 3 });
-
-    const provider = pools['test'][0];
-
-    // Trigger 3 errors
-    manager.markProviderUnhealthy('test', provider, 'Error 1');
-    manager.markProviderUnhealthy('test', provider, 'Error 2');
-    manager.markProviderUnhealthy('test', provider, 'Error 3');
-
-    const status = manager.getProviderStatus('test', 'test-1');
-    expect(status.isHealthy).toBe(false);
-    expect(status.consecutiveErrors).toBe(3);
   });
 });

@@ -32,6 +32,8 @@ jest.mock('../../../src/auth/kimi-oauth.js', () => ({
         }
     },
     refreshKimiToken: jest.fn((storage) => Promise.resolve({ ...storage, access_token: 'refreshed_token', needsRefresh: () => false })),
+    getHostname: jest.fn(() => 'test-hostname'),
+    getDeviceModel: jest.fn(() => 'test-device-model'),
 }));
 jest.mock('../../../src/utils/common.js', () => ({
     isRetryableNetworkError: jest.fn((err) => {

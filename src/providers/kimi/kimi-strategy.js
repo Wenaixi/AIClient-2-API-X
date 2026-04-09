@@ -113,7 +113,14 @@ export class KimiStrategy extends ProviderStrategy {
                     // 流式 Claude 格式转换
                     const claudeChunk = this.convertStreamChunkToClaude(chunk);
                     if (claudeChunk) {
-                        yield claudeChunk;
+                        // convertStreamChunkToClaude 返回数组，需要逐个 yield
+                        if (Array.isArray(claudeChunk)) {
+                            for (const c of claudeChunk) {
+                                yield c;
+                            }
+                        } else {
+                            yield claudeChunk;
+                        }
                     }
                 } else {
                     yield chunk;

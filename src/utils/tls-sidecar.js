@@ -15,8 +15,18 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 
 // Use import.meta.url to derive __dirname (ES modules standard)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let __dirname;
+let __filename;
+
+try {
+    // This will work in ESM context
+    __dirname = path.dirname(fileURLToPath(import.meta.url));
+    __filename = fileURLToPath(import.meta.url);
+} catch {
+    // Fallback for CJS context (Jest tests with require())
+    __dirname = process.cwd();
+    __filename = path.join(__dirname, 'tls-sidecar.js');
+}
 
 const DEFAULT_PORT = 9090;
 const HEALTH_CHECK_INTERVAL = 30000; // 30s

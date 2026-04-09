@@ -244,8 +244,8 @@ describe('KimiStrategy', () => {
             expect(result.type).toBe('message');
             expect(result.role).toBe('assistant');
             expect(result.content).toBe('Hello');
-            // convertOpenAIResponseToClaude is called without model arg, so model is undefined
-            expect(result.model).toBeUndefined();
+            // model should be preserved from the request body
+            expect(result.model).toBe('k2');
         });
 
         test('should propagate errors', async () => {
@@ -306,7 +306,8 @@ describe('KimiStrategy', () => {
             });
 
             const results = [];
-            for await (const chunk of strategy.handleChatCompletionStream({ model: 'k2' }, 'claude')) {
+            // Note: Provide messages as required by the real implementation
+            for await (const chunk of strategy.handleChatCompletionStream({ model: 'k2', messages: [{ role: 'user', content: 'Hi' }] }, 'claude')) {
                 results.push(chunk);
             }
             expect(results).toHaveLength(1);
@@ -321,7 +322,8 @@ describe('KimiStrategy', () => {
             });
 
             const results = [];
-            for await (const chunk of strategy.handleChatCompletionStream({ model: 'k2' }, 'claude')) {
+            // Note: Provide messages as required by the real implementation
+            for await (const chunk of strategy.handleChatCompletionStream({ model: 'k2', messages: [{ role: 'user', content: 'Hi' }] }, 'claude')) {
                 results.push(chunk);
             }
             expect(results).toHaveLength(0);
@@ -459,18 +461,22 @@ describe('KimiStrategy', () => {
             const strategy = createStrategy();
             const chunk = { choices: [{ delta: { content: 'Hello' } }] };
             const result = strategy.convertStreamChunkToClaude(chunk);
-            expect(result.type).toBe('content_block_delta');
-            expect(result.delta.type).toBe('text_delta');
-            expect(result.delta.text).toBe('Hello');
+            // 返回数组
+            expect(Array.isArray(result)).toBe(true);
+            expect(result[0].type).toBe('content_block_delta');
+            expect(result[0].delta.type).toBe('text_delta');
+            expect(result[0].delta.text).toBe('Hello');
         });
 
         test('should convert tool_calls delta chunk', () => {
             const strategy = createStrategy();
             const chunk = { choices: [{ delta: { tool_calls: [{ function: { arguments: '{"query": "search"}' } }] } }] };
             const result = strategy.convertStreamChunkToClaude(chunk);
-            expect(result.type).toBe('content_block_delta');
-            expect(result.delta.type).toBe('input_json_delta');
-            expect(result.delta.partial_json).toContain('search');
+            // 返回数组
+            expect(Array.isArray(result)).toBe(true);
+            expect(result[0].type).toBe('content_block_delta');
+            expect(result[0].delta.type).toBe('input_json_delta');
+            expect(result[0].delta.partial_json).toContain('search');
         });
 
         test('should return message_delta on finish', () => {
