@@ -828,6 +828,15 @@ export const serviceInstances = new Proxy({}, {
             return serviceInstancesCache.delete(prop);
         }
         return delete target[prop];
+    },
+    ownKeys(target) {
+        return Array.from(serviceInstancesCache.cache.keys());
+    },
+    getOwnPropertyDescriptor(target, prop) {
+        if (serviceInstancesCache.cache.has(prop)) {
+            return { enumerable: true, configurable: true, value: serviceInstancesCache.get(prop) };
+        }
+        return undefined;
     }
 });
 

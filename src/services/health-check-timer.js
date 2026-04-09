@@ -18,7 +18,8 @@ let timerState = {
 // 记录每个 providerType 上次检查时间（毫秒）
 let lastCheckTimes = new Map();
 
-const _getState = () => Object.freeze({ ...timerState });
+// 注意：返回的是原始 timerState 对象的引用，不要直接替换整个对象
+const _getState = () => timerState;
 // 深拷贝 lastCheckTimes，避免外部修改影响模块内部状态
 const _getLastCheckTimes = () => new Map(lastCheckTimes);
 

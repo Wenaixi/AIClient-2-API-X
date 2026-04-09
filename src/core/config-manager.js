@@ -172,11 +172,11 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
     }
 
     // 合并定时健康检查的 CLI 配置
-    if (currentConfig.SCHEDULE_HEALTH_CHECK_ENABLED !== undefined) {
-        currentConfig.SCHEDULED_HEALTH_CHECK.enabled = currentConfig.SCHEDULE_HEALTH_CHECK_ENABLED;
+    if (currentConfig.SCHEDULED_HEALTH_CHECK_ENABLED !== undefined) {
+        currentConfig.SCHEDULED_HEALTH_CHECK.enabled = currentConfig.SCHEDULED_HEALTH_CHECK_ENABLED;
     }
-    if (currentConfig.SCHEDULE_HEALTH_CHECK_INTERVAL !== undefined) {
-        currentConfig.SCHEDULED_HEALTH_CHECK.interval = currentConfig.SCHEDULE_HEALTH_CHECK_INTERVAL;
+    if (currentConfig.SCHEDULED_HEALTH_CHECK_INTERVAL !== undefined) {
+        currentConfig.SCHEDULED_HEALTH_CHECK.interval = currentConfig.SCHEDULED_HEALTH_CHECK_INTERVAL;
     }
 
     // Generate a secure random API key if none is configured
