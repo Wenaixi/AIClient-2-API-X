@@ -22,6 +22,52 @@ import {
 import logger from '../../utils/logger.js';
 
 /**
+ * Potluck API 简单限速器：基于 IP 的请求频率限制
+ * 防止暴力攻击和滥用
+ */
+const _potluckRateLimiter = new Map();
+const POTLUCK_RATE_LIMIT_WINDOW_MS = 60000; // 1分钟窗口
+const POTLUCK_RATE_LIMIT_MAX = 60; // 每窗口最多60个请求
+
+/**
+ * 检查 IP 是否超过限速
+ * @param {string} ip - 客户端 IP
+ * @returns {boolean} - 是否允许请求
+ */
+function checkPotluckRateLimit(ip) {
+    const now = Date.now();
+    const entry = _potluckRateLimiter.get(ip);
+
+    if (!entry || now - entry.windowStart > POTLUCK_RATE_LIMIT_WINDOW_MS) {
+        // 新窗口或过期窗口
+        _potluckRateLimiter.set(ip, { count: 1, windowStart: now });
+        return true;
+    }
+
+    if (entry.count >= POTLUCK_RATE_LIMIT_MAX) {
+        return false;
+    }
+
+    entry.count++;
+    return true;
+}
+
+/**
+ * 清理过期的限速器条目
+ */
+function cleanupPotluckRateLimiter() {
+    const now = Date.now();
+    for (const [ip, entry] of _potluckRateLimiter.entries()) {
+        if (now - entry.windowStart > POTLUCK_RATE_LIMIT_WINDOW_MS * 2) {
+            _potluckRateLimiter.delete(ip);
+        }
+    }
+}
+
+// 每5分钟清理一次过期条目
+setInterval(cleanupPotluckRateLimiter, 5 * 60 * 1000);
+
+/**
  * 解析请求体
  * @param {http.IncomingMessage} req
  * @returns {Promise<Object>}
@@ -29,7 +75,14 @@ import logger from '../../utils/logger.js';
 function parseRequestBody(req) {
     return new Promise((resolve, reject) => {
         let body = '';
+        let size = 0;
         req.on('data', chunk => {
+            size += chunk.length;
+            // 防止内存耗尽：拒绝超过1MB的请求体
+            if (size > 1024 * 1024) {
+                reject(new Error('Request body too large'));
+                return;
+            }
             body += chunk.toString();
         });
         req.on('end', () => {
@@ -111,14 +164,25 @@ export async function handlePotluckApiRoutes(method, path, req, res) {
     if (!path.startsWith('/api/potluck')) {
         return false;
     }
+
+    // 应用速率限制
+    const clientIp = req.socket?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    if (!checkPotluckRateLimit(clientIp)) {
+        sendJson(res, 429, {
+            success: false,
+            error: { message: '请求过于频繁，请稍后再试', code: 'RATE_LIMIT_EXCEEDED' }
+        });
+        return true;
+    }
+
     logger.info('[API Potluck] Handling request:', method, path);
-    
+
     // 验证管理员权限
     const isAuthed = await checkAdminAuth(req);
     if (!isAuthed) {
-        sendJson(res, 401, { 
-            success: false, 
-            error: { message: '未授权：请先登录', code: 'UNAUTHORIZED' } 
+        sendJson(res, 401, {
+            success: false,
+            error: { message: '未授权：请先登录', code: 'UNAUTHORIZED' }
         });
         return true;
     }

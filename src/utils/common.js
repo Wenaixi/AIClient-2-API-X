@@ -191,15 +191,27 @@ export function getClientIp(req) {
 }
 
 /**
+ * 获取请求体大小限制（10MB）
+ */
+const MAX_BODY_SIZE = 10 * 1024 * 1024;
+
+/**
  * Reads the entire request body from an HTTP request.
  * @param {http.IncomingMessage} req - The HTTP request object.
  * @returns {Promise<Object>} A promise that resolves with the parsed JSON request body.
- * @throws {Error} If the request body is not valid JSON.
+ * @throws {Error} If the request body is not valid JSON or exceeds size limit.
  */
 export function getRequestBody(req) {
     return new Promise((resolve, reject) => {
         let body = '';
+        let size = 0;
         req.on('data', chunk => {
+            size += chunk.length;
+            // 防止内存耗尽：拒绝超过限制的请求体
+            if (size > MAX_BODY_SIZE) {
+                reject(new Error("Request body too large. Maximum size is 10MB."));
+                return;
+            }
             body += chunk.toString();
         });
         req.on('end', () => {
@@ -1151,7 +1163,12 @@ export function handleError(res, error, provider = null) {
             logger.error(`  ${index + 1}. ${suggestion}`);
         });
     }
-    logger.error('[Server] Full error details:', error.stack);
+    // 只在非生产环境记录完整堆栈，生产环境记录简化的错误信息以避免泄露内部路径
+    if (process.env.NODE_ENV !== 'production') {
+        logger.error('[Server] Error details:', error.stack);
+    } else {
+        logger.error(`[Server] Error source: ${error.fileName || 'unknown'}:${error.lineNumber || 'unknown'}`);
+    }
 
     // 检查响应流是否已关闭或结束
     if (res.writableEnded || res.destroyed) {
@@ -1167,8 +1184,8 @@ export function handleError(res, error, provider = null) {
         error: {
             message: errorMessage,
             code: statusCode,
-            suggestions: suggestions,
-            details: error.response?.data
+            suggestions: suggestions.length > 0 ? suggestions : undefined
+            // 注意：不返回 error.response?.data 以避免泄露上游 API 的内部响应细节
         }
     };
     
