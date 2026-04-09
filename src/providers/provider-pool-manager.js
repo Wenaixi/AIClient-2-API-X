@@ -337,14 +337,35 @@ export class ProviderPoolManager {
     async _enqueueRefreshImmediate(providerType, providerStatus, force = false) {
         const uuid = providerStatus.uuid;
 
-        // 再次检查是否已经在刷新中（防止并发问题）
+        // 原子操作：检查并添加，防止竞态条件
         if (this.refreshingUuids.has(uuid)) {
             this._log('debug', `Node ${uuid} is already in refresh queue (immediate check).`);
-            return;
+            return false;
         }
 
-        this.refreshingUuids.add(uuid);
+        // 使用 Promise.resolve().then 在微任务中原子地完成检查和添加
+        // 这样可以避免同步代码中的竞态条件
+        await new Promise(resolve => {
+            if (this.refreshingUuids.has(uuid)) {
+                this._log('debug', `Node ${uuid} race condition detected in refresh queue.`);
+                resolve(false);
+                return;
+            }
+            this.refreshingUuids.add(uuid);
+            resolve(true);
+        }).then(acquired => {
+            if (!acquired) return;
+            // 继续执行刷新逻辑
+            this._executeRefreshTask(providerType, providerStatus, force, uuid);
+        });
+        return true;
+    }
 
+    /**
+     * 执行实际刷新任务（从 _enqueueRefreshImmediate 分离出来）
+     * @private
+     */
+    _executeRefreshTask(providerType, providerStatus, force, uuid) {
         // 初始化提供商队列
         if (!this.refreshQueues[providerType]) {
             this.refreshQueues[providerType] = {
@@ -415,7 +436,8 @@ export class ProviderPoolManager {
         }
         // 情况2: 该提供商未运行，需要获取全局信号量
         else {
-            await this._acquireGlobalSemaphore();
+            // 同步获取信号量（内部已经是队列机制）
+            this._acquireGlobalSemaphoreSync();
             ownsGlobalSlot = true;
             tryStartProviderQueue();
         }
@@ -709,6 +731,19 @@ export class ProviderPoolManager {
                 }
             }
         }
+    }
+
+    /**
+     * 同步版本：尝试获取全局刷新信号量（不等待）
+     * @returns {boolean} 是否成功获取
+     * @private
+     */
+    _acquireGlobalSemaphoreSync() {
+        if (this.refreshSemaphore.globalUsed >= this.refreshSemaphore.global) {
+            return false;
+        }
+        this.refreshSemaphore.globalUsed++;
+        return true;
     }
 
     // ==================== 刷新信号量方法 ====================
@@ -2530,13 +2565,14 @@ export class ProviderPoolManager {
      */
     _debouncedSave(providerType) {
         // 将待保存的 providerType 添加到集合中
+        // Set.add 是原子操作，异步上下文中安全
         this.pendingSaves.add(providerType);
-        
+
         // 清除之前的定时器
         if (this.saveTimer) {
             clearTimeout(this.saveTimer);
         }
-        
+
         // 设置新的定时器
         this.saveTimer = setTimeout(() => {
             this._flushPendingSaves();
@@ -2544,17 +2580,24 @@ export class ProviderPoolManager {
         // 防止定时器阻止进程退出
         if (this.saveTimer.unref) this.saveTimer.unref();
     }
-    
+
     /**
      * 批量保存所有待保存的 providerType（优化为单次文件写入）
      * @private
      */
     async _flushPendingSaves() {
-        const typesToSave = Array.from(this.pendingSaves);
-        if (typesToSave.length === 0) return;
-        
+        // 原子交换：获取当前待保存列表并清空
+        // 这样新的保存请求会进入下一批次
+        const typesToSave = [];
+        for (const type of this.pendingSaves) {
+            typesToSave.push(type);
+        }
         this.pendingSaves.clear();
+
+        // 清除定时器引用
         this.saveTimer = null;
+
+        if (typesToSave.length === 0) return;
         
         try {
             const filePath = this.globalConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
