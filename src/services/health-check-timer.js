@@ -206,7 +206,7 @@ export function startHealthCheckTimer(interval) {
                 state.checkPromise = null;
             }
         });
-    }, safeInterval);
+    }, safeInterval).unref(); // .unref() 防止定时器阻止进程退出
 
     state.activeInterval = safeInterval;
     logger.info(`[HealthCheckTimer] Started with interval ${safeInterval}ms`);
@@ -273,7 +273,7 @@ export function updateHealthCheckTimers(scheduledConfig) {
 export function runStartupHealthCheck() {
     logger.info('[HealthCheckTimer] Running startup health check...');
     return new Promise((resolve, reject) => {
-        setTimeout(async () => {
+        const startupTimer = setTimeout(async () => {
             try {
                 await executeHealthCheck();
                 resolve();
@@ -282,5 +282,7 @@ export function runStartupHealthCheck() {
                 reject(error);
             }
         }, 100);
+        // 确保启动定时器不会阻止进程退出
+        startupTimer.unref();
     });
 }

@@ -315,8 +315,9 @@ export class ProviderPoolManager {
             this._enqueueRefreshImmediate(providerType, providerStatus, force);
         }
 
-        // 清空缓冲队列和定时器
+        // 清空缓冲队列
         bufferQueue.clear();
+        // 清理定时器引用
         delete this.refreshBufferTimers[providerType];
         delete this.refreshBufferQueues[providerType];
     }
@@ -2459,18 +2460,20 @@ export class ProviderPoolManager {
     async _checkProviderHealth(providerType, providerConfig) {
         // 确定健康检查使用的模型名称
         const baseProviderType = this._getBaseProviderType(providerType);
-        const modelName = providerConfig.checkModelName ||
+        let modelName = providerConfig.checkModelName ||
                         ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] ||
                         ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType];
 
-        if (!modelName) {
-            this._log('warn', `Unknown provider type for health check: ${providerType}. Please check DEFAULT_HEALTH_CHECK_MODELS.`);
-            return { 
-                success: false, 
-                modelName: null, 
-                errorMessage: `Unknown provider type '${providerType}'. No default health check model configured.` 
+        // 安全验证：确保 modelName 是非空字符串
+        if (typeof modelName !== 'string' || modelName.trim() === '') {
+            this._log('warn', `Invalid model name for health check: ${providerType}. Expected non-empty string, got: ${JSON.stringify(modelName)}`);
+            return {
+                success: false,
+                modelName: null,
+                errorMessage: `Invalid model name for provider type '${providerType}'.`
             };
         }
+        modelName = modelName.trim();
 
         // ========== 实际 API 健康检查（带超时保护）==========
         const tempConfig = {
