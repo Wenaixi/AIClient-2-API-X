@@ -281,6 +281,8 @@ class TLSSidecar {
                 this.ready = true;
             }
         }, HEALTH_CHECK_INTERVAL);
+        // 防止定时器阻止进程退出
+        if (this.healthCheckTimer.unref) this.healthCheckTimer.unref();
     }
 
     _stopHealthCheck() {

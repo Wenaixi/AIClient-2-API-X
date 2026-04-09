@@ -294,6 +294,10 @@ export class ProviderPoolManager {
             this.refreshBufferTimers[providerType] = setTimeout(() => {
                 this._flushRefreshBuffer(providerType);
             }, this.bufferDelay);
+            // 防止定时器阻止进程退出
+            if (this.refreshBufferTimers[providerType].unref) {
+                this.refreshBufferTimers[providerType].unref();
+            }
         }
     }
 
@@ -2537,6 +2541,8 @@ export class ProviderPoolManager {
         this.saveTimer = setTimeout(() => {
             this._flushPendingSaves();
         }, this.saveDebounceTime);
+        // 防止定时器阻止进程退出
+        if (this.saveTimer.unref) this.saveTimer.unref();
     }
     
     /**

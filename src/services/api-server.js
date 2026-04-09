@@ -374,7 +374,8 @@ async function startServer() {
             logger.info(`  • Cron Near Minutes: ${CONFIG.CRON_NEAR_MINUTES}`);
             logger.info(`  • Cron Refresh Token: ${CONFIG.CRON_REFRESH_TOKEN}`);
             // 每 CRON_NEAR_MINUTES 分钟执行一次心跳日志和令牌刷新
-            setInterval(heartbeatAndRefreshToken, CONFIG.CRON_NEAR_MINUTES * 60 * 1000);
+            const heartbeatTimer = setInterval(heartbeatAndRefreshToken, CONFIG.CRON_NEAR_MINUTES * 60 * 1000);
+            if (heartbeatTimer.unref) heartbeatTimer.unref(); // 防止定时器阻止进程退出
         }
         // 服务器完全启动后,执行初始健康检查
         const poolManager = getProviderPoolManager();

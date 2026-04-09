@@ -709,6 +709,8 @@ export class CodexApiService {
                 }
             }
         }, 15 * 60 * 1000);
+        // 防止定时器阻止进程退出
+        if (this.cleanupInterval.unref) this.cleanupInterval.unref();
     }
 
     /**

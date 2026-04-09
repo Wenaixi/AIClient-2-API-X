@@ -72,6 +72,8 @@ function ensureLoaded() {
     // 启动定期持久化
     if (!persistTimer) {
         persistTimer = setInterval(persistIfDirty, currentPersistInterval);
+        // 防止定时器阻止进程退出
+        if (persistTimer.unref) persistTimer.unref();
         // 进程退出时保存
         process.on('beforeExit', () => persistIfDirty());
         process.on('SIGINT', () => { persistIfDirty(); process.exit(0); });

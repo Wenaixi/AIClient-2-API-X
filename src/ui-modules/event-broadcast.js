@@ -64,6 +64,8 @@ export async function handleEvents(req, res) {
             global.eventClients = global.eventClients.filter(r => r !== res);
         }
     }, 30000);
+    // 防止定时器阻止进程退出
+    if (keepAlive.unref) keepAlive.unref();
 
     req.on('close', () => {
         clearInterval(keepAlive);
