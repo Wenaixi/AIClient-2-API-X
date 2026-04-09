@@ -5,6 +5,7 @@
 
 import { BaseConverter } from '../BaseConverter.js';
 import { MODEL_PROTOCOL_PREFIX } from '../../utils/common.js';
+import { mapKimiFinishReason } from '../utils.js';
 
 /**
  * Kimi转换器类
@@ -174,13 +175,7 @@ export class KimiConverter extends BaseConverter {
      * 映射结束原因
      */
     mapFinishReason(openaiReason) {
-        const reasonMap = {
-            'stop': 'end_turn',
-            'length': 'max_tokens',
-            'tool_calls': 'tool_use',
-            'content_filter': 'stop_sequence'
-        };
-        return reasonMap[openaiReason] || 'end_turn';
+        return mapKimiFinishReason(openaiReason);
     }
 }
 

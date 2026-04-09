@@ -5,8 +5,9 @@
 
 import axios from 'axios';
 import os from 'os';
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { dirname, resolve, isAbsolute } from 'path';
+import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
@@ -74,8 +75,13 @@ function getOrCreateDeviceId() {
     }
 
     _initDeviceIdPromise = (async () => {
-        const configDir = process.cwd();
-        const deviceFile = resolve(configDir, KIMI_DEVICE_ID_FILE);
+        // 使用绝对路径：基于当前模块文件位置，而不是 process.cwd()
+        // 这样可以确保在 Docker 容器或任何工作目录下都能正确找到配置文件
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        const projectRoot = resolve(__dirname, '../..');
+        const configDir = resolve(projectRoot, 'configs');
+        const deviceFile = resolve(configDir, '.kimi_device_id');
 
         // 尝试从磁盘加载
         try {
@@ -91,8 +97,7 @@ function getOrCreateDeviceId() {
         // 生成并持久化
         _cachedDeviceId = crypto.randomUUID();
         try {
-            const dir = dirname(deviceFile);
-            mkdirSync(dir, { recursive: true });
+            mkdirSync(configDir, { recursive: true });
             writeFileSync(deviceFile, _cachedDeviceId, 'utf-8');
         } catch (err) {
             logger.warn('[Kimi OAuth] Failed to persist device ID:', err.message);

@@ -188,7 +188,9 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             return { authorized: false, waiting: true };
         }
 
-        return { authorized: false, error: `Server error: ${error.message}` };
+        // 对客户端返回通用错误消息，避免泄露内部信息
+        logger.error('[Kimi OAuth] checkKimiAuthStatus exception:', error.message);
+        return { authorized: false, error: 'Authorization server error. Please try again later.' };
     }
 }
 

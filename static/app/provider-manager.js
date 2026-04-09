@@ -885,7 +885,7 @@ function showCodexBatchImportModal(providerType) {
                                     
                                     resultDiv.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     if (data.successCount > 0) {
                                         importSuccess = true;
@@ -1349,7 +1349,7 @@ function showGeminiBatchImportModal(providerType) {
                                     
                                     resultDiv.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     if (data.successCount > 0) {
                                         importSuccess = true;
@@ -1620,7 +1620,7 @@ function showKiroBatchImportModal() {
                                     
                                     // 更新标题
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     // 如果有成功的，刷新提供商列表
                                     if (data.successCount > 0) {
@@ -2392,12 +2392,12 @@ function showKiroAwsImportModal() {
                                         resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                         
                                         if (current.success) {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                         } else if (current.error === 'duplicate') {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateCredentials')}</span>
-                                                ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #d97706;">⚠ ${escapeHtml(t('oauth.kiro.duplicateCredentials'))}</span>
+                                                ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                         } else {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #991b1b;">✗ ${escapeHtml(String(current.error))}</span>`;
                                         }
                                         
                                         resultsList.appendChild(resultItem);
@@ -2427,7 +2427,7 @@ function showKiroAwsImportModal() {
                                         validationResult.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                         
                                         const headerDiv = validationResult.querySelector('div:first-child');
-                                        headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                        headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                         
                                         // 如果有成功的，标记为成功并刷新提供商列表
                                         if (data.successCount > 0) {

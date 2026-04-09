@@ -10,6 +10,23 @@ import logger from '../utils/logger.js';
 // 常量定义
 // =============================================================================
 
+// Kimi/OpenAI 结束原因映射到 Anthropic 格式
+const KIMI_TO_ANTHROPIC_REASON_MAP = {
+    'stop': 'end_turn',
+    'length': 'max_tokens',
+    'tool_calls': 'tool_use',
+    'content_filter': 'stop_sequence'
+};
+
+/**
+ * 映射 Kimi/OpenAI 结束原因到 Anthropic 格式
+ * @param {string} openaiReason - OpenAI/Kimi 格式的结束原因
+ * @returns {string} Anthropic 格式的结束原因
+ */
+export function mapKimiFinishReason(openaiReason) {
+    return KIMI_TO_ANTHROPIC_REASON_MAP[openaiReason] || 'end_turn';
+}
+
 // 通用默认值
 export const DEFAULT_MAX_TOKENS = 8192;
 export const DEFAULT_TEMPERATURE = 1;

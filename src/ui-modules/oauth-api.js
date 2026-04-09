@@ -18,7 +18,38 @@ import {
 
 // Kimi check-status 端点简单内存限速器：每个 deviceCode 在窗口期内只允许一次检查
 const _checkStatusLimiter = new Map();
+const _ipRateLimiter = new Map();
 const CHECK_STATUS_WINDOW_MS = 2000; // 2 秒冷却窗口
+const IP_RATE_LIMIT_WINDOW_MS = 10000; // 10 秒 IP 级别窗口
+const IP_RATE_LIMIT_MAX = 20; // 每窗口最多 20 个不同 deviceCode
+const CLEANUP_INTERVAL_MS = 60000; // 1 分钟清理一次过期条目
+
+// 记录上次清理时间
+let _lastCleanup = Date.now();
+
+/**
+ * 清理过期的限速器条目
+ * @param {number} now - 当前时间戳
+ */
+function _cleanupExpiredEntries(now) {
+    // 清理 IP 限速器
+    for (const [key, entry] of _ipRateLimiter.entries()) {
+        if (now - entry.windowStart > IP_RATE_LIMIT_WINDOW_MS * 2) {
+            _ipRateLimiter.delete(key);
+        }
+    }
+    // 清理 deviceCode 限速器
+    for (const [key, ts] of _checkStatusLimiter.entries()) {
+        if (now - ts > CHECK_STATUS_WINDOW_MS * 10) {
+            _checkStatusLimiter.delete(key);
+        }
+    }
+    // 限制总大小防止过度增长
+    if (_ipRateLimiter.size > 10000) {
+        logger.warn('[OAuth API] IP rate limiter size exceeded limit, clearing oldest entries');
+        _ipRateLimiter.clear();
+    }
+}
 
 /**
  * 生成 OAuth 授权 URL
@@ -181,8 +212,37 @@ export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
             return true;
         }
 
-        // 速率限制：防止 device code 枚举滥用
+        // 速率限制：基于 IP + deviceCode 的组合限速
         const now = Date.now();
+        const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                         req.headers['x-real-ip'] ||
+                         req.socket?.remoteAddress ||
+                         'unknown';
+
+        // 定期清理过期条目，防止内存泄漏
+        if (now - _lastCleanup > CLEANUP_INTERVAL_MS) {
+            _cleanupExpiredEntries(now);
+            _lastCleanup = now;
+        }
+
+        // IP 级别限速：防止枚举攻击
+        const ipKey = `ip:${clientIp}`;
+        const ipEntry = _ipRateLimiter.get(ipKey);
+        if (ipEntry && now - ipEntry.windowStart < IP_RATE_LIMIT_WINDOW_MS) {
+            if (ipEntry.count >= IP_RATE_LIMIT_MAX) {
+                res.writeHead(429, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: false,
+                    error: 'Too many requests from this IP. Please wait a moment.'
+                }));
+                return true;
+            }
+            ipEntry.count++;
+        } else {
+            _ipRateLimiter.set(ipKey, { windowStart: now, count: 1 });
+        }
+
+        // deviceCode 级别限速：防止单个 deviceCode 被频繁查询
         const lastCheck = _checkStatusLimiter.get(deviceCode) || 0;
         if (now - lastCheck < CHECK_STATUS_WINDOW_MS) {
             res.writeHead(429, { 'Content-Type': 'application/json' });
@@ -193,14 +253,6 @@ export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
             return true;
         }
         _checkStatusLimiter.set(deviceCode, now);
-        // 定期清理过期条目，防止内存泄漏
-        if (_checkStatusLimiter.size > 1000) {
-            for (const [key, ts] of _checkStatusLimiter.entries()) {
-                if (now - ts > CHECK_STATUS_WINDOW_MS * 10) {
-                    _checkStatusLimiter.delete(key);
-                }
-            }
-        }
 
         const result = await checkKimiAuthStatus(currentConfig, deviceCode);
         logger.debug(`[OAuth API] checkKimiAuthStatus result:`, result);
@@ -601,6 +653,8 @@ export async function handleBatchImportKimiTokens(req, res) {
                     logger.error('[Kimi Batch Import] Failed to write SSE:', err.message);
                     return false;
                 }
+            } else {
+                return false;
             }
             return true;
         };
@@ -609,11 +663,17 @@ export async function handleBatchImportKimiTokens(req, res) {
         sendSSE('start', { total: refreshTokens.length });
 
         // 执行流式批量导入
+        let abortRequested = false;
         const result = await batchImportKimiRefreshTokensStream(
             refreshTokens,
             (progress) => {
-                // 每处理完一个 token 发送进度更新
-                sendSSE('progress', progress);
+                // 如果 SSE 写入失败且请求已中止，不再继续处理
+                if (abortRequested) return;
+                const sent = sendSSE('progress', progress);
+                if (sent === false) {
+                    abortRequested = true;
+                    logger.warn('[Kimi Batch Import] Client disconnected, aborting further processing');
+                }
             }
         );
 

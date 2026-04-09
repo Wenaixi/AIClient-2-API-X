@@ -6,6 +6,7 @@
 import logger from '../../utils/logger.js';
 import { ProviderStrategy } from '../../utils/provider-strategy.js';
 import { KimiApiService } from './kimi-core.js';
+import { mapKimiFinishReason } from '../../converters/utils.js';
 
 /**
  * Kimi Provider 策略类
@@ -281,13 +282,7 @@ export class KimiStrategy extends ProviderStrategy {
      * 映射结束原因
      */
     mapFinishReason(openaiReason) {
-        const reasonMap = {
-            'stop': 'end_turn',
-            'length': 'max_tokens',
-            'tool_calls': 'tool_use',
-            'content_filter': 'stop_sequence'
-        };
-        return reasonMap[openaiReason] || 'end_turn';
+        return mapKimiFinishReason(openaiReason);
     }
 
     /**

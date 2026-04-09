@@ -81,8 +81,10 @@ async function executeHealthCheck() {
             // 验证自定义间隔，防止无效值
             if (customInterval !== undefined) {
                 if (typeof customInterval !== 'number' || customInterval < HEALTH_CHECK.MIN_INTERVAL_MS) {
+                    logger.warn(`[HealthCheckTimer] Invalid custom interval for ${providerType}: ${customInterval}, using global interval ${globalInterval}ms`);
                     customInterval = globalInterval;
                 } else if (customInterval > HEALTH_CHECK.MAX_INTERVAL_MS) {
+                    logger.warn(`[HealthCheckTimer] Custom interval for ${providerType}: ${customInterval}ms exceeds max, capping to ${HEALTH_CHECK.MAX_INTERVAL_MS}ms`);
                     customInterval = HEALTH_CHECK.MAX_INTERVAL_MS;
                 }
             }
