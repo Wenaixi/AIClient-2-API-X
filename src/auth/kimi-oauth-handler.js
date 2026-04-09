@@ -8,6 +8,7 @@ import fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import axios from 'axios';
 import logger from '../utils/logger.js';
 import { broadcastEvent } from '../services/ui-manager.js';
 import { autoLinkProviderConfigs } from '../services/service-manager.js';
@@ -21,6 +22,41 @@ const projectRoot = path.resolve(__dirname, '../..');
 
 // Kimi 配置目录
 const KIMI_CONFIG_DIR = 'configs/kimi';
+
+/**
+ * 保存 Kimi token 并进行去重检查
+ * @param {Object} tokenStorage - KimiTokenStorage 实例
+ * @param {string} outputDir - 输出目录
+ * @param {number} index - 索引（用于日志）
+ * @returns {Promise<{success: boolean, filepath: string, skipped: boolean}>} 保存结果
+ * @private
+ */
+async function _saveKimiTokenWithDedup(tokenStorage, outputDir, index) {
+    // 先保存到临时路径用于去重检查
+    const tempFilename = `kimi-token-${crypto.randomUUID()}-${index}.json`;
+    const tempFilepath = path.join(outputDir, tempFilename);
+    await fsPromises.writeFile(tempFilepath, JSON.stringify(tokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+
+    // 检查是否已存在相同的 device_id（去重检查）
+    try {
+        const dupCheck = await checkKimiCredentialsDuplicate(tempFilepath, outputDir);
+        if (dupCheck.isDuplicate) {
+            logger.warn(`[Kimi OAuth] Token ${index} is duplicate of ${dupCheck.duplicateFile}, skipping`);
+            await fsPromises.unlink(tempFilepath).catch(() => {});
+            return { success: false, filepath: null, skipped: true };
+        }
+    } catch (dupError) {
+        logger.warn(`[Kimi OAuth] Duplicate check failed for token ${index}:`, dupError.message);
+    }
+
+    // 重命名为正式路径（保持 token 前缀以兼容现有解析逻辑）
+    const filename = `kimi-token-${crypto.randomUUID()}-${index}.json`;
+    const filepath = path.join(outputDir, filename);
+    await fsPromises.rename(tempFilepath, filepath);
+
+    logger.info(`[Kimi OAuth] Token ${index} saved to: ${filepath}`);
+    return { success: true, filepath, skipped: false };
+}
 
 /**
  * 完成 Kimi OAuth 授权（轮询等待用户授权并保存凭证）
@@ -177,11 +213,14 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
         logger.debug('[Kimi OAuth] Error stack:', error.stack);
 
         // 区分网络错误和其他错误
-        const isNetworkError = error.message?.includes('network') ||
-                               error.message?.includes('timeout') ||
-                               error.message?.includes('ECONNREFUSED') ||
-                               error.message?.includes('ENOTFOUND') ||
-                               error.message?.includes('ECONNRESET');
+        const isNetworkError = axios.isAxiosError(error)
+            ? !error.response // 有响应则不是网络错误（如401、400等业务错误）
+            : error.code === 'ECONNREFUSED' ||
+              error.code === 'ENOTFOUND' ||
+              error.code === 'ECONNRESET' ||
+              error.code === 'ETIMEDOUT' ||
+              error.message?.toLowerCase().includes('network') ||
+              error.message?.toLowerCase().includes('timeout');
 
         if (isNetworkError) {
             logger.warn('[Kimi OAuth] Network error detected, continuing to wait...');
@@ -262,6 +301,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
         total: refreshTokens.length,
         success: 0,
         failed: 0,
+        skipped: 0,
         errors: []
     };
 
@@ -285,13 +325,13 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
             // 刷新获取完整 token
             const newTokenStorage = await refreshKimiToken(tempStorage, config);
 
-            // 保存到文件（使用 UUID 避免并发冲突）
-            const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
-            const filepath = path.join(outputDir, filename);
-            await fsPromises.writeFile(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
-
-            logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
-            results.success++;
+            // 保存 token 并进行去重检查
+            const saveResult = await _saveKimiTokenWithDedup(newTokenStorage, outputDir, i + 1);
+            if (saveResult.skipped) {
+                results.skipped++;
+            } else if (saveResult.success) {
+                results.success++;
+            }
 
             // 添加延迟避免请求过快
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -306,6 +346,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
     logger.info(`[Kimi OAuth] Total: ${results.total}`);
     logger.info(`[Kimi OAuth] Success: ${results.success}`);
     logger.info(`[Kimi OAuth] Failed: ${results.failed}`);
+    logger.info(`[Kimi OAuth] Skipped: ${results.skipped}`);
     logger.info('[Kimi OAuth] =====================================');
 
     return results;
@@ -326,6 +367,7 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
         total: refreshTokens.length,
         success: 0,
         failed: 0,
+        skipped: 0,
         details: []
     };
 
@@ -349,27 +391,32 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
             // 刷新获取完整 token
             const newTokenStorage = await refreshKimiToken(tempStorage, config);
 
-            // 保存到文件（使用 UUID 避免并发冲突）
-            const filename = `kimi-token-${crypto.randomUUID()}-${i}.json`;
-            const filepath = path.join(outputDir, filename);
-            await fsPromises.writeFile(filepath, JSON.stringify(newTokenStorage.toJSON(), null, 2), 'utf-8', { mode: 0o600 });
+            // 保存 token 并进行去重检查
+            const saveResult = await _saveKimiTokenWithDedup(newTokenStorage, outputDir, i + 1);
 
-            logger.info(`[Kimi OAuth] Token ${i + 1} saved to: ${filepath}`);
-            results.success++;
-            results.details.push({
-                index: i + 1,
-                success: true,
-                filepath
-            });
-
-            // 调用进度回调
-            if (progressCallback) {
-                progressCallback({
+            if (saveResult.skipped) {
+                results.skipped++;
+            } else if (saveResult.success) {
+                results.success++;
+                results.details.push({
                     index: i + 1,
-                    total: refreshTokens.length,
                     success: true,
-                    filepath
+                    filepath: saveResult.filepath
                 });
+
+                // 调用进度回调（添加错误保护，避免回调异常中断批量操作）
+                if (progressCallback) {
+                    try {
+                        progressCallback({
+                            index: i + 1,
+                            total: refreshTokens.length,
+                            success: true,
+                            filepath: saveResult.filepath
+                        });
+                    } catch (cbError) {
+                        logger.error(`[Kimi OAuth] Progress callback failed for token ${i + 1}:`, cbError.message);
+                    }
+                }
             }
 
             // 添加延迟避免请求过快
@@ -383,14 +430,18 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
                 error: error.message
             });
 
-            // 调用进度回调
+            // 调用进度回调（添加错误保护，避免回调异常中断批量操作）
             if (progressCallback) {
-                progressCallback({
-                    index: i + 1,
-                    total: refreshTokens.length,
-                    success: false,
-                    error: error.message
-                });
+                try {
+                    progressCallback({
+                        index: i + 1,
+                        total: refreshTokens.length,
+                        success: false,
+                        error: error.message
+                    });
+                } catch (cbError) {
+                    logger.error(`[Kimi OAuth] Progress callback failed for token ${i + 1}:`, cbError.message);
+                }
             }
         }
     }
@@ -399,6 +450,7 @@ export async function batchImportKimiRefreshTokensStream(refreshTokens, progress
     logger.info(`[Kimi OAuth] Total: ${results.total}`);
     logger.info(`[Kimi OAuth] Success: ${results.success}`);
     logger.info(`[Kimi OAuth] Failed: ${results.failed}`);
+    logger.info(`[Kimi OAuth] Skipped: ${results.skipped}`);
     logger.info('[Kimi OAuth] =====================================');
 
     return results;

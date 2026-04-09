@@ -28,6 +28,7 @@ export class ProviderPoolManager {
         'openai-codex-oauth': 'gpt-5-codex-mini',
         'openaiResponses-custom': 'gpt-4o-mini',
         'forward-api': 'gpt-4o-mini',
+        'kimi-oauth': 'kimi-k2.5-thinking',
     };
 
     constructor(providerPools, options = {}) {
@@ -268,6 +269,7 @@ export class ProviderPoolManager {
         // 清空缓冲队列和定时器
         bufferQueue.clear();
         delete this.refreshBufferTimers[providerType];
+        delete this.refreshBufferQueues[providerType];
     }
 
     /**
@@ -332,10 +334,16 @@ export class ProviderPoolManager {
                         this.activeProviderRefreshes--;
                     }
 
-                    // 3. 尝试启动下一个等待中的提供商队列
+                    // 3. 尝试启动下一个等待中的提供商队列（添加保护防止任务抛出异常导致等待队列泄漏）
                     if (this.globalRefreshWaiters.length > 0) {
                         const nextProviderStart = this.globalRefreshWaiters.shift();
-                        Promise.resolve().then(nextProviderStart);
+                        try {
+                            Promise.resolve().then(nextProviderStart);
+                        } catch (err) {
+                            this._log('error', `Failed to start next provider from waiters queue: ${err.message}`);
+                            // 放回队列尾部，避免busy-wait死循环
+                            this.globalRefreshWaiters.push(nextProviderStart);
+                        }
                     }
                 }
             }

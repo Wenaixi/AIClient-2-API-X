@@ -160,7 +160,6 @@ export class KimiConverter extends BaseConverter {
                 },
                 usage: chunk.usage
             };
-            // 始终返回数组，保持返回类型一致
             // 如果有内容，先返回内容块，再返回message_delta
             if (claudeChunk.delta.text || claudeChunk.delta.partial_json) {
                 return [claudeChunk, messageDelta];

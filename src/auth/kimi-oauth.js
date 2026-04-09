@@ -6,7 +6,7 @@
 import axios from 'axios';
 import os from 'os';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname, resolve, isAbsolute } from 'path';
+import { resolve, dirname as pathDirname } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
@@ -78,7 +78,7 @@ function getOrCreateDeviceId() {
         // 使用绝对路径：基于当前模块文件位置，而不是 process.cwd()
         // 这样可以确保在 Docker 容器或任何工作目录下都能正确找到配置文件
         const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
+        const __dirname = pathDirname(__filename);
         const projectRoot = resolve(__dirname, '../..');
         const configDir = resolve(projectRoot, 'configs');
         const deviceFile = resolve(configDir, '.kimi_device_id');
@@ -114,7 +114,9 @@ export class KimiOAuthClient {
     constructor(config = {}) {
         this.config = config;
         // 优先使用配置的 deviceId，否则从 kimi-cli 存储位置读取或生成
-        this.deviceId = config.deviceId || getOrCreateDeviceId();
+        // 注意：getOrCreateDeviceId() 可能返回 Promise（首次调用时），需要通过 getDeviceIdAsync() 获取
+        this._deviceId = config.deviceId;
+        this._deviceIdPromise = config.deviceId ? null : getOrCreateDeviceId();
 
         // 配置 axios，支持代理和 TLS
         const axiosConfig = {
@@ -137,22 +139,53 @@ export class KimiOAuthClient {
 
     /**
      * 获取通用请求头（与参考项目 cli-proxy-api 保持一致）
+     * 注意：这是同步版本，如果设备ID尚未初始化可能返回null
      */
     getCommonHeaders() {
+        // 同步版本可能返回不完整的headers
+        const deviceId = this._deviceId || (_cachedDeviceId ?? null);
         return {
             'X-Msh-Platform': 'cli-proxy-api',
             'X-Msh-Version': '1.0.0',
             'X-Msh-Device-Name': getHostname(),
             'X-Msh-Device-Model': getDeviceModel(),
-            'X-Msh-Device-Id': this.deviceId
+            'X-Msh-Device-Id': deviceId
         };
     }
 
     /**
-     * 获取设备ID
+     * 获取通用请求头（异步版本，确保设备ID已初始化）
+     */
+    async getCommonHeadersAsync() {
+        const deviceId = await this.getDeviceIdAsync();
+        return {
+            'X-Msh-Platform': 'cli-proxy-api',
+            'X-Msh-Version': '1.0.0',
+            'X-Msh-Device-Name': getHostname(),
+            'X-Msh-Device-Model': getDeviceModel(),
+            'X-Msh-Device-Id': deviceId
+        };
+    }
+
+    /**
+     * 获取设备ID（同步版本）
      */
     getDeviceId() {
-        return this.deviceId;
+        return this._deviceId || _cachedDeviceId || null;
+    }
+
+    /**
+     * 获取设备ID（异步版本，确保设备ID已初始化）
+     */
+    async getDeviceIdAsync() {
+        if (this._deviceId) {
+            return this._deviceId;
+        }
+        if (this._deviceIdPromise) {
+            this._deviceId = await this._deviceIdPromise;
+            this._deviceIdPromise = null;
+        }
+        return this._deviceId;
     }
 
     /**
@@ -162,6 +195,7 @@ export class KimiOAuthClient {
     async requestDeviceCode() {
         logger.debug('[Kimi OAuth] Requesting device code from:', KIMI_DEVICE_CODE_URL);
         try {
+            const headers = await this.getCommonHeadersAsync();
             const response = await this.httpClient.post(
                 KIMI_DEVICE_CODE_URL,
                 new URLSearchParams({
@@ -171,7 +205,7 @@ export class KimiOAuthClient {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Accept': 'application/json',
-                        ...this.getCommonHeaders()
+                        ...headers
                     }
                 }
             );
@@ -263,6 +297,7 @@ export class KimiOAuthClient {
      */
     async exchangeDeviceCode(deviceCode) {
         try {
+            const headers = await this.getCommonHeadersAsync();
             const response = await this.httpClient.post(
                 KIMI_TOKEN_URL,
                 new URLSearchParams({
@@ -274,7 +309,7 @@ export class KimiOAuthClient {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Accept': 'application/json',
-                        ...this.getCommonHeaders()
+                        ...headers
                     }
                 }
             );
@@ -311,13 +346,14 @@ export class KimiOAuthClient {
                 ? Math.floor(Date.now() / 1000) + data.expires_in
                 : 0;
 
+            const deviceId = await this.getDeviceIdAsync();
             const token = {
                 access_token: data.access_token,
                 refresh_token: data.refresh_token,
                 token_type: data.token_type || 'Bearer',
                 expires_at: expiresAt,
                 scope: data.scope,
-                device_id: this.deviceId
+                device_id: deviceId
             };
             logger.info('[Kimi OAuth] Successfully obtained token, expires_at: ' + expiresAt);
 
@@ -346,6 +382,7 @@ export class KimiOAuthClient {
      */
     async refreshToken(refreshToken) {
         try {
+            const headers = await this.getCommonHeadersAsync();
             const response = await this.httpClient.post(
                 KIMI_TOKEN_URL,
                 new URLSearchParams({
@@ -357,7 +394,7 @@ export class KimiOAuthClient {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Accept': 'application/json',
-                        ...this.getCommonHeaders()
+                        ...headers
                     }
                 }
             );
