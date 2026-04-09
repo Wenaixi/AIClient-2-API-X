@@ -2304,7 +2304,7 @@ export class ProviderPoolManager {
         }
 
         const providers = this.providerStatus[providerType];
-        if (!providers || providers.size === 0) {
+        if (!providers || providers.length === 0) {
             this._log('debug', `[ScheduledHealthCheck] No providers found for type ${providerType}`);
             return;
         }
