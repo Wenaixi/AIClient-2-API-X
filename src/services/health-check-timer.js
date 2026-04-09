@@ -28,7 +28,9 @@ const _getMutableLastCheckTimes = () => lastCheckTimes;
 
 /**
  * 执行健康检查
- * 支持按供应商自定义间隔：全局定时器触发后，对有自定义间隔的 providerType 判断是否到期
+ * 支持按供应商自定义间隔和健康检查常数：
+ * - 异常状态供应商：使用原有的 interval/customIntervals
+ * - 健康状态供应商：使用 healthyCheckInterval/healthyCustomIntervals（若为0则跳过）
  */
 async function executeHealthCheck() {
     const poolManager = getProviderPoolManager();
@@ -42,15 +44,18 @@ async function executeHealthCheck() {
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
     const customIntervals = config.customIntervals || {};
-    const configuredProviderTypes = new Set(config.providerTypes || []);
+    const healthyCheckInterval = config.healthyCheckInterval || HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
+    const healthyCustomIntervals = config.healthyCustomIntervals || {};
+    const configuredProviderTypes = config.providerTypes || [];
     const now = Date.now();
     // 使用深拷贝避免外部修改影响，同时获取可变引用用于后续更新
     const lastCheckTimesCopy = _getLastCheckTimes();
     const mutableLastCheckTimes = _getMutableLastCheckTimes();
 
-    // 清理不再配置的 providerType 条目
+    // 清理不再配置的 providerType 条目（使用旧格式的key需要清理）
     for (const key of lastCheckTimesCopy.keys()) {
-        if (!configuredProviderTypes.has(key)) {
+        const [pt] = key.split(':');
+        if (!configuredProviderTypes.includes(pt)) {
             mutableLastCheckTimes.delete(key);
         }
     }
@@ -69,46 +74,105 @@ async function executeHealthCheck() {
         }
     }
 
-    // 并行执行各类型健康检查，限制并发数
-    const MAX_CONCURRENT = HEALTH_CHECK.MAX_CONCURRENT_CHECKS;
-    const totalTypes = config.providerTypes.length;
-    for (let i = 0; i < totalTypes; i += MAX_CONCURRENT) {
-        const batchEnd = Math.min(i + MAX_CONCURRENT, totalTypes);
-        const batch = config.providerTypes.slice(i, batchEnd);
-        await Promise.all(batch.map(async (providerType) => {
-            let customInterval = customIntervals[providerType];
+    // 获取 providerStatus 以便按单个供应商追踪
+    const providerStatus = poolManager.providerStatus;
+    if (!providerStatus) {
+        logger.warn('[HealthCheckTimer] No providerStatus available');
+        return;
+    }
 
-            // 验证自定义间隔，防止无效值
-            if (customInterval !== undefined) {
-                if (typeof customInterval !== 'number' || customInterval < HEALTH_CHECK.MIN_INTERVAL_MS) {
-                    logger.warn(`[HealthCheckTimer] Invalid custom interval for ${providerType}: ${customInterval}, using global interval ${globalInterval}ms`);
-                    customInterval = globalInterval;
-                } else if (customInterval > HEALTH_CHECK.MAX_INTERVAL_MS) {
-                    logger.warn(`[HealthCheckTimer] Custom interval for ${providerType}: ${customInterval}ms exceeds max, capping to ${HEALTH_CHECK.MAX_INTERVAL_MS}ms`);
-                    customInterval = HEALTH_CHECK.MAX_INTERVAL_MS;
+    // 添加非负随机抖动，防止时序攻击（0 ~ jitter）
+    const jitter = crypto.randomInt(0, HEALTH_CHECK.JITTER_MS + 1);
+
+    // 收集所有需要检查的供应商
+    const providersToCheck = [];
+
+    for (const providerType of configuredProviderTypes) {
+        // 验证自定义间隔
+        let customInterval = customIntervals[providerType];
+        if (customInterval !== undefined) {
+            if (typeof customInterval !== 'number' || customInterval < HEALTH_CHECK.MIN_INTERVAL_MS) {
+                logger.warn(`[HealthCheckTimer] Invalid custom interval for ${providerType}: ${customInterval}, using global interval ${globalInterval}ms`);
+                customInterval = globalInterval;
+            } else if (customInterval > HEALTH_CHECK.MAX_INTERVAL_MS) {
+                customInterval = HEALTH_CHECK.MAX_INTERVAL_MS;
+            }
+        }
+
+        // 获取健康检查常数
+        let healthyCustomInterval = healthyCustomIntervals[providerType];
+        // healthyCustomInterval 可以是0（表示禁用），或者是有效数字
+        if (healthyCustomInterval !== undefined && healthyCustomInterval !== 0) {
+            if (typeof healthyCustomInterval !== 'number' || healthyCustomInterval < HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS) {
+                logger.warn(`[HealthCheckTimer] Invalid healthy custom interval for ${providerType}: ${healthyCustomInterval}, using global healthyCheckInterval ${healthyCheckInterval}ms`);
+                healthyCustomInterval = healthyCheckInterval;
+            } else if (healthyCustomInterval > HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS) {
+                healthyCustomInterval = HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS;
+            }
+        }
+
+        const effectiveHealthyInterval = healthyCustomInterval ?? healthyCheckInterval;
+
+        const providers = providerStatus[providerType];
+        if (!providers || providers.size === 0) {
+            continue;
+        }
+
+        for (const provider of providers) {
+            // 跳过禁用的供应商
+            if (provider.config.isDisabled === true) {
+                continue;
+            }
+
+            const uuid = provider.config.uuid;
+            const key = `${providerType}:${uuid}`;
+            const lastTime = mutableLastCheckTimes.get(key) || 0;
+            const isHealthy = provider.config.isHealthy === true;
+
+            // 确定使用的间隔
+            let effectiveInterval;
+            if (!isHealthy) {
+                // 异常状态：使用原有间隔
+                effectiveInterval = customInterval ?? globalInterval;
+            } else {
+                // 健康状态：使用健康检查常数
+                if (effectiveHealthyInterval === 0) {
+                    // healthyCheckInterval = 0 表示跳过健康供应商
+                    continue;
                 }
+                effectiveInterval = effectiveHealthyInterval;
             }
 
-            const effectiveInterval = customInterval ?? globalInterval;
-
-            const lastTime = lastCheckTimes.get(providerType) || 0;
-            const checkStartTime = Date.now();
-
-            // 添加非负随机抖动，防止时序攻击（0 ~ jitter）
-            const jitter = crypto.randomInt(0, HEALTH_CHECK.JITTER_MS + 1);
-
-            if (checkStartTime - lastTime + jitter < effectiveInterval) {
-                // 跳过检查是正常行为，不需要记录日志
-                return;
+            // 检查是否到期
+            if (now - lastTime + jitter < effectiveInterval) {
+                continue;
             }
 
-            logger.info(`[HealthCheckTimer] Executing health check for ${providerType} (custom interval: ${customInterval ? customInterval + 'ms' : 'using global ' + globalInterval + 'ms'})`);
+            providersToCheck.push({ providerType, uuid, isHealthy, effectiveInterval });
+        }
+    }
+
+    if (providersToCheck.length === 0) {
+        // 所有供应商都未到期，正常行为不需要日志
+        return;
+    }
+
+    logger.info(`[HealthCheckTimer] Executing health check for ${providersToCheck.length} provider(s)`);
+
+    // 分批执行，每批最多 MAX_CONCURRENT_CHECKS 个类型
+    const MAX_CONCURRENT = HEALTH_CHECK.MAX_CONCURRENT_CHECKS;
+    for (let i = 0; i < providersToCheck.length; i += MAX_CONCURRENT) {
+        const batchEnd = Math.min(i + MAX_CONCURRENT, providersToCheck.length);
+        const batch = providersToCheck.slice(i, batchEnd);
+
+        await Promise.all(batch.map(async ({ providerType, uuid, isHealthy, effectiveInterval }) => {
+            const key = `${providerType}:${uuid}`;
             try {
                 await poolManager.performHealthChecksByType(providerType);
-                // 使用实际完成时间而非批次开始时间，更新到模块级状态
-                mutableLastCheckTimes.set(providerType, Date.now());
+                // 更新该供应商的上次检查时间
+                mutableLastCheckTimes.set(key, Date.now());
             } catch (error) {
-                logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:`, error);
+                logger.error(`[HealthCheckTimer] Error during health check for ${providerType}:${uuid}:`, error);
             }
         }));
     }

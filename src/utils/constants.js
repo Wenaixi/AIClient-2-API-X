@@ -16,7 +16,13 @@ export const HEALTH_CHECK = {
     // 随机抖动时间（毫秒），用于防止时序攻击
     JITTER_MS: 1000,
     // lastCheckTimes Map 的最大条目数，防止内存泄漏
-    MAX_LAST_CHECK_ENTRIES: 1000
+    MAX_LAST_CHECK_ENTRIES: 1000,
+    // 健康检查默认间隔：1小时（3600000毫秒）
+    HEALTHY_CHECK_INTERVAL_MS: 3600000,
+    // 最小健康检查间隔：1分钟（60000毫秒）
+    MIN_HEALTHY_CHECK_INTERVAL_MS: 60000,
+    // 最大健康检查间隔：24小时（86400000毫秒）
+    MAX_HEALTHY_CHECK_INTERVAL_MS: 86400000
 };
 
 // 密码安全相关常量

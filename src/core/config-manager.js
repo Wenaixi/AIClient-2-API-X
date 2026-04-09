@@ -309,6 +309,47 @@ function validateCustomIntervals(customIntervals) {
 }
 
 /**
+ * 验证健康检查间隔配置（支持0值表示禁用）
+ * @param {Object} healthyCustomIntervals - 健康检查自定义间隔配置
+ */
+function validateHealthyCustomIntervals(healthyCustomIntervals) {
+    if (!healthyCustomIntervals || typeof healthyCustomIntervals !== 'object') {
+        return {};
+    }
+
+    const validated = {};
+    for (const [providerType, interval] of Object.entries(healthyCustomIntervals)) {
+        // 验证 providerType 是否为有效字符串
+        if (typeof providerType !== 'string' || !providerType.trim()) {
+            logger.warn(`[Config Warning] Invalid providerType in healthyCustomIntervals: ${providerType}`);
+            continue;
+        }
+
+        // 验证 interval（0表示禁用，允许0值）
+        const numInterval = Number(interval);
+        if (!Number.isFinite(numInterval)) {
+            logger.warn(`[Config Warning] Invalid interval for ${providerType}: ${interval}. Must be a number`);
+            continue;
+        }
+
+        if (numInterval === 0) {
+            // 0 表示禁用该类型健康供应商的检查
+            validated[providerType] = 0;
+        } else if (numInterval < HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Healthy check interval for ${providerType}: ${interval}ms too small, using minimum: ${HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS}ms`);
+            validated[providerType] = HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS;
+        } else if (numInterval > HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS) {
+            logger.warn(`[Config Warning] Healthy check interval for ${providerType}: ${interval}ms exceeds maximum, capping to ${HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS}ms`);
+            validated[providerType] = HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS;
+        } else {
+            validated[providerType] = numInterval;
+        }
+    }
+
+    return validated;
+}
+
+/**
  * 验证并规范化健康检查配置
  * @param {Object} config - 配置对象
  */
@@ -322,6 +363,11 @@ function validateHealthCheckConfig(config) {
     // 验证并规范化 customIntervals
     if (hcConfig.customIntervals) {
         hcConfig.customIntervals = validateCustomIntervals(hcConfig.customIntervals);
+    }
+
+    // 验证并规范化 healthyCustomIntervals
+    if (hcConfig.healthyCustomIntervals) {
+        hcConfig.healthyCustomIntervals = validateHealthyCustomIntervals(hcConfig.healthyCustomIntervals);
     }
 
     // 验证 providerTypes 数组
@@ -344,6 +390,22 @@ function validateHealthCheckConfig(config) {
             logger.warn(`[Config Warning] Health check interval too large, using maximum: ${HEALTH_CHECK.MAX_INTERVAL_MS}ms`);
             hcConfig.interval = HEALTH_CHECK.MAX_INTERVAL_MS;
         }
+    }
+
+    // 验证 healthyCheckInterval（0表示禁用对健康供应商的检查）
+    if (typeof hcConfig.healthyCheckInterval === 'number') {
+        if (hcConfig.healthyCheckInterval === 0) {
+            // 0 表示禁用对健康供应商的检查
+        } else if (hcConfig.healthyCheckInterval < HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS) {
+            logger.warn(`[Config Warning] healthyCheckInterval too small, using minimum: ${HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS}ms`);
+            hcConfig.healthyCheckInterval = HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS;
+        } else if (hcConfig.healthyCheckInterval > HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS) {
+            logger.warn(`[Config Warning] healthyCheckInterval too large, using maximum: ${HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS}ms`);
+            hcConfig.healthyCheckInterval = HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS;
+        }
+    } else {
+        // 默认值
+        hcConfig.healthyCheckInterval = HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
     }
 }
 

@@ -820,7 +820,23 @@ input:checked + .toggle-slider:before {
     font-weight: 500;
 }
 
-.custom-interval-item .item-actions {
+.custom-interval-item .interval-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.custom-interval-item .interval-badge.unhealthy {
+    background: var(--danger-color, #dc3545);
+    color: var(--white);
+}
+
+.custom-interval-item .interval-badge.healthy {
+    background: var(--success-color, #28a745);
+    color: var(--white);
+}
+
+.item-actions {
     display: flex;
     gap: 6px;
 }
@@ -892,6 +908,45 @@ input:checked + .toggle-slider:before {
 
 .custom-interval-popup .popup-body .time-input-group {
     margin-bottom: 12px;
+}
+
+.custom-interval-popup .popup-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.custom-interval-popup .popup-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.custom-interval-popup .popup-section label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.custom-interval-popup .popup-section label i {
+    color: var(--primary-color);
+}
+
+.custom-interval-popup .popup-section .popup-section-note {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.config-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--success-color, #28a745);
+    color: white;
+    font-weight: normal;
 }
 
 .custom-interval-popup .popup-actions {
