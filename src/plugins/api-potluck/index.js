@@ -151,12 +151,13 @@ const apiPotluckPlugin = {
          * @param {Object} hookContext - 钩子上下文，包含请求和模型信息
          */
         async onContentGenerated(hookContext) {
+<<<<<<< HEAD
             if (hookContext.potluckApiKey) {
                 try {
                     // 传入提供商和模型信息
                     await incrementUsage(
-                        hookContext.potluckApiKey, 
-                        hookContext.toProvider, 
+                        hookContext.potluckApiKey,
+                        hookContext.toProvider,
                         hookContext.model
                     );
                 } catch (e) {
