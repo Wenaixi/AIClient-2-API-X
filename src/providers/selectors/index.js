@@ -101,16 +101,18 @@ export class FillFirstSelector extends ProviderSelector {
     select(providers, options = {}) {
         if (!providers || providers.length === 0) return null;
 
-        // 如果已有选择正在进行，等待其完成后再执行选择逻辑
-        // 这确保了状态检查和更新的原子性，避免并发问题
+        // 如果已有选择正在进行，等待其完成并返回其结果
         if (this._selectPromise) {
             return this._selectPromise.then(() => this._doSelect(providers, options));
         }
 
-        this._selectPromise = this._doSelect(providers, options);
-        return this._selectPromise.finally(() => {
+        // 创建新的选择操作
+        this._selectPromise = this._doSelect(providers, options).finally(() => {
+            // 清理引用
             this._selectPromise = null;
         });
+
+        return this._selectPromise;
     }
 
     /**

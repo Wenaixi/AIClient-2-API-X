@@ -525,14 +525,15 @@ export class ProviderPoolManager {
         }
         // 情况2: 该提供商未运行，需要获取全局信号量
         else {
-            // 同步获取信号量（内部已经是队列机制）
+            // 使用 Promise 链确保信号量获取完成后再设置 ownsGlobalSlot
             const acquired = this._acquireGlobalSemaphoreSync();
             if (!acquired) {
-                // 等待信号量可用（获取成功后才设置 ownsGlobalSlot）
-                this._acquireGlobalSemaphore(providerType).then(() => {
-                    ownsGlobalSlot = true;
-                    tryStartProviderQueue();
-                });
+                // 等待信号量可用，获取成功后才设置 ownsGlobalSlot 并启动任务
+                this._acquireGlobalSemaphore(providerType)
+                    .then(() => {
+                        ownsGlobalSlot = true;
+                        tryStartProviderQueue();
+                    });
             } else {
                 ownsGlobalSlot = true;
                 tryStartProviderQueue();
@@ -786,10 +787,15 @@ export class ProviderPoolManager {
 
         // 清理该 providerType 下过期的条目，防止内存泄漏
         const queue = this.cooldownQueue.queues[providerType];
+        // 先收集要删除的 key，避免迭代中修改 Map
+        const keysToDelete = [];
         for (const [uid, exp] of queue.entries()) {
             if (Date.now() >= exp) {
-                queue.delete(uid);
+                keysToDelete.push(uid);
             }
+        }
+        for (const uid of keysToDelete) {
+            queue.delete(uid);
         }
 
         this.cooldownQueue.queues[providerType].set(uuid, expireAt);
@@ -1280,9 +1286,9 @@ export class ProviderPoolManager {
                     throw lastError;
                 }
 
-                // 将 provider 加入冷却队列
+                // 将 provider 加入冷却队列（使用线性增长避免与退避延迟指数叠加）
                 if (uuid) {
-                    const cooldownMultiplier = Math.pow(2, attempt - 1);
+                    const cooldownMultiplier = attempt;  // 线性增长，不与退避延迟叠加
                     const cooldownMs = Math.min(
                         this.cooldownQueue.defaultCooldown * cooldownMultiplier,
                         this.cooldownQueue.maxCooldown

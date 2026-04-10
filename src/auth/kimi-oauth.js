@@ -370,7 +370,8 @@ export class KimiOAuthClient {
                     return {
                         token: null,
                         error: new Error(`${oauthError.error}: ${oauthError.error_description || 'Unknown error'}`),
-                        shouldContinue: oauthError.error === 'authorization_pending' || oauthError.error === 'slow_down'
+                        shouldContinue: oauthError.error === 'authorization_pending' || oauthError.error === 'slow_down',
+                        increaseInterval: oauthError.error === 'slow_down'
                     };
                 }
             }
