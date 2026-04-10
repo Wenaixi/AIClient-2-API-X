@@ -293,8 +293,12 @@ describe('runStartupHealthCheck', () => {
         getProviderPoolManager.mockReturnValue(createMockPoolManager());
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        const { stopHealthCheckTimer } = healthCheckTimerModule;
+        stopHealthCheckTimer();
         jest.useRealTimers();
+        // Allow pending timers to fire and clean up
+        await new Promise(resolve => setTimeout(resolve, 0));
     });
 
     test('should return a promise', () => {

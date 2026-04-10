@@ -222,6 +222,8 @@ export function stopHealthCheckTimer() {
         clearInterval(state.timerId);
         state.timerId = null;
         state.activeInterval = null;
+        // Also clear checkPromise to prevent state pollution
+        state.checkPromise = null;
         logger.info('[HealthCheckTimer] Stopped');
     }
 }
