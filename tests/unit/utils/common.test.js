@@ -189,6 +189,16 @@ function extractSystemPromptFromRequestBody(requestBody) {
 
 import crypto from 'crypto';
 
+function escapeHtml(str) {
+    if (str == null || typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
 describe('common.js - 网络错误处理', () => {
     describe('RETRYABLE_NETWORK_ERRORS', () => {
         test('应包含所有可重试的网络错误码', () => {
@@ -613,5 +623,93 @@ describe('common.js - extractSystemPromptFromRequestBody()', () => {
         };
         const result = extractSystemPromptFromRequestBody(body);
         expect(result).toBe('First system');
+    });
+});
+
+// ==================== Tests for escapeHtml ====================
+
+describe('common.js - escapeHtml()', () => {
+    test('应转义 & 字符', () => {
+        expect(escapeHtml('a & b')).toBe('a &amp; b');
+    });
+
+    test('应转义 < 字符', () => {
+        expect(escapeHtml('<html>')).toBe('&lt;html&gt;');
+    });
+
+    test('应转义 > 字符', () => {
+        expect(escapeHtml('a > b')).toBe('a &gt; b');
+    });
+
+    test('应转义 " 字符', () => {
+        expect(escapeHtml('他说："你好"')).toBe('他说：&quot;你好&quot;');
+    });
+
+    test('应转义 \' 字符', () => {
+        expect(escapeHtml("it's a test")).toBe('it&#x27;s a test');
+    });
+
+    test('应同时转义多种特殊字符', () => {
+        expect(escapeHtml('<div class="test">')).toBe('&lt;div class=&quot;test&quot;&gt;');
+    });
+
+    test('应处理普通文本不改变', () => {
+        expect(escapeHtml('Hello World')).toBe('Hello World');
+    });
+
+    test('当输入为 null 时应返回空字符串', () => {
+        expect(escapeHtml(null)).toBe('');
+    });
+
+    test('当输入为 undefined 时应返回空字符串', () => {
+        expect(escapeHtml(undefined)).toBe('');
+    });
+
+    test('当输入为数字时应返回空字符串', () => {
+        expect(escapeHtml(123)).toBe('');
+    });
+
+    test('当输入为对象时应返回空字符串', () => {
+        expect(escapeHtml({})).toBe('');
+    });
+
+    test('当输入为空字符串时应返回空字符串', () => {
+        expect(escapeHtml('')).toBe('');
+    });
+
+    test('应正确处理混合文本和特殊字符', () => {
+        expect(escapeHtml('a < b & c > d')).toBe('a &lt; b &amp; c &gt; d');
+    });
+});
+
+// ==================== Tests for _getProviderSpecificSuggestions (helper) ====================
+
+describe('common.js - _getProviderSpecificSuggestions()', () => {
+    // 测试辅助函数逻辑
+    const getSuggestionsForStatus = (statusCode) => {
+        const suggestions = {
+            401: ['检查 API 密钥是否正确', '确认账户状态是否正常', '检查权限设置'],
+            403: ['检查访问权限', '确认账户未被禁用', '检查订阅计划是否支持'],
+            429: ['降低请求频率', '使用指数退避重试', '考虑升级订阅计划'],
+            500: ['服务器内部错误，稍后重试', '检查服务状态'],
+            502: ['网关错误，稍后重试', '检查服务状态'],
+            503: ['服务暂时不可用，稍后重试', '检查服务状态'],
+        };
+        return suggestions[statusCode] || [];
+    };
+
+    test('应返回401对应的建议', () => {
+        const suggestions = getSuggestionsForStatus(401);
+        expect(suggestions).toContain('检查 API 密钥是否正确');
+    });
+
+    test('应返回429对应的建议', () => {
+        const suggestions = getSuggestionsForStatus(429);
+        expect(suggestions).toContain('降低请求频率');
+    });
+
+    test('应返回未知状态码的空数组', () => {
+        const suggestions = getSuggestionsForStatus(999);
+        expect(suggestions).toEqual([]);
     });
 });

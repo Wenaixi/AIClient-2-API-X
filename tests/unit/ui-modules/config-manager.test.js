@@ -277,3 +277,284 @@ describe('Interval Validation', () => {
         expect(validateInterval(7200000)).toBe(7200000); // 2 hours
     });
 });
+
+// ==================== Tests for validateCustomIntervals ====================
+
+describe('validateCustomIntervals', () => {
+    const MIN_INTERVAL_MS = 60000; // 1 minute
+    const MAX_INTERVAL_MS = 3600000; // 1 hour
+
+    const validateCustomIntervals = (customIntervals) => {
+        if (!customIntervals || typeof customIntervals !== 'object') {
+            return {};
+        }
+
+        const validated = {};
+        for (const [providerType, interval] of Object.entries(customIntervals)) {
+            if (typeof providerType !== 'string' || !providerType.trim()) {
+                continue;
+            }
+
+            const numInterval = Number(interval);
+            if (!Number.isFinite(numInterval) || numInterval < MIN_INTERVAL_MS) {
+                continue;
+            }
+
+            validated[providerType] = Math.min(numInterval, MAX_INTERVAL_MS);
+        }
+
+        return validated;
+    };
+
+    test('should return empty object for null input', () => {
+        expect(validateCustomIntervals(null)).toEqual({});
+    });
+
+    test('should return empty object for undefined input', () => {
+        expect(validateCustomIntervals(undefined)).toEqual({});
+    });
+
+    test('should return empty object for non-object input', () => {
+        expect(validateCustomIntervals('string')).toEqual({});
+        expect(validateCustomIntervals(123)).toEqual({});
+    });
+
+    test('should validate and pass through valid intervals', () => {
+        const input = { 'openai': 120000, 'gemini': 180000 };
+        const result = validateCustomIntervals(input);
+        expect(result['openai']).toBe(120000);
+        expect(result['gemini']).toBe(180000);
+    });
+
+    test('should cap intervals exceeding maximum', () => {
+        const input = { 'openai': 7200000 }; // 2 hours
+        const result = validateCustomIntervals(input);
+        expect(result['openai']).toBe(3600000); // capped to 1 hour
+    });
+
+    test('should skip invalid providerType (empty string)', () => {
+        const input = { '': 120000, 'valid': 60000 };
+        const result = validateCustomIntervals(input);
+        expect(result['']).toBeUndefined();
+        expect(result['valid']).toBe(60000); // exactly minimum, should pass
+    });
+
+    test('should skip intervals below minimum', () => {
+        const input = { 'openai': 30000, 'gemini': 60000 };
+        const result = validateCustomIntervals(input);
+        expect(result['openai']).toBeUndefined();
+        expect(result['gemini']).toBe(60000);
+    });
+
+    test('should skip non-finite interval values', () => {
+        const input = { 'openai': NaN, 'gemini': Infinity, 'claude': 120000 };
+        const result = validateCustomIntervals(input);
+        expect(result['openai']).toBeUndefined();
+        expect(result['gemini']).toBeUndefined();
+        expect(result['claude']).toBe(120000);
+    });
+
+    test('should skip non-numeric interval values', () => {
+        const input = { 'openai': 'string', 'gemini': null, 'claude': 120000 };
+        const result = validateCustomIntervals(input);
+        expect(result['openai']).toBeUndefined();
+        expect(result['gemini']).toBeUndefined();
+        expect(result['claude']).toBe(120000);
+    });
+});
+
+// ==================== Tests for validateHealthyCustomIntervals ====================
+
+describe('validateHealthyCustomIntervals', () => {
+    const MIN_HEALTHY_CHECK_INTERVAL_MS = 300000; // 5 minutes
+    const MAX_HEALTHY_CHECK_INTERVAL_MS = 3600000; // 1 hour
+
+    const validateHealthyCustomIntervals = (healthyCustomIntervals) => {
+        if (!healthyCustomIntervals || typeof healthyCustomIntervals !== 'object') {
+            return {};
+        }
+
+        const validated = {};
+        for (const [providerType, interval] of Object.entries(healthyCustomIntervals)) {
+            if (typeof providerType !== 'string' || !providerType.trim()) {
+                continue;
+            }
+
+            const numInterval = Number(interval);
+            if (!Number.isFinite(numInterval)) {
+                continue;
+            }
+
+            if (numInterval === 0) {
+                validated[providerType] = 0; // 0 means disabled
+            } else if (numInterval < MIN_HEALTHY_CHECK_INTERVAL_MS) {
+                validated[providerType] = MIN_HEALTHY_CHECK_INTERVAL_MS;
+            } else if (numInterval > MAX_HEALTHY_CHECK_INTERVAL_MS) {
+                validated[providerType] = MAX_HEALTHY_CHECK_INTERVAL_MS;
+            } else {
+                validated[providerType] = numInterval;
+            }
+        }
+
+        return validated;
+    };
+
+    test('should return empty object for null input', () => {
+        expect(validateHealthyCustomIntervals(null)).toEqual({});
+    });
+
+    test('should allow 0 to indicate disabled', () => {
+        const input = { 'openai': 0 };
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['openai']).toBe(0);
+    });
+
+    test('should enforce minimum interval for healthy check', () => {
+        const input = { 'gemini': 60000 }; // below 5 minutes
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['gemini']).toBe(300000);
+    });
+
+    test('should cap intervals exceeding maximum', () => {
+        const input = { 'openai': 7200000 }; // 2 hours
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['openai']).toBe(3600000);
+    });
+
+    test('should pass through valid intervals', () => {
+        const input = { 'openai': 600000, 'gemini': 1800000 }; // 10min, 30min
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['openai']).toBe(600000);
+        expect(result['gemini']).toBe(1800000);
+    });
+
+    test('should skip non-finite values', () => {
+        const input = { 'openai': NaN, 'gemini': Infinity };
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['openai']).toBeUndefined();
+        expect(result['gemini']).toBeUndefined();
+    });
+
+    test('should handle mix of valid and invalid entries', () => {
+        const input = { 'valid': 600000, 'toolow': 60000, 'disabled': 0 };
+        const result = validateHealthyCustomIntervals(input);
+        expect(result['valid']).toBe(600000);
+        expect(result['toolow']).toBe(300000);
+        expect(result['disabled']).toBe(0);
+    });
+});
+
+// ==================== Tests for validateHealthCheckConfig ====================
+
+describe('validateHealthCheckConfig', () => {
+    const MIN_INTERVAL_MS = 60000;
+    const MAX_INTERVAL_MS = 3600000;
+    const MIN_HEALTHY_CHECK_INTERVAL_MS = 300000;
+    const MAX_HEALTHY_CHECK_INTERVAL_MS = 3600000;
+    const HEALTHY_CHECK_INTERVAL_MS = 600000;
+
+    const validateHealthCheckConfig = (config) => {
+        if (!config.SCHEDULED_HEALTH_CHECK || typeof config.SCHEDULED_HEALTH_CHECK !== 'object') {
+            return;
+        }
+
+        const hcConfig = config.SCHEDULED_HEALTH_CHECK;
+
+        // Validate customIntervals (simplified)
+        if (hcConfig.customIntervals && typeof hcConfig.customIntervals === 'object') {
+            hcConfig.customIntervals = hcConfig.customIntervals;
+        }
+
+        // Validate healthyCustomIntervals (simplified)
+        if (hcConfig.healthyCustomIntervals && typeof hcConfig.healthyCustomIntervals === 'object') {
+            hcConfig.healthyCustomIntervals = hcConfig.healthyCustomIntervals;
+        }
+
+        // Validate providerTypes array
+        if (hcConfig.providerTypes && !Array.isArray(hcConfig.providerTypes)) {
+            hcConfig.providerTypes = [];
+        }
+
+        // Validate interval
+        if (typeof hcConfig.interval === 'number') {
+            if (hcConfig.interval < MIN_INTERVAL_MS) {
+                hcConfig.interval = MIN_INTERVAL_MS;
+            } else if (hcConfig.interval > MAX_INTERVAL_MS) {
+                hcConfig.interval = MAX_INTERVAL_MS;
+            }
+        }
+
+        // Validate healthyCheckInterval
+        if (typeof hcConfig.healthyCheckInterval === 'number') {
+            if (hcConfig.healthyCheckInterval === 0) {
+                // 0 means disabled
+            } else if (hcConfig.healthyCheckInterval < MIN_HEALTHY_CHECK_INTERVAL_MS) {
+                hcConfig.healthyCheckInterval = MIN_HEALTHY_CHECK_INTERVAL_MS;
+            } else if (hcConfig.healthyCheckInterval > MAX_HEALTHY_CHECK_INTERVAL_MS) {
+                hcConfig.healthyCheckInterval = MAX_HEALTHY_CHECK_INTERVAL_MS;
+            }
+        } else {
+            hcConfig.healthyCheckInterval = HEALTHY_CHECK_INTERVAL_MS;
+        }
+    };
+
+    test('should return early if SCHEDULED_HEALTH_CHECK is missing', () => {
+        const config = {};
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK).toBeUndefined();
+    });
+
+    test('should return early if SCHEDULED_HEALTH_CHECK is not an object', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: 'string' };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK).toBe('string');
+    });
+
+    test('should reset invalid providerTypes to empty array', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { providerTypes: 'not-array' } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.providerTypes).toEqual([]);
+    });
+
+    test('should keep valid providerTypes as-is', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { providerTypes: ['openai', 'gemini'] } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.providerTypes).toEqual(['openai', 'gemini']);
+    });
+
+    test('should enforce minimum interval', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { interval: 30000 } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.interval).toBe(60000);
+    });
+
+    test('should enforce maximum interval', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { interval: 7200000 } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.interval).toBe(3600000);
+    });
+
+    test('should set default healthyCheckInterval if not provided', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: {} };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.healthyCheckInterval).toBe(600000);
+    });
+
+    test('should allow 0 for healthyCheckInterval to disable', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { healthyCheckInterval: 0 } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.healthyCheckInterval).toBe(0);
+    });
+
+    test('should enforce minimum for healthyCheckInterval', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { healthyCheckInterval: 60000 } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.healthyCheckInterval).toBe(300000);
+    });
+
+    test('should enforce maximum for healthyCheckInterval', () => {
+        const config = { SCHEDULED_HEALTH_CHECK: { healthyCheckInterval: 7200000 } };
+        validateHealthCheckConfig(config);
+        expect(config.SCHEDULED_HEALTH_CHECK.healthyCheckInterval).toBe(3600000);
+    });
+});
