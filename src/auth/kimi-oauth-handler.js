@@ -10,6 +10,7 @@ import path from 'path';
 import crypto from 'crypto';
 import axios from 'axios';
 import logger from '../utils/logger.js';
+import { escapeHtml } from '../utils/common.js';
 import { broadcastEvent } from '../services/ui-manager.js';
 import { autoLinkProviderConfigs } from '../services/service-manager.js';
 import { CONFIG } from '../core/config-manager.js';
@@ -147,7 +148,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
             // 终端错误（access_denied, expired_token, 或其他 OAuth 错误）
             // 这些错误不应该被当作"等待中"，而应该返回给用户
             logger.error('[Kimi OAuth] Terminal error:', error.message);
-            return { authorized: false, error: error.message };
+            return { authorized: false, error: escapeHtml(error.message) };
         }
 
         // 授权成功，保存 token

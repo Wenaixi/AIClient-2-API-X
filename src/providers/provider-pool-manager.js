@@ -110,6 +110,7 @@ export class ProviderPoolManager {
         this.refreshBufferTimers = {}; // 按 providerType 分组的定时器
         this.bufferDelay = options.globalConfig?.REFRESH_BUFFER_DELAY ?? 5000; // 默认5秒缓冲延迟
         this.refreshTaskTimeoutMs = options.globalConfig?.REFRESH_TASK_TIMEOUT_MS ?? 60000; // 默认60秒刷新超时
+        this.maxSemaphoreWaitTime = options.globalConfig?.MAX_SEMAPHORE_WAIT_TIME ?? 60000; // 默认60秒信号量等待超时
 
         // --- 429 指数退避配置 ---
         this.quotaBackoff = {
@@ -316,7 +317,12 @@ export class ProviderPoolManager {
 
         // 将缓冲队列中的所有节点放入实际刷新队列
         for (const [uuid, { providerStatus, force }] of bufferQueue.entries()) {
-            this._enqueueRefreshImmediate(providerType, providerStatus, force);
+            try {
+                this._enqueueRefreshImmediate(providerType, providerStatus, force);
+            } catch (error) {
+                this._log('error', `Failed to enqueue refresh for node ${uuid}: ${error.message}`);
+                // 继续处理其他节点，不中断循环
+            }
         }
 
         // 清空缓冲队列
@@ -664,6 +670,15 @@ export class ProviderPoolManager {
      */
     setQuotaResetTime(providerType, uuid, resetTimeMs) {
         const key = `${providerType}:${uuid}`;
+
+        // 清理过期的 quotaResetTime 条目，防止内存泄漏
+        const now = Date.now();
+        for (const k of Object.keys(this.quotaBackoff.quotaResetTimes)) {
+            if (this.quotaBackoff.quotaResetTimes[k] <= now) {
+                delete this.quotaBackoff.quotaResetTimes[k];
+            }
+        }
+
         this.quotaBackoff.quotaResetTimes[key] = resetTimeMs;
         this._log('debug', `Set quota reset time for ${uuid}: ${new Date(resetTimeMs).toISOString()}`);
     }
@@ -685,6 +700,14 @@ export class ProviderPoolManager {
 
         if (!this.cooldownQueue.queues[providerType]) {
             this.cooldownQueue.queues[providerType] = new Map();
+        }
+
+        // 清理该 providerType 下过期的条目，防止内存泄漏
+        const queue = this.cooldownQueue.queues[providerType];
+        for (const [uid, exp] of queue.entries()) {
+            if (Date.now() >= exp) {
+                queue.delete(uid);
+            }
         }
 
         this.cooldownQueue.queues[providerType].set(uuid, expireAt);
@@ -764,10 +787,42 @@ export class ProviderPoolManager {
      * @private
      */
     async _acquireGlobalSemaphore(providerType) {
+        const startTime = Date.now();
+        const maxWait = this.maxSemaphoreWaitTime;
+
         while (this.refreshSemaphore.globalUsed >= this.refreshSemaphore.global) {
+            // 检查是否超时
+            if (Date.now() - startTime > maxWait) {
+                this._log('warn', `Global semaphore acquisition timeout for providerType: ${providerType}, waited ${maxWait}ms`);
+                throw new Error(`Global semaphore acquisition timeout after ${maxWait}ms for providerType: ${providerType}`);
+            }
+
+            // 等待一小段时间后再次检查，避免立即循环
             await new Promise(resolve => {
-                this.refreshSemaphore.globalWaitQueue.push(resolve);
+                const timeout = setTimeout(() => {
+                    // 再次检查是否超时
+                    if (Date.now() - startTime > maxWait) {
+                        clearTimeout(timeout);
+                        resolve(false);
+                    } else {
+                        clearTimeout(timeout);
+                        resolve(true);
+                    }
+                }, 100);
+                this.refreshSemaphore.globalWaitQueue.push(() => {
+                    clearTimeout(timeout);
+                    resolve(true);
+                });
             });
+
+            // 如果被超时唤醒，则抛出异常
+            if (this.refreshSemaphore.globalUsed >= this.refreshSemaphore.global) {
+                // 再次检查超时
+                if (Date.now() - startTime > maxWait) {
+                    this._log('warn', `Global semaphore acquisition timeout for providerType: ${providerType}, waited ${maxWait}ms`);
+                    throw new Error(`Global semaphore acquisition timeout after ${maxWait}ms for providerType: ${providerType}`);
+                }
+            }
         }
         this.refreshSemaphore.globalUsed++;
         return true;
