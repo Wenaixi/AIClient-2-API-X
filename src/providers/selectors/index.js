@@ -34,7 +34,9 @@ export class ScoreBasedSelector extends ProviderSelector {
         if (!providers || providers.length === 0) return null;
 
         const now = Date.now();
-        const minSeq = Math.min(...providers.map(p => p.config?._lastSelectionSeq || 0));
+        // 防止 Math.min 空数组崩溃
+        const seqs = providers.map(p => p.config?._lastSelectionSeq || 0);
+        const minSeq = seqs.length > 0 ? Math.min(...seqs) : 0;
 
         const sorted = [...providers].sort((a, b) => {
             const scoreA = this.poolManager._calculateNodeScore ? this.poolManager._calculateNodeScore(a, now, minSeq) : 0;
@@ -108,8 +110,10 @@ export class FillFirstSelector extends ProviderSelector {
 
             if (stillValid) {
                 const state = stillValid.state || {};
-                const concurrencyLimit = parseInt(stillValid.config?.concurrencyLimit || 0);
-                if (concurrencyLimit <= 0 || (state.activeCount || 0) < concurrencyLimit) {
+                const rawLimit = stillValid.config?.concurrencyLimit;
+                const concurrencyLimit = parseInt(rawLimit, 10);
+                // 防止 NaN 导致检查失效
+                if (isNaN(concurrencyLimit) || concurrencyLimit <= 0 || (state.activeCount || 0) < concurrencyLimit) {
                     return stillValid;
                 }
             }

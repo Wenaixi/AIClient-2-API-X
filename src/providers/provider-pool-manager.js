@@ -245,8 +245,16 @@ export class ProviderPoolManager {
                             this._log('warn', `Node ${providerStatus.uuid} (${providerType}) has no expiry field. Forcing refresh as safety measure...`);
                             this._enqueueRefresh(providerType, providerStatus);
                         } else if ((expiryTime - Date.now()) < nearExpiryMs) {
-                            this._log('warn', `Node ${providerStatus.uuid} (${providerType}) is near expiration. Enqueuing refresh...`);
-                            this._enqueueRefresh(providerType, providerStatus);
+                            // 再次检查 expiryTime 量级，如果是秒级（< 1e12）则转换为毫秒
+                            let normalizedExpiry = expiryTime;
+                            if (expiryTime < 1e12) {
+                                // 秒级时间戳，转换为毫秒
+                                normalizedExpiry = expiryTime * 1000;
+                            }
+                            if ((normalizedExpiry - Date.now()) < nearExpiryMs) {
+                                this._log('warn', `Node ${providerStatus.uuid} (${providerType}) is near expiration. Enqueuing refresh...`);
+                                this._enqueueRefresh(providerType, providerStatus);
+                            }
                         }
                     } catch (err) {
                         this._log('error', `Failed to check expiry for node ${providerStatus.uuid}: ${err.message}`);
@@ -1252,13 +1260,17 @@ export class ProviderPoolManager {
                 if (uuid && this._hasQuotaResetTime(providerType, uuid)) {
                     const key = `${providerType}:${uuid}`;
                     const waitMs = this.quotaBackoff.quotaResetTimes[key] - Date.now();
-                    this._log('info', `Quota reset scheduled for ${uuid}, waiting ${waitMs}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, Math.max(0, waitMs)));
+                    // 至少等待 100ms 避免立即重试造成busy loop
+                    const actualWait = Math.max(100, waitMs);
+                    this._log('info', `Quota reset scheduled for ${uuid}, waiting ${actualWait}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, actualWait));
                     continue;
                 }
 
                 if (attempt >= maxRetries) {
                     this._log('warn', `Quota exhausted for ${providerType} after ${attempt} attempts`);
+                    // 清理冷却队列
+                    this.cleanupCooldownQueue();
                     throw lastError;
                 }
 

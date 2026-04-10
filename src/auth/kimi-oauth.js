@@ -26,6 +26,7 @@ let _initDeviceIdPromise = null; // 用于防止竞态条件的 Promise 锁
 
 // 轮询配置
 const DEFAULT_POLL_INTERVAL = 5000; // 5秒
+const MAX_POLL_INTERVAL = 60 * 1000; // 60秒，最大轮询间隔
 const MAX_POLL_DURATION = 15 * 60 * 1000; // 15分钟
 const REFRESH_THRESHOLD_SECONDS = 300; // 5分钟
 
@@ -372,8 +373,16 @@ export class KimiOAuthClient {
                     };
                 }
             }
-            // 网络错误等，返回错误并停止轮询
-            return { token: null, error, shouldContinue: false };
+            // 网络错误等，区分可恢复错误和不可恢复错误
+            const isNetworkError = !error.response; // 无响应通常是网络问题
+            const isRetryable = isNetworkError && (
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'ENOTFOUND' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'ECONNRESET'
+            );
+            // 可恢复的网络错误应该继续轮询
+            return { token: null, error, shouldContinue: isRetryable };
         }
     }
 

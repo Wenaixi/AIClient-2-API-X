@@ -296,6 +296,9 @@ export class KimiApiService {
             streamRequestBody.model = this.normalizeModelName(streamRequestBody.model);
         }
 
+        // 标准化消息格式（流式请求也需要）
+        const normalizedBody = normalizeKimiToolMessageLinks(streamRequestBody);
+
         let hasYielded = false;
 
         try {
@@ -305,7 +308,7 @@ export class KimiApiService {
             const axiosConfig = {
                 method: 'post',
                 url: endpoint,
-                data: streamRequestBody,
+                data: normalizedBody,
                 responseType: 'stream',
                 headers: this.getKimiHeaders(accessToken, true)
             };
