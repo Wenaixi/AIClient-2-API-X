@@ -103,16 +103,18 @@ export class FillFirstSelector extends ProviderSelector {
 
         // 如果已有选择正在进行，等待其完成并返回其结果
         if (this._selectPromise) {
+            // 返回等待链，确保 finally 在返回的 Promise 链上正确清理
             return this._selectPromise.then(() => this._doSelect(providers, options));
         }
 
         // 创建新的选择操作
-        this._selectPromise = this._doSelect(providers, options).finally(() => {
+        const selectionPromise = this._doSelect(providers, options);
+        this._selectPromise = selectionPromise.finally(() => {
             // 清理引用
             this._selectPromise = null;
         });
 
-        return this._selectPromise;
+        return selectionPromise;
     }
 
     /**
