@@ -46,8 +46,6 @@ export const PROVIDER_MODELS = {
     'openai-qwen-oauth': [
         'qwen3-coder-plus',
         'qwen3-coder-flash',
-        'coder-model',
-        'vision-model'
     ],
     'openai-codex-oauth': [
         'gpt-5',
