@@ -19,6 +19,13 @@ export function normalizeKimiToolMessageLinks(body) {
         return body;
     }
 
+    // 浅拷贝 messages 数组，避免修改原始对象
+    const normalizedBody = {
+        ...body,
+        messages: body.messages.map(msg => ({ ...msg }))
+    };
+    const normalizedMessages = normalizedBody.messages;
+
     const pending = new Set();
     let patched = 0;
     let patchedReasoning = 0;
@@ -28,8 +35,8 @@ export function normalizeKimiToolMessageLinks(body) {
         pending.delete(id);
     };
 
-    for (let msgIdx = 0; msgIdx < messages.length; msgIdx++) {
-        const msg = messages[msgIdx];
+    for (let msgIdx = 0; msgIdx < normalizedMessages.length; msgIdx++) {
+        const msg = normalizedMessages[msgIdx];
         const role = msg.role?.trim();
 
         if (role === 'assistant') {
@@ -101,7 +108,7 @@ export function normalizeKimiToolMessageLinks(body) {
         logger.warn(`[Kimi] Tool messages missing tool_call_id with ambiguous candidates: ambiguous=${ambiguous}, pending=${pending.size}`);
     }
 
-    return body;
+    return normalizedBody;
 }
 
 /**

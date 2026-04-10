@@ -285,25 +285,26 @@ export class KimiApiService {
         const maxRetries = this.config.REQUEST_MAX_RETRIES || 3;
         const baseDelay = this.config.REQUEST_BASE_DELAY || 1000;
 
-        const streamRequestBody = {
-            ...body,
-            stream: true,
-            stream_options: { include_usage: true }
-        };
-
-        // 标准化模型名称
-        if (streamRequestBody.model) {
-            streamRequestBody.model = this.normalizeModelName(streamRequestBody.model);
-        }
-
-        // 标准化消息格式（流式请求也需要）
-        const normalizedBody = normalizeKimiToolMessageLinks(streamRequestBody);
-
         let hasYielded = false;
 
         try {
-            // 获取访问令牌
+            // 先获取 token，确保能正确处理 token 过期
             const accessToken = await this.getAccessToken();
+
+            // 标准化模型名称和消息格式
+            const streamRequestBody = {
+                ...body,
+                stream: true,
+                stream_options: { include_usage: true }
+            };
+
+            // 标准化模型名称
+            if (streamRequestBody.model) {
+                streamRequestBody.model = this.normalizeModelName(streamRequestBody.model);
+            }
+
+            // 标准化消息格式（流式请求也需要）
+            const normalizedBody = normalizeKimiToolMessageLinks(streamRequestBody);
 
             const axiosConfig = {
                 method: 'post',

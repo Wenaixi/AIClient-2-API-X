@@ -382,7 +382,7 @@ export class KimiOAuthClient {
                 error.code === 'ECONNRESET'
             );
             // 可恢复的网络错误应该继续轮询
-            return { token: null, error, shouldContinue: isRetryable };
+            return { token: null, error, shouldContinue: isRetryable, increaseInterval: false };
         }
     }
 

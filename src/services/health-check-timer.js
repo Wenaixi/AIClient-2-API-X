@@ -143,8 +143,8 @@ async function executeHealthCheck() {
                 effectiveInterval = effectiveHealthyInterval;
             }
 
-            // 检查是否到期（jitter 应该延迟检查，不是提前）
-            if (now - lastTime < effectiveInterval + jitter) {
+            // 检查是否到期（jitter 应该是减少间隔，随机提前检查以防止时序攻击）
+            if (now - lastTime < effectiveInterval - jitter) {
                 continue;
             }
 

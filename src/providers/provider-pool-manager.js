@@ -83,13 +83,6 @@ export class ProviderPoolManager {
         this._selectionLocks = {};
         this._isSelecting = {}; // 同步标志位锁
 
-        // --- V2: 读写分离 and 异步刷新队列 ---
-        // 刷新并发控制配置
-        this.refreshConcurrency = {
-            global: options.globalConfig?.REFRESH_CONCURRENCY_GLOBAL ?? 2, // 全局最大并行提供商数
-            perProvider: options.globalConfig?.REFRESH_CONCURRENCY_PER_PROVIDER ?? 1 // 每个提供商内部最大并行数
-        };
-        
         // --- 刷新信号量配置 ---
         // 替代 activeProviderRefreshes + globalRefreshWaiters 的信号量模式
         this.refreshSemaphore = {
@@ -100,6 +93,9 @@ export class ProviderPoolManager {
             globalWaitQueue: [],  // Promise resolve 队列
             perProviderWaitQueues: {}  // { providerType: [resolve] }
         };
+
+        // 统一使用 refreshSemaphore.perProvider 保持向后兼容
+        this.refreshConcurrency = this.refreshSemaphore;
 
         this.warmupTarget = options.globalConfig?.WARMUP_TARGET || 0; // 默认预热0个节点
         this.refreshingUuids = new Set(); // 正在刷新的节点 UUID 集合
@@ -244,11 +240,10 @@ export class ProviderPoolManager {
                             // 凭据文件缺少 expiry 字段，无法判断是否快过期，作为安全措施强制刷新
                             this._log('warn', `Node ${providerStatus.uuid} (${providerType}) has no expiry field. Forcing refresh as safety measure...`);
                             this._enqueueRefresh(providerType, providerStatus);
-                        } else if ((expiryTime - Date.now()) < nearExpiryMs) {
-                            // 再次检查 expiryTime 量级，如果是秒级（< 1e12）则转换为毫秒
+                        } else {
+                            // 先规范化再比较
                             let normalizedExpiry = expiryTime;
                             if (expiryTime < 1e12) {
-                                // 秒级时间戳，转换为毫秒
                                 normalizedExpiry = expiryTime * 1000;
                             }
                             if ((normalizedExpiry - Date.now()) < nearExpiryMs) {
@@ -522,9 +517,10 @@ export class ProviderPoolManager {
             // 同步获取信号量（内部已经是队列机制）
             const acquired = this._acquireGlobalSemaphoreSync();
             if (!acquired) {
+                // 修复：先设置 ownsGlobalSlot，再等待信号量
+                ownsGlobalSlot = true;
                 // 等待信号量可用
                 this._acquireGlobalSemaphore(providerType).then(() => {
-                    ownsGlobalSlot = true;
                     tryStartProviderQueue();
                 });
             } else {
