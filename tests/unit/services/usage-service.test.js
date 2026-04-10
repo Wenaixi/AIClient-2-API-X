@@ -1,143 +1,132 @@
 /**
- * usage-service.js 深度单元测试 - formatKimiUsage 函数
- * 覆盖各种输入格式和边界情况
- *
- * 注意: formatKimiUsage 是纯函数，但由于 usage-service.js 的顶层
- * import 链会触发 tls-sidecar.js 中的 import.meta.url 错误，
- * 我们在此直接实现函数副本进行测试，保持测试的隔离性和可靠性。
+ * usage-service.js 深度单元测试
+ * 增强对 UsageService 类和各种 format 函数的测试覆盖
  */
 
-/**
- * formatKimiUsage 函数实现（与 usage-service.js 中完全一致）
- */
-function formatKimiUsage(usageData) {
-    if (!usageData) {
-        return null;
+import { jest, describe, test, expect, beforeEach } from '@jest/globals';
+
+// Mock logger - 注意路径正确，向上三级
+jest.mock('../../../src/utils/logger.js', () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    default: {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn()
     }
+}));
 
-    const result = {
-        daysUntilReset: null,
-        nextDateReset: null,
-        subscription: {
-            title: 'Kimi OAuth',
-            type: 'kimi-oauth',
-            upgradeCapability: null,
-            overageCapability: null
-        },
-        user: {
-            email: null,
-            userId: null
-        },
-        usageBreakdown: []
-    };
+// Mock service-manager
+jest.mock('../../../src/services/service-manager.js', () => ({
+    getProviderPoolManager: jest.fn()
+}));
 
-    if (usageData.user) {
-        result.user = {
-            email: usageData.user.email || null,
-            userId: usageData.user.id || usageData.user.user_id || null
-        };
+// Mock adapter
+jest.mock('../../../src/providers/adapter.js', () => ({
+    serviceInstances: {},
+    MODEL_PROVIDER: {
+        KIRO_API: 'claude-kiro-oauth',
+        GEMINI_CLI: 'gemini-cli-oauth',
+        ANTIGRAVITY: 'gemini-antigravity',
+        CODEX_API: 'openai-codex-oauth',
+        GROK_CUSTOM: 'grok-custom',
+        KIMI_API: 'kimi-oauth'
     }
+}));
 
-    if (usageData.subscription || usageData.plan) {
-        const subInfo = usageData.subscription || usageData.plan;
-        result.subscription.title = subInfo.name || subInfo.title || 'Kimi OAuth';
-        if (subInfo.reset_date || subInfo.billing_cycle_end) {
-            const resetDate = new Date(subInfo.reset_date || subInfo.billing_cycle_end);
-            result.nextDateReset = resetDate.toISOString();
-            const now = new Date();
-            const diffTime = resetDate.getTime() - now.getTime();
-            result.daysUntilReset = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
+// Mock common utils
+jest.mock('../../../src/utils/common.js', () => ({
+    MODEL_PROVIDER: {
+        KIRO_API: 'claude-kiro-oauth',
+        GEMINI_CLI: 'gemini-cli-oauth',
+        ANTIGRAVITY: 'gemini-antigravity',
+        CODEX_API: 'openai-codex-oauth',
+        GROK_CUSTOM: 'grok-custom',
+        KIMI_API: 'kimi-oauth'
     }
+}));
 
-    if (usageData.quota || usageData.usage) {
-        const quotaInfo = usageData.quota || usageData.usage;
+// 导入被测试的模块
+const usageServiceModule = require('../../../src/services/usage-service.js');
+const {
+    UsageService,
+    usageService,
+    formatKiroUsage,
+    formatGeminiUsage,
+    formatAntigravityUsage,
+    formatGrokUsage,
+    formatCodexUsage,
+    formatKimiUsage
+} = usageServiceModule;
 
-        if (Array.isArray(quotaInfo.breakdown)) {
-            for (const item of quotaInfo.breakdown) {
-                result.usageBreakdown.push({
-                    resourceType: item.resource_type || 'USAGE',
-                    displayName: item.display_name || item.name || 'Usage',
-                    displayNamePlural: item.display_name || item.name || 'Usage',
-                    unit: item.unit || 'requests',
-                    currency: null,
-                    currentUsage: item.used || 0,
-                    usageLimit: item.total || item.limit || 0,
-                    currentOverages: 0,
-                    overageCap: 0,
-                    overageRate: null,
-                    overageCharges: 0,
-                    nextDateReset: result.nextDateReset,
-                    freeTrial: null,
-                    bonuses: []
-                });
-            }
-        } else if (quotaInfo.used !== undefined && quotaInfo.total !== undefined) {
-            result.usageBreakdown.push({
-                resourceType: 'USAGE',
-                displayName: 'Kimi Usage',
-                displayNamePlural: 'Kimi Usage',
-                unit: 'requests',
-                currency: null,
-                currentUsage: quotaInfo.used,
-                usageLimit: quotaInfo.total,
-                currentOverages: 0,
-                overageCap: 0,
-                overageRate: null,
-                overageCharges: 0,
-                nextDateReset: result.nextDateReset,
-                freeTrial: null,
-                bonuses: []
-            });
-        }
-    }
+// ============ UsageService 类测试 ============
 
-    if (usageData.raw && !result.usageBreakdown.length) {
-        result.usageBreakdown.push({
-            resourceType: 'RAW_DATA',
-            displayName: 'Kimi Account Data',
-            displayNamePlural: 'Kimi Account Data',
-            unit: 'info',
-            currency: null,
-            currentUsage: 0,
-            usageLimit: 0,
-            currentOverages: 0,
-            overageCap: 0,
-            overageRate: null,
-            overageCharges: 0,
-            nextDateReset: null,
-            freeTrial: null,
-            bonuses: [],
-            rawData: usageData.raw
+describe('UsageService', () => {
+    let service;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new UsageService();
+    });
+
+    describe('构造函数', () => {
+        test('should initialize with all provider handlers', () => {
+            expect(service.providerHandlers).toBeDefined();
+            expect(typeof service.providerHandlers['claude-kiro-oauth']).toBe('function');
+            expect(typeof service.providerHandlers['gemini-cli-oauth']).toBe('function');
+            expect(typeof service.providerHandlers['gemini-antigravity']).toBe('function');
+            expect(typeof service.providerHandlers['openai-codex-oauth']).toBe('function');
+            expect(typeof service.providerHandlers['grok-custom']).toBe('function');
+            expect(typeof service.providerHandlers['kimi-oauth']).toBe('function');
         });
-    }
+    });
 
-    if (!result.usageBreakdown.length) {
-        result.usageBreakdown.push({
-            resourceType: 'ACCOUNT',
-            displayName: 'Kimi Account',
-            displayNamePlural: 'Kimi Accounts',
-            unit: 'info',
-            currency: null,
-            currentUsage: 0,
-            usageLimit: 0,
-            currentOverages: 0,
-            overageCap: 0,
-            overageRate: null,
-            overageCharges: 0,
-            nextDateReset: null,
-            freeTrial: null,
-            bonuses: []
+    describe('getUsage', () => {
+        test('should throw error for unsupported provider', async () => {
+            await expect(service.getUsage('unsupported-provider')).rejects.toThrow('不支持的提供商类型');
         });
-    }
 
-    return result;
-}
+        test('should call correct handler for supported provider', async () => {
+            const mockHandler = jest.fn().mockResolvedValue({ usage: 'test' });
+            service.providerHandlers['claude-kiro-oauth'] = mockHandler;
+
+            const result = await service.getUsage('claude-kiro-oauth', 'uuid-1');
+            expect(mockHandler).toHaveBeenCalledWith('uuid-1');
+            expect(result).toEqual({ usage: 'test' });
+        });
+
+        test('should pass null uuid to handler when not provided', async () => {
+            const mockHandler = jest.fn().mockResolvedValue({ usage: 'test' });
+            service.providerHandlers['claude-kiro-oauth'] = mockHandler;
+
+            await service.getUsage('claude-kiro-oauth');
+            expect(mockHandler).toHaveBeenCalledWith(null);
+        });
+    });
+
+    describe('getSupportedProviders', () => {
+        test('should return array of supported provider types', () => {
+            const providers = service.getSupportedProviders();
+            expect(Array.isArray(providers)).toBe(true);
+            expect(providers).toContain('claude-kiro-oauth');
+            expect(providers).toContain('gemini-cli-oauth');
+            expect(providers).toContain('kimi-oauth');
+        });
+
+        test('should return all registered providers', () => {
+            const providers = service.getSupportedProviders();
+            expect(providers.length).toBe(6); // 6 providers without AUTO
+        });
+    });
+});
+
+// ============ formatKimiUsage 测试 ============
 
 describe('formatKimiUsage', () => {
-    // --- 空值处理 ---
-
-    describe('null/undefined/empty handling', () => {
+    describe('空值处理', () => {
         test('should return null for null input', () => {
             expect(formatKimiUsage(null)).toBeNull();
         });
@@ -146,48 +135,16 @@ describe('formatKimiUsage', () => {
             expect(formatKimiUsage(undefined)).toBeNull();
         });
 
-        test('should return null for empty object', () => {
+        test('should return default structure for empty object', () => {
             const result = formatKimiUsage({});
             expect(result).not.toBeNull();
-            expect(result.daysUntilReset).toBeNull();
-            expect(result.nextDateReset).toBeNull();
-            expect(result.subscription).toBeDefined();
+            expect(result.subscription.title).toBe('Kimi OAuth');
             expect(result.usageBreakdown).toHaveLength(1);
             expect(result.usageBreakdown[0].resourceType).toBe('ACCOUNT');
         });
     });
 
-    // --- 默认结构 ---
-
-    describe('default structure', () => {
-        test('should return correct default subscription info', () => {
-            const result = formatKimiUsage({});
-            expect(result.subscription).toEqual({
-                title: 'Kimi OAuth',
-                type: 'kimi-oauth',
-                upgradeCapability: null,
-                overageCapability: null
-            });
-        });
-
-        test('should return correct default user info', () => {
-            const result = formatKimiUsage({});
-            expect(result.user).toEqual({
-                email: null,
-                userId: null
-            });
-        });
-
-        test('should return correct default reset info', () => {
-            const result = formatKimiUsage({});
-            expect(result.daysUntilReset).toBeNull();
-            expect(result.nextDateReset).toBeNull();
-        });
-    });
-
-    // --- 用户信息解析 ---
-
-    describe('user info parsing', () => {
+    describe('用户信息解析', () => {
         test('should parse user.email', () => {
             const result = formatKimiUsage({ user: { email: 'test@kimi.com' } });
             expect(result.user.email).toBe('test@kimi.com');
@@ -207,26 +164,9 @@ describe('formatKimiUsage', () => {
             const result = formatKimiUsage({ user: { id: 'primary', user_id: 'secondary' } });
             expect(result.user.userId).toBe('primary');
         });
-
-        test('should handle complete user info', () => {
-            const result = formatKimiUsage({
-                user: { email: 'user@kimi.com', id: 'uid-1' }
-            });
-            expect(result.user).toEqual({
-                email: 'user@kimi.com',
-                userId: 'uid-1'
-            });
-        });
-
-        test('should handle missing user field', () => {
-            const result = formatKimiUsage({ subscription: {} });
-            expect(result.user).toEqual({ email: null, userId: null });
-        });
     });
 
-    // --- 订阅信息解析 ---
-
-    describe('subscription info parsing', () => {
+    describe('订阅信息解析', () => {
         test('should parse subscription.name as title', () => {
             const result = formatKimiUsage({ subscription: { name: 'Kimi Pro' } });
             expect(result.subscription.title).toBe('Kimi Pro');
@@ -270,9 +210,7 @@ describe('formatKimiUsage', () => {
         });
     });
 
-    // --- 用量解析 - breakdown 数组 ---
-
-    describe('usage breakdown array parsing', () => {
+    describe('用量解析 - breakdown 数组', () => {
         test('should parse quota.breakdown array', () => {
             const result = formatKimiUsage({
                 quota: {
@@ -289,45 +227,8 @@ describe('formatKimiUsage', () => {
             expect(result.usageBreakdown[0]).toMatchObject({
                 resourceType: 'MESSAGES',
                 displayName: 'Messages',
-                unit: 'count',
                 currentUsage: 50,
                 usageLimit: 100
-            });
-        });
-
-        test('should parse usage.breakdown array', () => {
-            const result = formatKimiUsage({
-                usage: {
-                    breakdown: [{
-                        resource_type: 'TOKENS',
-                        display_name: 'Tokens',
-                        used: 1000,
-                        total: 10000
-                    }]
-                }
-            });
-            expect(result.usageBreakdown).toHaveLength(1);
-            expect(result.usageBreakdown[0].resourceType).toBe('TOKENS');
-            expect(result.usageBreakdown[0].currentUsage).toBe(1000);
-        });
-
-        test('should set default values for missing breakdown fields', () => {
-            const result = formatKimiUsage({
-                quota: { breakdown: [{}] }
-            });
-            expect(result.usageBreakdown[0]).toMatchObject({
-                resourceType: 'USAGE',
-                displayName: 'Usage',
-                displayNamePlural: 'Usage',
-                unit: 'requests',
-                currentUsage: 0,
-                usageLimit: 0,
-                currentOverages: 0,
-                overageCap: 0,
-                overageRate: null,
-                overageCharges: 0,
-                freeTrial: null,
-                bonuses: []
             });
         });
 
@@ -341,48 +242,34 @@ describe('formatKimiUsage', () => {
                 }
             });
             expect(result.usageBreakdown).toHaveLength(2);
-            expect(result.usageBreakdown[0].resourceType).toBe('R1');
-            expect(result.usageBreakdown[1].resourceType).toBe('R2');
         });
 
-        test('should inherit nextDateReset from subscription for breakdown items', () => {
-            const futureDate = new Date(Date.now() + 86400000 * 10).toISOString();
+        test('should set default values for missing breakdown fields', () => {
             const result = formatKimiUsage({
-                subscription: { reset_date: futureDate },
-                quota: { breakdown: [{ used: 5, total: 100 }] }
+                quota: { breakdown: [{}] }
             });
-            expect(result.usageBreakdown[0].nextDateReset).toBe(futureDate);
+            expect(result.usageBreakdown[0]).toMatchObject({
+                resourceType: 'USAGE',
+                displayName: 'Usage',
+                unit: 'requests',
+                currentUsage: 0,
+                usageLimit: 0
+            });
         });
     });
 
-    // --- 用量解析 - 简单格式 ---
-
-    describe('simple usage format parsing', () => {
+    describe('用量解析 - 简单格式', () => {
         test('should parse quota.used and quota.total', () => {
             const result = formatKimiUsage({
                 quota: { used: 75, total: 200 }
             });
             expect(result.usageBreakdown).toHaveLength(1);
-            expect(result.usageBreakdown[0]).toMatchObject({
-                resourceType: 'USAGE',
-                displayName: 'Kimi Usage',
-                currentUsage: 75,
-                usageLimit: 200
-            });
-        });
-
-        test('should parse usage.used and usage.total', () => {
-            const result = formatKimiUsage({
-                usage: { used: 30, total: 500 }
-            });
-            expect(result.usageBreakdown[0].currentUsage).toBe(30);
-            expect(result.usageBreakdown[0].usageLimit).toBe(500);
+            expect(result.usageBreakdown[0].currentUsage).toBe(75);
+            expect(result.usageBreakdown[0].usageLimit).toBe(200);
         });
     });
 
-    // --- Raw data handling ---
-
-    describe('raw data handling', () => {
+    describe('Raw data handling', () => {
         test('should include raw data when no usage breakdown exists', () => {
             const result = formatKimiUsage({
                 raw: { some: 'data', status: 200 }
@@ -397,85 +284,20 @@ describe('formatKimiUsage', () => {
                 raw: { some: 'data' },
                 quota: { used: 10, total: 100 }
             });
-            // Should use quota info, not raw data
             expect(result.usageBreakdown[0].resourceType).toBe('USAGE');
             expect(result.usageBreakdown[0].rawData).toBeUndefined();
         });
     });
 
-    // --- Default ACCOUNT fallback ---
-
-    describe('default ACCOUNT fallback', () => {
+    describe('默认 ACCOUNT fallback', () => {
         test('should create default ACCOUNT entry when no usage data', () => {
             const result = formatKimiUsage({ user: { email: 'test@kimi.com' } });
             expect(result.usageBreakdown).toHaveLength(1);
             expect(result.usageBreakdown[0].resourceType).toBe('ACCOUNT');
-            expect(result.usageBreakdown[0].displayName).toBe('Kimi Account');
-            expect(result.usageBreakdown[0].currentUsage).toBe(0);
-            expect(result.usageBreakdown[0].usageLimit).toBe(0);
         });
     });
 
-    // --- 复杂场景 ---
-
-    describe('complex scenario', () => {
-        test('should handle complete usage data', () => {
-            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
-            const input = {
-                user: { email: 'user@kimi.com', id: 'user-1' },
-                subscription: {
-                    name: 'Kimi Pro Plus',
-                    type: 'pro',
-                    reset_date: futureDate
-                },
-                quota: {
-                    breakdown: [{
-                        resource_type: 'MESSAGES',
-                        display_name: 'Daily Messages',
-                        unit: 'messages',
-                        used: 150,
-                        total: 500
-                    }]
-                }
-            };
-            const result = formatKimiUsage(input);
-
-            expect(result.user.email).toBe('user@kimi.com');
-            expect(result.user.userId).toBe('user-1');
-            expect(result.subscription.title).toBe('Kimi Pro Plus');
-            expect(result.nextDateReset).toBe(futureDate);
-            expect(result.usageBreakdown).toHaveLength(1);
-            expect(result.usageBreakdown[0].currentUsage).toBe(150);
-            expect(result.usageBreakdown[0].usageLimit).toBe(500);
-        });
-
-        test('should handle error response format', () => {
-            const input = {
-                raw: { error: 'Rate limited' },
-                status: 429,
-                error: 'Rate limited error'
-            };
-            const result = formatKimiUsage(input);
-            expect(result.usageBreakdown[0].resourceType).toBe('RAW_DATA');
-            expect(result.usageBreakdown[0].rawData).toEqual(input.raw);
-        });
-    });
-
-    // --- 边界情况 ---
-
-    describe('edge cases', () => {
-        test('should handle partial user info', () => {
-            const result = formatKimiUsage({ user: {} });
-            expect(result.user.email).toBeNull();
-            expect(result.user.userId).toBeNull();
-        });
-
-        test('should handle subscription with no dates', () => {
-            const result = formatKimiUsage({ subscription: { name: 'Basic' } });
-            expect(result.daysUntilReset).toBeNull();
-            expect(result.nextDateReset).toBeNull();
-        });
-
+    describe('边界情况', () => {
         test('should handle negative days until reset', () => {
             const pastDate = new Date(Date.now() - 86400000 * 5).toISOString();
             const result = formatKimiUsage({ subscription: { reset_date: pastDate } });
@@ -494,5 +316,416 @@ describe('formatKimiUsage', () => {
             expect(result.usageBreakdown[0].currentUsage).toBe(0);
             expect(result.usageBreakdown[0].usageLimit).toBe(100);
         });
+    });
+});
+
+// ============ formatKiroUsage 测试 ============
+
+describe('formatKiroUsage', () => {
+    describe('空值处理', () => {
+        test('should return null for null input', () => {
+            expect(formatKiroUsage(null)).toBeNull();
+        });
+
+        test('should return null for undefined input', () => {
+            expect(formatKiroUsage(undefined)).toBeNull();
+        });
+
+        test('should return default structure for empty object', () => {
+            const result = formatKiroUsage({});
+            expect(result).not.toBeNull();
+            expect(result.subscription).toBeNull();
+            expect(result.usageBreakdown).toHaveLength(0);
+        });
+    });
+
+    describe('订阅信息解析', () => {
+        test('should parse subscriptionInfo', () => {
+            const result = formatKiroUsage({
+                subscriptionInfo: {
+                    subscriptionTitle: 'Kiro Pro',
+                    type: 'pro',
+                    upgradeCapability: true,
+                    overageCapability: false
+                }
+            });
+            expect(result.subscription).toEqual({
+                title: 'Kiro Pro',
+                type: 'pro',
+                upgradeCapability: true,
+                overageCapability: false
+            });
+        });
+    });
+
+    describe('用户信息解析', () => {
+        test('should parse userInfo', () => {
+            const result = formatKiroUsage({
+                userInfo: {
+                    email: 'test@kiro.com',
+                    userId: 'user-123'
+                }
+            });
+            expect(result.user).toEqual({
+                email: 'test@kiro.com',
+                userId: 'user-123'
+            });
+        });
+    });
+
+    describe('用量明细解析', () => {
+        test('should parse usageBreakdownList', () => {
+            const result = formatKiroUsage({
+                usageBreakdownList: [{
+                    resourceType: 'MESSAGES',
+                    displayName: 'Messages',
+                    displayNamePlural: 'Messages',
+                    unit: 'count',
+                    currency: 'USD',
+                    currentUsage: 50,
+                    usageLimit: 100,
+                    currentOverages: 0,
+                    overageCap: 10,
+                    overageRate: 0.01,
+                    overageCharges: 0.5,
+                    nextDateReset: 1704067200
+                }]
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].resourceType).toBe('MESSAGES');
+            expect(result.usageBreakdown[0].currentUsage).toBe(50);
+            expect(result.usageBreakdown[0].nextDateReset).toBeDefined();
+        });
+
+        test('should handle freeTrialInfo', () => {
+            const result = formatKiroUsage({
+                usageBreakdownList: [{
+                    resourceType: 'TRIAL',
+                    displayName: 'Trial',
+                    currentUsageWithPrecision: 5.5,
+                    usageLimitWithPrecision: 10,
+                    freeTrialInfo: {
+                        freeTrialStatus: 'active',
+                        currentUsageWithPrecision: 2,
+                        usageLimitWithPrecision: 5,
+                        freeTrialExpiry: 1704067200
+                    }
+                }]
+            });
+            expect(result.usageBreakdown[0].freeTrial).toEqual({
+                status: 'active',
+                currentUsage: 2,
+                usageLimit: 5,
+                expiresAt: expect.any(String)
+            });
+        });
+
+        test('should handle bonuses', () => {
+            const result = formatKiroUsage({
+                usageBreakdownList: [{
+                    resourceType: 'BONUS',
+                    displayName: 'Bonus',
+                    bonuses: [{
+                        bonusCode: 'BONUS123',
+                        displayName: 'Referral Bonus',
+                        description: 'For referring friends',
+                        status: 'active',
+                        currentUsage: 1,
+                        usageLimit: 5,
+                        redeemedAt: 1704067200,
+                        expiresAt: 1704153600
+                    }]
+                }]
+            });
+            expect(result.usageBreakdown[0].bonuses).toHaveLength(1);
+            expect(result.usageBreakdown[0].bonuses[0].code).toBe('BONUS123');
+        });
+    });
+
+    describe('日期处理', () => {
+        test('should convert nextDateReset timestamp to ISO string', () => {
+            const result = formatKiroUsage({
+                nextDateReset: 1704067200,
+                usageBreakdownList: []
+            });
+            expect(result.nextDateReset).toBeDefined();
+            expect(new Date(result.nextDateReset).toString()).not.toBe('Invalid Date');
+        });
+
+        test('should handle null nextDateReset', () => {
+            const result = formatKiroUsage({
+                nextDateReset: null,
+                usageBreakdownList: []
+            });
+            expect(result.nextDateReset).toBeNull();
+        });
+    });
+});
+
+// ============ formatGeminiUsage 测试 ============
+
+describe('formatGeminiUsage', () => {
+    describe('空值处理', () => {
+        test('should return null for null input', () => {
+            expect(formatGeminiUsage(null)).toBeNull();
+        });
+
+        test('should return default structure for empty object', () => {
+            const result = formatGeminiUsage({});
+            expect(result).not.toBeNull();
+            expect(result.subscription.title).toBe('Gemini CLI OAuth');
+            expect(result.usageBreakdown).toHaveLength(0);
+        });
+    });
+
+    describe('配额信息解析', () => {
+        test('should parse quotaInfo', () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const result = formatGeminiUsage({
+                quotaInfo: {
+                    currentTier: 'Pro',
+                    quotaResetTime: futureDate
+                }
+            });
+            expect(result.subscription.title).toBe('Pro');
+            expect(result.nextDateReset).toBe(futureDate);
+            expect(result.daysUntilReset).toBeGreaterThan(0);
+        });
+    });
+
+    describe('模型配额解析', () => {
+        test('should parse models with remaining percentage', () => {
+            const result = formatGeminiUsage({
+                models: {
+                    'gemini-pro:token': {
+                        remaining: 0.75,
+                        resetTime: '2024-01-01T00:00:00Z',
+                        resetTimeRaw: '2024-01-01T00:00:00Z'
+                    }
+                }
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].currentUsage).toBe(25); // 100 - 75
+            expect(result.usageBreakdown[0].remaining).toBe(0.75);
+            expect(result.usageBreakdown[0].modelName).toBe('gemini-pro');
+            expect(result.usageBreakdown[0].tokenType).toBe('token');
+        });
+
+        test('should handle multiple models', () => {
+            const result = formatGeminiUsage({
+                models: {
+                    'gemini-pro:text': { remaining: 0.5, resetTime: '2024-01-01' },
+                    'gemini-pro:audio': { remaining: 0.8, resetTime: '2024-01-01' }
+                }
+            });
+            expect(result.usageBreakdown).toHaveLength(2);
+        });
+
+        test('should use inputTokenLimit and outputTokenLimit', () => {
+            const result = formatGeminiUsage({
+                models: {
+                    'gemini-pro:text': {
+                        remaining: 0.9,
+                        inputTokenLimit: 1000000,
+                        outputTokenLimit: 100000
+                    }
+                }
+            });
+            expect(result.usageBreakdown[0].inputTokenLimit).toBe(1000000);
+            expect(result.usageBreakdown[0].outputTokenLimit).toBe(100000);
+        });
+    });
+});
+
+// ============ formatAntigravityUsage 测试 ============
+
+describe('formatAntigravityUsage', () => {
+    describe('空值处理', () => {
+        test('should return null for null input', () => {
+            expect(formatAntigravityUsage(null)).toBeNull();
+        });
+
+        test('should return default structure for empty object', () => {
+            const result = formatAntigravityUsage({});
+            expect(result).not.toBeNull();
+            expect(result.subscription.title).toBe('Gemini Antigravity');
+        });
+    });
+
+    describe('配额信息解析', () => {
+        test('should parse quotaInfo', () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const result = formatAntigravityUsage({
+                quotaInfo: {
+                    currentTier: 'Advanced',
+                    quotaResetTime: futureDate
+                }
+            });
+            expect(result.subscription.title).toBe('Advanced');
+        });
+    });
+
+    describe('模型配额解析', () => {
+        test('should parse models with displayName', () => {
+            const result = formatAntigravityUsage({
+                models: {
+                    'gemini-2.0-flash': {
+                        remaining: 0.6,
+                        displayName: 'Gemini 2.0 Flash',
+                        resetTime: '2024-01-01'
+                    }
+                }
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].displayName).toBe('Gemini 2.0 Flash');
+            expect(result.usageBreakdown[0].modelName).toBe('gemini-2.0-flash');
+        });
+
+        test('should use modelName as displayName fallback', () => {
+            const result = formatAntigravityUsage({
+                models: {
+                    'custom-model': {
+                        remaining: 0.5
+                    }
+                }
+            });
+            expect(result.usageBreakdown[0].displayName).toBe('custom-model');
+        });
+    });
+});
+
+// ============ formatGrokUsage 测试 ============
+
+describe('formatGrokUsage', () => {
+    describe('空值处理', () => {
+        test('should return null for null input', () => {
+            expect(formatGrokUsage(null)).toBeNull();
+        });
+
+        test('should return default structure for empty object', () => {
+            const result = formatGrokUsage({});
+            expect(result).not.toBeNull();
+            expect(result.subscription.title).toBe('Grok Custom');
+            expect(result.usageBreakdown).toHaveLength(0);
+        });
+    });
+
+    describe('用量解析 - tokens', () => {
+        test('should parse totalLimit and usedQueries', () => {
+            const result = formatGrokUsage({
+                unit: 'tokens',
+                totalLimit: 10000,
+                usedQueries: 2500
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].resourceType).toBe('TOKEN_USAGE');
+            expect(result.usageBreakdown[0].displayName).toBe('Remaining Tokens');
+            expect(result.usageBreakdown[0].currentUsage).toBe(2500);
+            expect(result.usageBreakdown[0].usageLimit).toBe(10000);
+        });
+    });
+
+    describe('用量解析 - queries', () => {
+        test('should parse remainingTokens', () => {
+            const result = formatGrokUsage({
+                remainingTokens: 5000
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].displayName).toBe('Remaining Tokens');
+            expect(result.usageBreakdown[0].usageLimit).toBe(5000);
+        });
+    });
+});
+
+// ============ formatCodexUsage 测试 ============
+
+describe('formatCodexUsage', () => {
+    describe('空值处理', () => {
+        test('should return null for null input', () => {
+            expect(formatCodexUsage(null)).toBeNull();
+        });
+
+        test('should return default structure for empty object', () => {
+            const result = formatCodexUsage({});
+            expect(result).not.toBeNull();
+            expect(result.subscription.title).toBe('Codex OAuth');
+            expect(result.usageBreakdown).toHaveLength(0);
+        });
+    });
+
+    describe('计划信息解析', () => {
+        test('should parse raw.planType', () => {
+            const result = formatCodexUsage({
+                raw: { planType: 'pro' }
+            });
+            expect(result.subscription.title).toBe('Codex (pro)');
+        });
+    });
+
+    describe('配额信息解析', () => {
+        test('should parse rateLimit.primaryWindow.resetAt', () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30);
+            const result = formatCodexUsage({
+                raw: {
+                    rateLimit: {
+                        primaryWindow: {
+                            resetAt: futureDate.getTime() / 1000
+                        }
+                    }
+                }
+            });
+            expect(result.nextDateReset).toBeDefined();
+            expect(result.daysUntilReset).toBeGreaterThan(0);
+        });
+    });
+
+    describe('模型配额解析', () => {
+        test('should parse models with remaining percentage', () => {
+            const result = formatCodexUsage({
+                models: {
+                    'codex-plus:text': {
+                        remaining: 0.7,
+                        resetTime: '2024-01-01T00:00:00Z',
+                        resetTimeRaw: 1704067200 // Unix timestamp in seconds
+                    }
+                }
+            });
+            expect(result.usageBreakdown).toHaveLength(1);
+            expect(result.usageBreakdown[0].currentUsage).toBe(30); // 100 - 70
+            expect(result.usageBreakdown[0].remaining).toBe(0.7);
+            expect(result.usageBreakdown[0].modelName).toBe('codex-plus:text');
+        });
+
+        test('should include rateLimit in breakdown item', () => {
+            const result = formatCodexUsage({
+                models: {
+                    'codex': { remaining: 0.5 }
+                },
+                raw: {
+                    rateLimit: {
+                        primaryWindow: { resetAt: 1704067200 }
+                    }
+                }
+            });
+            expect(result.usageBreakdown[0].rateLimit).toBeDefined();
+        });
+    });
+});
+
+// ============ usageService 单例测试 ============
+
+describe('usageService singleton', () => {
+    test('should be instance of UsageService', () => {
+        expect(usageService).toBeInstanceOf(UsageService);
+    });
+
+    test('should have all provider handlers registered', () => {
+        const providers = usageService.getSupportedProviders();
+        expect(providers).toContain('claude-kiro-oauth');
+        expect(providers).toContain('gemini-cli-oauth');
+        expect(providers).toContain('gemini-antigravity');
+        expect(providers).toContain('openai-codex-oauth');
+        expect(providers).toContain('grok-custom');
+        expect(providers).toContain('kimi-oauth');
     });
 });

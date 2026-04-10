@@ -1,278 +1,392 @@
 /**
- * Health Check Timer 模块单元测试
- *
- * 测试策略：不依赖实际的 health-check-timer 模块导入，
- * 因为该模块有复杂的依赖链。采用独立测试设计。
+ * health-check-timer.js 深度单元测试
+ * 增强对实际模块功能的测试覆盖
  */
 
-import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 
-/**
- * 测试用的常量值（从 constants.js 复制）
- */
+// Mock logger - 注意路径正确，向上三级
+jest.mock('../../../src/utils/logger.js', () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    default: {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn()
+    }
+}));
+
+// Mock getProviderPoolManager
+jest.mock('../../../src/services/service-manager.js', () => ({
+    getProviderPoolManager: jest.fn()
+}));
+
+// Mock 常量
 const HEALTH_CHECK = {
-  MIN_INTERVAL_MS: 60000,
-  DEFAULT_INTERVAL_MS: 600000,
-  MAX_INTERVAL_MS: 172800000
+    MIN_INTERVAL_MS: 60000,
+    DEFAULT_INTERVAL_MS: 600000,
+    MAX_INTERVAL_MS: 172800000,
+    MAX_CONCURRENT_CHECKS: 5,
+    JITTER_MS: 1000,
+    MAX_LAST_CHECK_ENTRIES: 1000,
+    HEALTHY_CHECK_INTERVAL_MS: 3600000,
+    MIN_HEALTHY_CHECK_INTERVAL_MS: 60000,
+    MAX_HEALTHY_CHECK_INTERVAL_MS: 86400000
 };
 
-/**
- * 测试用的 Timer 状态类（简化版）
- */
-class TestableHealthCheckTimer {
-  constructor() {
-    this.checkPromise = null;
-    this.timerId = null;
-    this.activeInterval = null;
-  }
+jest.mock('../../../src/utils/constants.js', () => ({
+    HEALTH_CHECK
+}));
 
-  start(interval) {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-    }
+// 导入被测试的模块
+const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
 
-    const safeInterval =
-      typeof interval === 'number' && interval >= HEALTH_CHECK.MIN_INTERVAL_MS
-        ? Math.min(interval, HEALTH_CHECK.MAX_INTERVAL_MS)
-        : HEALTH_CHECK.DEFAULT_INTERVAL_MS;
-
-    this.timerId = setInterval(() => {
-      if (this.checkPromise) return;
-      this.checkPromise = Promise.resolve().finally(() => {
-        this.checkPromise = null;
-      });
-    }, safeInterval);
-
-    this.activeInterval = safeInterval;
-    return safeInterval;
-  }
-
-  stop() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-      this.timerId = null;
-      this.activeInterval = null;
-    }
-  }
-
-  reload(interval) {
-    this.start(interval);
-    return this.activeInterval;
-  }
-
-  getStatus() {
+// 测试辅助函数：创建模拟的 providerStatus
+function createMockProviderStatus() {
     return {
-      isActive: this.timerId !== null,
-      isRunning: this.checkPromise !== null,
-      interval: this.activeInterval
+        'claude-kiro-oauth': new Map([
+            ['uuid-1', { config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } }],
+            ['uuid-2', { config: { uuid: 'uuid-2', isDisabled: false, isHealthy: false } }]
+        ]),
+        'gemini-cli-oauth': new Map([
+            ['uuid-3', { config: { uuid: 'uuid-3', isDisabled: false, isHealthy: true } }]
+        ])
     };
-  }
 }
 
-describe('TestableHealthCheckTimer', () => {
-  let timer;
+// 测试辅助函数：创建模拟的 poolManager
+function createMockPoolManager(overrides = {}) {
+    return {
+        providerStatus: createMockProviderStatus(),
+        performHealthChecksByType: jest.fn().mockResolvedValue(),
+        ...overrides
+    };
+}
 
-  beforeEach(() => {
-    timer = new TestableHealthCheckTimer();
-    jest.useFakeTimers();
-  });
+describe('health-check-timer.js 模块导出', () => {
+    test('should export all required functions', () => {
+        expect(typeof healthCheckTimerModule.startHealthCheckTimer).toBe('function');
+        expect(typeof healthCheckTimerModule.stopHealthCheckTimer).toBe('function');
+        expect(typeof healthCheckTimerModule.reloadHealthCheckTimer).toBe('function');
+        expect(typeof healthCheckTimerModule.getHealthCheckTimerStatus).toBe('function');
+        expect(typeof healthCheckTimerModule.updateHealthCheckTimers).toBe('function');
+        expect(typeof healthCheckTimerModule.runStartupHealthCheck).toBe('function');
+    });
+});
 
-  afterEach(() => {
-    timer.stop();
-    jest.useRealTimers();
-  });
+describe('startHealthCheckTimer', () => {
+    const { startHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } = healthCheckTimerModule;
 
-  describe('start()', () => {
-    test('should return configured interval', () => {
-      const interval = 120000;
-      const result = timer.start(interval);
-      expect(result).toBe(interval);
+    beforeEach(() => {
+        jest.clearAllMocks();
+        stopHealthCheckTimer();
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
+
+    test('should start timer with valid interval', () => {
+        const interval = 120000;
+        const result = startHealthCheckTimer(interval);
+        expect(result).toBe(interval);
     });
 
     test('should use default interval for invalid input', () => {
-      const result = timer.start(-100);
-      expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+        const result = startHealthCheckTimer(-100);
+        expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
     });
 
     test('should use default interval for zero', () => {
-      const result = timer.start(0);
-      expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+        const result = startHealthCheckTimer(0);
+        expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
     });
 
     test('should use default interval for non-numeric', () => {
-      const result = timer.start('invalid');
-      expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+        const result = startHealthCheckTimer('invalid');
+        expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
     });
 
-    test('should use default interval for too small interval', () => {
-      const result = timer.start(HEALTH_CHECK.MIN_INTERVAL_MS - 1000);
-      expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+    test('should cap interval at maximum', () => {
+        const result = startHealthCheckTimer(HEALTH_CHECK.MAX_INTERVAL_MS + 1000);
+        expect(result).toBe(HEALTH_CHECK.MAX_INTERVAL_MS);
     });
 
-    test('should accept valid interval above minimum', () => {
-      const interval = HEALTH_CHECK.MIN_INTERVAL_MS + 1000;
-      const result = timer.start(interval);
-      expect(result).toBe(interval);
+    test('should accept exact minimum interval', () => {
+        const result = startHealthCheckTimer(HEALTH_CHECK.MIN_INTERVAL_MS);
+        expect(result).toBe(HEALTH_CHECK.MIN_INTERVAL_MS);
     });
-  });
 
-  describe('stop()', () => {
+    test('should reject interval below minimum', () => {
+        const result = startHealthCheckTimer(HEALTH_CHECK.MIN_INTERVAL_MS - 1000);
+        expect(result).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+    });
+
+    test('should stop existing timer before starting new one', () => {
+        startHealthCheckTimer(60000);
+        startHealthCheckTimer(120000);
+
+        const status = getHealthCheckTimerStatus();
+        expect(status.interval).toBe(120000);
+    });
+});
+
+describe('stopHealthCheckTimer', () => {
+    const { startHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } = healthCheckTimerModule;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
+
     test('should stop running timer without error', () => {
-      timer.start(60000);
-      expect(() => timer.stop()).not.toThrow();
+        startHealthCheckTimer(60000);
+        expect(() => stopHealthCheckTimer()).not.toThrow();
     });
 
     test('should allow multiple stops without error', () => {
-      timer.start(60000);
-      timer.stop();
-      expect(() => timer.stop()).not.toThrow();
+        startHealthCheckTimer(60000);
+        stopHealthCheckTimer();
+        expect(() => stopHealthCheckTimer()).not.toThrow();
     });
 
     test('should allow stop before start without error', () => {
-      expect(() => timer.stop()).not.toThrow();
+        expect(() => stopHealthCheckTimer()).not.toThrow();
     });
-  });
+});
 
-  describe('reload()', () => {
-    test('should restart timer with new interval', () => {
-      timer.start(60000);
-      const result = timer.reload(120000);
-      expect(result).toBe(120000);
+describe('reloadHealthCheckTimer', () => {
+    const { startHealthCheckTimer, stopHealthCheckTimer, reloadHealthCheckTimer } = healthCheckTimerModule;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        // 设置全局配置
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: { enabled: true }
+        };
     });
 
-    test('should reset running state when restarting', () => {
-      timer.start(100);
-      timer.reload(100);
-      const status = timer.getStatus();
-      expect(status.isRunning).toBe(false);
+    afterEach(() => {
+        stopHealthCheckTimer();
+        jest.useRealTimers();
     });
-  });
 
-  describe('getStatus()', () => {
-    test('should return initial inactive status', () => {
-      const status = timer.getStatus();
-      expect(status.isActive).toBe(false);
-      expect(status.isRunning).toBe(false);
-      expect(status.interval).toBeNull();
+    test('should reload timer with new interval', () => {
+        startHealthCheckTimer(60000);
+        const result = reloadHealthCheckTimer(120000);
+        expect(result).toBe(120000);
+    });
+
+    test('should stop timer when disabled', () => {
+        startHealthCheckTimer(60000);
+        globalThis.CONFIG.SCHEDULED_HEALTH_CHECK.enabled = false;
+        const result = reloadHealthCheckTimer(120000);
+        expect(result).toBe(0);
+    });
+
+    test('should start timer when enabled', () => {
+        const result = reloadHealthCheckTimer(120000);
+        expect(result).toBe(120000);
+    });
+});
+
+describe('getHealthCheckTimerStatus', () => {
+    const { startHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } = healthCheckTimerModule;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
+
+    test('should return inactive status initially', () => {
+        const status = getHealthCheckTimerStatus();
+        expect(status.isActive).toBe(false);
+        expect(status.isRunning).toBe(false);
+        expect(status.interval).toBeNull();
     });
 
     test('should return active status after start', () => {
-      timer.start(60000);
-      const status = timer.getStatus();
-      expect(status.isActive).toBe(true);
-      expect(status.interval).toBe(60000);
+        startHealthCheckTimer(60000);
+        const status = getHealthCheckTimerStatus();
+        expect(status.isActive).toBe(true);
+        expect(status.interval).toBe(60000);
     });
 
     test('should return inactive status after stop', () => {
-      timer.start(60000);
-      timer.stop();
-      const status = timer.getStatus();
-      expect(status.isActive).toBe(false);
+        startHealthCheckTimer(60000);
+        stopHealthCheckTimer();
+        const status = getHealthCheckTimerStatus();
+        expect(status.isActive).toBe(false);
+        expect(status.interval).toBeNull();
     });
-  });
 });
 
-describe('HEALTH_CHECK Constants Usage', () => {
-  test('should have MIN_INTERVAL_MS as minimum threshold', () => {
-    expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBe(60000);
-    expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBeGreaterThan(0);
-  });
+describe('updateHealthCheckTimers', () => {
+    const { stopHealthCheckTimer, updateHealthCheckTimers, getHealthCheckTimerStatus } = healthCheckTimerModule;
 
-  test('should have DEFAULT_INTERVAL_MS as fallback', () => {
-    expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBe(600000);
-    expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.MIN_INTERVAL_MS);
-  });
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+    });
 
-  test('should have MAX_INTERVAL_MS as absolute maximum', () => {
-    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(172800000); // 48小时
-    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-  });
+    afterEach(() => {
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
 
-  test('should have valid interval hierarchy', () => {
-    expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-    expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.MAX_INTERVAL_MS);
-  });
+    test('should start timer when enabled', () => {
+        updateHealthCheckTimers({
+            enabled: true,
+            interval: 120000
+        });
+        const status = getHealthCheckTimerStatus();
+        expect(status.isActive).toBe(true);
+    });
 
-  test('timer behavior should be consistent with constants', () => {
-    const timer = new TestableHealthCheckTimer();
-    const validInterval = HEALTH_CHECK.MIN_INTERVAL_MS;
-    const returned = timer.start(validInterval);
-    expect(returned).toBe(validInterval);
-  });
+    test('should stop timer when disabled', () => {
+        const { startHealthCheckTimer } = healthCheckTimerModule;
+        startHealthCheckTimer(60000);
+        updateHealthCheckTimers({ enabled: false });
+        const status = getHealthCheckTimerStatus();
+        expect(status.isActive).toBe(false);
+    });
 
-  test('should reject interval below minimum', () => {
-    const timer = new TestableHealthCheckTimer();
-    const returned = timer.start(HEALTH_CHECK.MIN_INTERVAL_MS - 1);
-    expect(returned).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-  });
+    test('should use default interval when not specified', () => {
+        updateHealthCheckTimers({ enabled: true });
+        const status = getHealthCheckTimerStatus();
+        expect(status.interval).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+    });
+
+    test('should start timer with specified interval', () => {
+        updateHealthCheckTimers({
+            enabled: true,
+            interval: 180000
+        });
+        const status = getHealthCheckTimerStatus();
+        expect(status.interval).toBe(180000);
+    });
 });
 
-describe('Interval Validation', () => {
-  let timer;
+describe('runStartupHealthCheck', () => {
+    const { runStartupHealthCheck } = healthCheckTimerModule;
+    const { getProviderPoolManager } = require('../../../src/services/service-manager.js');
 
-  beforeEach(() => {
-    timer = new TestableHealthCheckTimer();
-  });
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        getProviderPoolManager.mockReturnValue(createMockPoolManager());
+    });
 
-  test('should accept exact minimum interval', () => {
-    const interval = HEALTH_CHECK.MIN_INTERVAL_MS;
-    const returned = timer.start(interval);
-    expect(returned).toBe(interval);
-  });
+    afterEach(() => {
+        jest.useRealTimers();
+    });
 
-  test('should reject negative intervals', () => {
-    const returned = timer.start(-1000);
-    expect(returned).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-  });
+    test('should return a promise', () => {
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
 
-  test('should accept very large intervals', () => {
-    const largeInterval = 1000 * 60 * 60; // 1 hour
-    const returned = timer.start(largeInterval);
-    expect(returned).toBe(largeInterval);
-  });
+        const result = runStartupHealthCheck();
+        expect(result).toBeInstanceOf(Promise);
+    });
 
-  test('should handle null interval', () => {
-    const returned = timer.start(null);
-    expect(returned).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-  });
+    test('should resolve after executing health check', async () => {
+        // Mock poolManager with no providers - this makes executeHealthCheck return early
+        // without trying to iterate over providers
+        getProviderPoolManager.mockReturnValue({
+            providerStatus: {
+                'claude-kiro-oauth': new Map() // Empty map - no providers to check
+            },
+            performHealthChecksByType: jest.fn()
+        });
 
-  test('should handle undefined interval', () => {
-    const returned = timer.start(undefined);
-    expect(returned).toBe(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
-  });
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const promise = runStartupHealthCheck();
+
+        // 快速执行所有待处理的定时器
+        await jest.runAllTimersAsync();
+
+        // 由于没有 providerStatus，应该 resolve 而不是 reject
+        await expect(promise).resolves.toBeUndefined();
+    });
+
+    test('should handle errors gracefully', async () => {
+        getProviderPoolManager.mockReturnValue({
+            providerStatus: null, // 导致 executeHealthCheck 提前返回
+            performHealthChecksByType: jest.fn()
+        });
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: []
+            }
+        };
+
+        const promise = runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+
+        // 由于没有 providerStatus，应该 resolve 而不是 reject
+        await expect(promise).resolves.toBeUndefined();
+    });
 });
 
-describe('Timer Concurrency', () => {
-  let timer;
+describe('HEALTH_CHECK Constants', () => {
+    test('should have valid interval hierarchy', () => {
+        expect(HEALTH_CHECK.MIN_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
+        expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.MAX_INTERVAL_MS);
+    });
 
-  beforeEach(() => {
-    timer = new TestableHealthCheckTimer();
-    jest.useFakeTimers();
-  });
+    test('should have valid healthy check interval hierarchy', () => {
+        expect(HEALTH_CHECK.MIN_HEALTHY_CHECK_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS);
+        expect(HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS).toBeLessThan(HEALTH_CHECK.MAX_HEALTHY_CHECK_INTERVAL_MS);
+    });
 
-  afterEach(() => {
-    timer.stop();
-    jest.useRealTimers();
-  });
+    test('should have reasonable MAX_CONCURRENT_CHECKS', () => {
+        expect(HEALTH_CHECK.MAX_CONCURRENT_CHECKS).toBeGreaterThan(0);
+        expect(HEALTH_CHECK.MAX_CONCURRENT_CHECKS).toBeLessThanOrEqual(10);
+    });
 
-  test('should allow starting timer only once', () => {
-    timer.start(60000);
-    const status1 = timer.getStatus();
+    test('should have reasonable JITTER_MS', () => {
+        expect(HEALTH_CHECK.JITTER_MS).toBeGreaterThanOrEqual(0);
+        expect(HEALTH_CHECK.JITTER_MS).toBeLessThan(10000);
+    });
 
-    timer.start(120000);
-    const status2 = timer.getStatus();
-
-    expect(status2.interval).toBe(120000);
-  });
-
-  test('should prevent multiple concurrent timers', () => {
-    timer.start(60000);
-    const id1 = timer.timerId;
-
-    timer.start(120000);
-    const id2 = timer.timerId;
-
-    // ID should be different after restart
-    expect(id1).not.toBe(id2);
-  });
+    test('should have reasonable MAX_LAST_CHECK_ENTRIES', () => {
+        expect(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES).toBeGreaterThan(0);
+    });
 });
