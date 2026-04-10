@@ -647,8 +647,8 @@ export class ProviderPoolManager {
         if (!config.isHealthy || config.isDisabled) return 1e18;
         
         // 检查并发限制
-        const concurrencyLimit = parseInt(config.concurrencyLimit || 0);
-        const queueLimit = parseInt(config.queueLimit || 0);
+        const concurrencyLimit = parseInt(config.concurrencyLimit || 0, 10);
+        const queueLimit = parseInt(config.queueLimit || 0, 10);
         
         if (concurrencyLimit > 0) {
             if (state.activeCount >= concurrencyLimit) {
@@ -1210,8 +1210,8 @@ export class ProviderPoolManager {
 
                 const config = provider.config;
                 const state = provider.state;
-                const concurrencyLimit = parseInt(config.concurrencyLimit || 0);
-                const queueLimit = parseInt(config.queueLimit || 0);
+                const concurrencyLimit = parseInt(config.concurrencyLimit || 0, 10);
+                const queueLimit = parseInt(config.queueLimit || 0, 10);
 
                 // 如果没有限制，直接增加活跃计数并返回
                 if (concurrencyLimit <= 0) {
