@@ -338,26 +338,27 @@ export class ProviderPoolManager {
         const uuid = providerStatus.uuid;
 
         // 原子操作：检查并添加，防止竞态条件
+        // 使用同步方式在微任务中原子地完成检查和添加
         if (this.refreshingUuids.has(uuid)) {
             this._log('debug', `Node ${uuid} is already in refresh queue (immediate check).`);
             return false;
         }
 
-        // 使用 Promise.resolve().then 在微任务中原子地完成检查和添加
-        // 这样可以避免同步代码中的竞态条件
-        await new Promise(resolve => {
+        // 微任务中完成添加和后续逻辑，确保检查-添加-执行链原子性
+        const shouldExecute = await Promise.resolve().then(() => {
+            // 再次检查（微任务中可能已有其他调用者添加了同一 uuid）
             if (this.refreshingUuids.has(uuid)) {
                 this._log('debug', `Node ${uuid} race condition detected in refresh queue.`);
-                resolve(false);
-                return;
+                return false;
             }
             this.refreshingUuids.add(uuid);
-            resolve(true);
-        }).then(acquired => {
-            if (!acquired) return;
-            // 继续执行刷新逻辑
-            this._executeRefreshTask(providerType, providerStatus, force, uuid);
+            return true;
         });
+
+        if (!shouldExecute) return false;
+
+        // 继续执行刷新逻辑
+        this._executeRefreshTask(providerType, providerStatus, force, uuid);
         return true;
     }
 
@@ -437,9 +438,17 @@ export class ProviderPoolManager {
         // 情况2: 该提供商未运行，需要获取全局信号量
         else {
             // 同步获取信号量（内部已经是队列机制）
-            this._acquireGlobalSemaphoreSync();
-            ownsGlobalSlot = true;
-            tryStartProviderQueue();
+            const acquired = this._acquireGlobalSemaphoreSync();
+            if (!acquired) {
+                // 等待信号量可用
+                this._acquireGlobalSemaphore(providerType).then(() => {
+                    ownsGlobalSlot = true;
+                    tryStartProviderQueue();
+                });
+            } else {
+                ownsGlobalSlot = true;
+                tryStartProviderQueue();
+            }
         }
     }
 
@@ -821,6 +830,11 @@ export class ProviderPoolManager {
                 resolve();
             } catch (err) {
                 this._log('error', `Failed to invoke provider semaphore resolver: ${err.message}`);
+                // 出错时递归重试，确保等待队列最终被处理
+                if (waitQueue.length > 0) {
+                    const nextResolve = waitQueue.shift();
+                    Promise.resolve().then(() => nextResolve());
+                }
             }
         }
     }
@@ -2363,36 +2377,50 @@ export class ProviderPoolManager {
         let successCount = 0;
         let failCount = 0;
 
-        for (const { provider, uuid, customName } of providersToCheck) {
-            const providerCheckStart = Date.now();
-            const baseProviderType = this._getBaseProviderType(providerType);
-            const checkModelName = provider.config.checkModelName ||
-                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] ||
-                                ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] ||
-                                'unknown';
-            const displayName = customName || uuid.substring(0, 8);
+        // 使用 Promise.all 并行执行所有健康检查，提升效率
+        const MAX_CONCURRENT = 4; // 每批最多4个并发检查
+        for (let i = 0; i < providersToCheck.length; i += MAX_CONCURRENT) {
+            const batch = providersToCheck.slice(i, i + MAX_CONCURRENT);
+            const batchResults = await Promise.all(batch.map(async ({ provider, uuid, customName }) => {
+                const providerCheckStart = Date.now();
+                const baseProviderType = this._getBaseProviderType(providerType);
+                const checkModelName = provider.config.checkModelName ||
+                                    ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[providerType] ||
+                                    ProviderPoolManager.DEFAULT_HEALTH_CHECK_MODELS[baseProviderType] ||
+                                    'unknown';
+                const displayName = customName || uuid.substring(0, 8);
 
-            try {
-                // Perform health check
-                const result = await this._checkProviderHealth(providerType, provider.config);
-                const checkDuration = Date.now() - providerCheckStart;
+                try {
+                    // Perform health check
+                    const result = await this._checkProviderHealth(providerType, provider.config);
+                    const checkDuration = Date.now() - providerCheckStart;
 
-                if (!result.success) {
-                    // Provider is unhealthy
-                    failCount++;
-                    this._log('warn', `[ScheduledHealthCheck] ${displayName} (${providerType}) FAILED: ${result.errorMessage || 'Provider is not responding correctly.'} (${checkDuration}ms)`);
-                    this.markProviderUnhealthyImmediately(providerType, provider.config, result.errorMessage);
-                } else {
-                    // Provider is healthy
-                    successCount++;
-                    this._log('info', `[ScheduledHealthCheck] ${displayName} (${providerType}) PASSED: model=${result.modelName || checkModelName} (${checkDuration}ms)`);
-                    this.markProviderHealthy(providerType, provider.config, false, result.modelName);
+                    if (!result.success) {
+                        return { success: false, displayName, providerType, errorMessage: result.errorMessage, checkDuration, provider };
+                    } else {
+                        return { success: true, displayName, providerType, modelName: result.modelName, checkDuration, provider };
+                    }
+                } catch (error) {
+                    const checkDuration = Date.now() - providerCheckStart;
+                    return { success: false, displayName, providerType, errorMessage: error.message, checkDuration, provider, isException: true };
                 }
-            } catch (error) {
-                const checkDuration = Date.now() - providerCheckStart;
-                failCount++;
-                this._log('error', `[ScheduledHealthCheck] ${displayName} (${providerType}) EXCEPTION: ${error.message} (${checkDuration}ms)`);
-                this.markProviderUnhealthyImmediately(providerType, provider.config, error.message);
+            }));
+
+            // 处理批次结果
+            for (const result of batchResults) {
+                if (result.success) {
+                    successCount++;
+                    this._log('info', `[ScheduledHealthCheck] ${result.displayName} (${result.providerType}) PASSED: model=${result.modelName || checkModelName} (${result.checkDuration}ms)`);
+                    this.markProviderHealthy(result.providerType, result.provider.config, false, result.modelName);
+                } else if (result.isException) {
+                    failCount++;
+                    this._log('error', `[ScheduledHealthCheck] ${result.displayName} (${result.providerType}) EXCEPTION: ${result.errorMessage} (${result.checkDuration}ms)`);
+                    this.markProviderUnhealthyImmediately(result.providerType, result.provider.config, result.errorMessage);
+                } else {
+                    failCount++;
+                    this._log('warn', `[ScheduledHealthCheck] ${result.displayName} (${result.providerType}) FAILED: ${result.errorMessage || 'Provider is not responding correctly.'} (${result.checkDuration}ms)`);
+                    this.markProviderUnhealthyImmediately(result.providerType, result.provider.config, result.errorMessage);
+                }
             }
         }
 
