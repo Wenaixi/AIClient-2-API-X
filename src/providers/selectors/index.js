@@ -95,11 +95,31 @@ export class FillFirstSelector extends ProviderSelector {
         super();
         this.poolManager = poolManager;
         this.lastSelected = null;
+        this._selectPromise = null;  // 用于串行化并发选择，保证原子性
     }
 
     select(providers, options = {}) {
         if (!providers || providers.length === 0) return null;
 
+        // 如果已有选择正在进行，等待其完成后再执行选择逻辑
+        // 这确保了状态检查和更新的原子性，避免并发问题
+        if (this._selectPromise) {
+            return this._selectPromise.then(() => this._doSelect(providers, options));
+        }
+
+        this._selectPromise = this._doSelect(providers, options);
+        return this._selectPromise.finally(() => {
+            this._selectPromise = null;
+        });
+    }
+
+    /**
+     * 执行实际的选择逻辑
+     * @param {Array} providers - 可用的 provider 列表
+     * @param {object} options - 选项
+     * @returns {object|null} 选中的 provider 或 null
+     */
+    _doSelect(providers, options = {}) {
         // 优先选择上次选中的节点（如果还健康）
         if (this.lastSelected) {
             const stillValid = providers.find(p =>
@@ -133,6 +153,7 @@ export class FillFirstSelector extends ProviderSelector {
      */
     reset() {
         this.lastSelected = null;
+        this._selectPromise = null;
     }
 }
 

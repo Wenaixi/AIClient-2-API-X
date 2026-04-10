@@ -260,8 +260,9 @@ export class KimiOAuthClient {
         let pollCount = 0;
         let currentPollInterval = pollInterval;
         while (Date.now() < deadline) {
-            // 先等待（Go的ticker行为）
-            await new Promise(resolve => setTimeout(resolve, currentPollInterval));
+            // 保存当前循环使用的间隔，使 slow_down 效果更直接地影响下一次等待时间
+            const thisInterval = currentPollInterval;
+            await new Promise(resolve => setTimeout(resolve, thisInterval));
 
             pollCount++;
             logger.debug('[Kimi OAuth] Poll attempt #' + pollCount);

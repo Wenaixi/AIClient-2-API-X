@@ -19,10 +19,10 @@ export function normalizeKimiToolMessageLinks(body) {
         return body;
     }
 
-    // 浅拷贝 messages 数组，避免修改原始对象
+    // 深拷贝 messages 数组及其所有嵌套属性，避免修改原始对象
     const normalizedBody = {
         ...body,
-        messages: body.messages.map(msg => ({ ...msg }))
+        messages: body.messages.map(msg => JSON.parse(JSON.stringify(msg)))
     };
     const normalizedMessages = normalizedBody.messages;
 

@@ -243,7 +243,18 @@ export class ProviderPoolManager {
                         } else {
                             // 先规范化再比较
                             let normalizedExpiry = expiryTime;
-                            if (expiryTime < 1e12) {
+                            // 检测是否是字符串类型，如果是则解析为 Date
+                            if (typeof expiryTime === 'string') {
+                                const date = new Date(expiryTime);
+                                if (!isNaN(date.getTime())) {
+                                    normalizedExpiry = date.getTime();
+                                } else {
+                                    this._log('warn', `Node ${providerStatus.uuid} (${providerType}) has invalid expiry string. Forcing refresh...`);
+                                    this._enqueueRefresh(providerType, providerStatus);
+                                    continue;
+                                }
+                            } else if (expiryTime < 1e12) {
+                                // 如果是数字但单位是秒，转换为毫秒
                                 normalizedExpiry = expiryTime * 1000;
                             }
                             if ((normalizedExpiry - Date.now()) < nearExpiryMs) {
@@ -477,15 +488,15 @@ export class ProviderPoolManager {
                     // 使用 Promise.resolve().then 避免过深的递归
                     Promise.resolve().then(nextTask);
                 } else if (currentQueue.activeCount === 0) {
+                    // 只有持有全局槽位的任务才能释放信号量（先于队列删除）
+                    if (ownsGlobalSlot) {
+                        this._releaseGlobalSemaphore();
+                    }
+
                     // 清理空队列
                     if (currentQueue.waitingTasks.length === 0 &&
                         this.refreshQueues[providerType] === currentQueue) {
                         delete this.refreshQueues[providerType];
-                    }
-
-                    // 只有持有全局槽位的任务才能释放信号量
-                    if (ownsGlobalSlot) {
-                        this._releaseGlobalSemaphore();
                     }
 
                     // 2. 尝试启动下一个等待中的提供商队列
@@ -517,10 +528,9 @@ export class ProviderPoolManager {
             // 同步获取信号量（内部已经是队列机制）
             const acquired = this._acquireGlobalSemaphoreSync();
             if (!acquired) {
-                // 修复：先设置 ownsGlobalSlot，再等待信号量
-                ownsGlobalSlot = true;
-                // 等待信号量可用
+                // 等待信号量可用（获取成功后才设置 ownsGlobalSlot）
                 this._acquireGlobalSemaphore(providerType).then(() => {
+                    ownsGlobalSlot = true;
                     tryStartProviderQueue();
                 });
             } else {
