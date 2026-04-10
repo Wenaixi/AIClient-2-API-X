@@ -130,8 +130,76 @@ export class ProviderPoolManager {
 
         // 用于并发选点时的原子排序辅助（自增序列）
         this._selectionSequence = 0;
- 
+
+        // 验证配置并应用默认值
+        this.validateConfig();
         this.initializeProviderStatus();
+    }
+
+    /**
+     * 验证配置参数，确保数值在合理范围内
+     * 验证失败时记录警告并使用默认值
+     */
+    validateConfig() {
+        const defaults = {
+            REFRESH_SEMAPHORE_GLOBAL: 16,
+            REFRESH_SEMAPHORE_PER_PROVIDER: 4,
+            QUOTA_BACKOFF_BASE: 1000,
+            QUOTA_BACKOFF_MAX: 1800000,
+            COOLDOWN_DEFAULT: 60000,
+            MAX_SEMAPHORE_WAIT_TIME: 60000
+        };
+
+        const cfg = this.globalConfig;
+
+        // REFRESH_SEMAPHORE_GLOBAL: 应为正整数
+        if (cfg.REFRESH_SEMAPHORE_GLOBAL !== undefined) {
+            if (!Number.isInteger(cfg.REFRESH_SEMAPHORE_GLOBAL) || cfg.REFRESH_SEMAPHORE_GLOBAL <= 0) {
+                this._log('warn', `Invalid REFRESH_SEMAPHORE_GLOBAL: ${cfg.REFRESH_SEMAPHORE_GLOBAL}, using default: ${defaults.REFRESH_SEMAPHORE_GLOBAL}`);
+                cfg.REFRESH_SEMAPHORE_GLOBAL = defaults.REFRESH_SEMAPHORE_GLOBAL;
+            }
+        }
+
+        // REFRESH_SEMAPHORE_PER_PROVIDER: 应为正整数
+        if (cfg.REFRESH_SEMAPHORE_PER_PROVIDER !== undefined) {
+            if (!Number.isInteger(cfg.REFRESH_SEMAPHORE_PER_PROVIDER) || cfg.REFRESH_SEMAPHORE_PER_PROVIDER <= 0) {
+                this._log('warn', `Invalid REFRESH_SEMAPHORE_PER_PROVIDER: ${cfg.REFRESH_SEMAPHORE_PER_PROVIDER}, using default: ${defaults.REFRESH_SEMAPHORE_PER_PROVIDER}`);
+                cfg.REFRESH_SEMAPHORE_PER_PROVIDER = defaults.REFRESH_SEMAPHORE_PER_PROVIDER;
+            }
+        }
+
+        // QUOTA_BACKOFF_BASE: 应为正数
+        if (cfg.QUOTA_BACKOFF_BASE !== undefined) {
+            if (typeof cfg.QUOTA_BACKOFF_BASE !== 'number' || cfg.QUOTA_BACKOFF_BASE <= 0) {
+                this._log('warn', `Invalid QUOTA_BACKOFF_BASE: ${cfg.QUOTA_BACKOFF_BASE}, using default: ${defaults.QUOTA_BACKOFF_BASE}`);
+                cfg.QUOTA_BACKOFF_BASE = defaults.QUOTA_BACKOFF_BASE;
+            }
+        }
+
+        // QUOTA_BACKOFF_MAX: 应为正数且大于 BASE
+        if (cfg.QUOTA_BACKOFF_MAX !== undefined) {
+            const base = cfg.QUOTA_BACKOFF_BASE ?? defaults.QUOTA_BACKOFF_BASE;
+            if (typeof cfg.QUOTA_BACKOFF_MAX !== 'number' || cfg.QUOTA_BACKOFF_MAX <= 0 || cfg.QUOTA_BACKOFF_MAX <= base) {
+                this._log('warn', `Invalid QUOTA_BACKOFF_MAX: ${cfg.QUOTA_BACKOFF_MAX}, must be positive and > BASE (${base}), using default: ${defaults.QUOTA_BACKOFF_MAX}`);
+                cfg.QUOTA_BACKOFF_MAX = defaults.QUOTA_BACKOFF_MAX;
+            }
+        }
+
+        // COOLDOWN_DEFAULT: 应为正数
+        if (cfg.COOLDOWN_DEFAULT !== undefined) {
+            if (typeof cfg.COOLDOWN_DEFAULT !== 'number' || cfg.COOLDOWN_DEFAULT <= 0) {
+                this._log('warn', `Invalid COOLDOWN_DEFAULT: ${cfg.COOLDOWN_DEFAULT}, using default: ${defaults.COOLDOWN_DEFAULT}`);
+                cfg.COOLDOWN_DEFAULT = defaults.COOLDOWN_DEFAULT;
+            }
+        }
+
+        // MAX_SEMAPHORE_WAIT_TIME: 应为正数
+        if (cfg.MAX_SEMAPHORE_WAIT_TIME !== undefined) {
+            if (typeof cfg.MAX_SEMAPHORE_WAIT_TIME !== 'number' || cfg.MAX_SEMAPHORE_WAIT_TIME <= 0) {
+                this._log('warn', `Invalid MAX_SEMAPHORE_WAIT_TIME: ${cfg.MAX_SEMAPHORE_WAIT_TIME}, using default: ${defaults.MAX_SEMAPHORE_WAIT_TIME}`);
+                cfg.MAX_SEMAPHORE_WAIT_TIME = defaults.MAX_SEMAPHORE_WAIT_TIME;
+            }
+        }
     }
 
     /**
