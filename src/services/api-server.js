@@ -8,6 +8,7 @@ import { createRequestHandler } from '../handlers/request-handler.js';
 import { discoverPlugins, getPluginManager } from '../core/plugin-manager.js';
 import { getTLSSidecar } from '../utils/tls-sidecar.js';
 import { startHealthCheckTimer, stopHealthCheckTimer, reloadHealthCheckTimer, runStartupHealthCheck, getHealthCheckTimerStatus, updateHealthCheckTimers } from './health-check-timer.js';
+import { HEALTH_CHECK } from '../utils/constants.js';
 
 /**
  * @license
@@ -130,7 +131,6 @@ let unhandledRejectionCount = 0;
 const MAX_CONSECUTIVE_REJECTIONS = 10;
 const REJECTION_RESET_INTERVAL_MS = 60000; // 1分钟内超过阈值则退出
 let lastRejectionTime = 0;
-
 /**
  * 发送消息给主进程
  * @param {Object} message - 消息对象
