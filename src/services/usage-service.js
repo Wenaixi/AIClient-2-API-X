@@ -19,6 +19,7 @@ export class UsageService {
             [MODEL_PROVIDER.ANTIGRAVITY]: this.getAntigravityUsage.bind(this),
             [MODEL_PROVIDER.CODEX_API]: this.getCodexUsage.bind(this),
             [MODEL_PROVIDER.GROK_CUSTOM]: this.getGrokUsage.bind(this),
+            [MODEL_PROVIDER.KIMI_API]: this.getKimiUsage.bind(this),
         };
     }
 
@@ -44,41 +45,60 @@ export class UsageService {
     async getAllUsage() {
         const results = {};
         const poolManager = getProviderPoolManager();
-        
-        for (const [providerType, handler] of Object.entries(this.providerHandlers)) {
-            try {
-                // 检查是否有号池配置
-                if (poolManager) {
-                    const pools = poolManager.getProviderPools(providerType);
-                    if (pools && pools.length > 0) {
-                        results[providerType] = [];
-                        for (const pool of pools) {
-                            try {
-                                const usage = await handler(pool.uuid);
-                                results[providerType].push({
-                                    uuid: pool.uuid,
-                                    usage
-                                });
-                            } catch (error) {
-                                results[providerType].push({
-                                    uuid: pool.uuid,
-                                    error: error.message
-                                });
-                            }
+
+        // 收集所有 providerType 的查询 Promise
+        const providerPromises = Object.entries(this.providerHandlers).map(async ([providerType, handler]) => {
+            const providerResult = [];
+
+            // 检查是否有号池配置
+            if (poolManager) {
+                const pools = poolManager.providerPools?.[providerType];
+                if (pools && pools.length > 0) {
+                    // 使用 Promise.allSettled 并发查询所有池的用量
+                    const poolPromises = pools.map(async (pool) => {
+                        try {
+                            const usage = await handler(pool.uuid);
+                            return { uuid: pool.uuid, usage };
+                        } catch (error) {
+                            return { uuid: pool.uuid, error: error.message };
                         }
-                    }
+                    });
+                    const settledResults = await Promise.all(poolPromises);
+                    providerResult.push(...settledResults);
                 }
-                
-                // 如果没有号池配置，尝试获取单个实例的用量
-                if (!results[providerType] || results[providerType].length === 0) {
+            }
+
+            // 如果没有号池配置，尝试获取单个实例的用量
+            if (providerResult.length === 0) {
+                try {
                     const usage = await handler(null);
-                    results[providerType] = [{ uuid: 'default', usage }];
+                    providerResult.push({ uuid: 'default', usage });
+                } catch (error) {
+                    providerResult.push({ uuid: 'default', error: error.message });
                 }
-            } catch (error) {
-                results[providerType] = [{ uuid: 'default', error: error.message }];
+            }
+
+            return { providerType, result: providerResult };
+        });
+
+        // 使用 Promise.allSettled 收集所有结果，确保一个失败不会影响其他
+        const settledResults = await Promise.allSettled(providerPromises);
+
+        // 整理最终结果
+        for (const settled of settledResults) {
+            if (settled.status === 'fulfilled' && settled.value) {
+                const { providerType, result } = settled.value;
+                results[providerType] = result;
+            } else if (settled.status === 'rejected') {
+                // 这应该很少发生，因为内部已经捕获了错误
+                // 但如果真的发生，从 reason 中获取 providerType 信息
+                const reason = settled.reason;
+                const providerType = reason?.providerType || 'unknown';
+                const errorMsg = reason?.message || reason || 'Unknown error';
+                results[providerType] = [{ uuid: 'default', error: errorMsg }];
             }
         }
-        
+
         return results;
     }
 
@@ -194,18 +214,40 @@ export class UsageService {
     async getGrokUsage(uuid = null) {
         const providerKey = uuid ? MODEL_PROVIDER.GROK_CUSTOM + uuid : MODEL_PROVIDER.GROK_CUSTOM;
         const adapter = serviceInstances[providerKey];
-        
+
         if (!adapter) {
             throw new Error(`Grok 服务实例未找到: ${providerKey}`);
         }
-        
+
         // 使用适配器的 getUsageLimits 方法
         if (typeof adapter.getUsageLimits === 'function') {
             const rawUsage = await adapter.getUsageLimits();
             return formatGrokUsage(rawUsage);
         }
-        
+
         throw new Error(`Grok 服务实例不支持用量查询: ${providerKey}`);
+    }
+
+    /**
+     * 获取 Kimi 提供商的用量信息
+     * @param {string} [uuid] - 可选的提供商实例 UUID
+     * @returns {Promise<Object>} Kimi 用量信息
+     */
+    async getKimiUsage(uuid = null) {
+        const providerKey = uuid ? MODEL_PROVIDER.KIMI_API + uuid : MODEL_PROVIDER.KIMI_API;
+        const adapter = serviceInstances[providerKey];
+
+        if (!adapter) {
+            throw new Error(`Kimi 服务实例未找到: ${providerKey}`);
+        }
+
+        // 使用适配器的 getUsageLimits 方法
+        if (typeof adapter.getUsageLimits === 'function') {
+            const rawUsage = await adapter.getUsageLimits();
+            return formatKimiUsage(rawUsage);
+        }
+
+        throw new Error(`Kimi 服务实例不支持用量查询: ${providerKey}`);
     }
 
     /**
@@ -699,6 +741,149 @@ export function formatCodexUsage(usageData) {
 
             result.usageBreakdown.push(item);
         }
+    }
+
+    return result;
+}
+
+/**
+ * 格式化 Kimi 用量信息为易读格式（映射到 Kiro 数据结构）
+ * @param {Object} usageData - 原始用量数据
+ * @returns {Object} 格式化后的用量信息
+ */
+export function formatKimiUsage(usageData) {
+    if (!usageData) {
+        return null;
+    }
+
+    const result = {
+        // 基本信息 - 映射到 Kiro 结构
+        daysUntilReset: null,
+        nextDateReset: null,
+
+        // 订阅信息
+        subscription: {
+            title: 'Kimi OAuth',
+            type: 'kimi-oauth',
+            upgradeCapability: null,
+            overageCapability: null
+        },
+
+        // 用户信息
+        user: {
+            email: null,
+            userId: null
+        },
+
+        // 用量明细
+        usageBreakdown: []
+    };
+
+    // 解析用户信息
+    if (usageData.user) {
+        result.user = {
+            email: usageData.user.email || null,
+            userId: usageData.user.id || usageData.user.user_id || null
+        };
+    }
+
+    // 解析订阅/套餐信息
+    if (usageData.subscription || usageData.plan) {
+        const subInfo = usageData.subscription || usageData.plan;
+        result.subscription.title = subInfo.name || subInfo.title || 'Kimi OAuth';
+        if (subInfo.reset_date || subInfo.billing_cycle_end) {
+            const resetDate = new Date(subInfo.reset_date || subInfo.billing_cycle_end);
+            result.nextDateReset = resetDate.toISOString();
+            const now = new Date();
+            const diffTime = resetDate.getTime() - now.getTime();
+            result.daysUntilReset = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+    }
+
+    // 解析配额/用量信息
+    if (usageData.quota || usageData.usage) {
+        const quotaInfo = usageData.quota || usageData.usage;
+
+        // 如果有明确的用量 breakdown
+        if (Array.isArray(quotaInfo.breakdown)) {
+            for (const item of quotaInfo.breakdown) {
+                result.usageBreakdown.push({
+                    resourceType: item.resource_type || 'USAGE',
+                    displayName: item.display_name || item.name || 'Usage',
+                    displayNamePlural: item.display_name || item.name || 'Usage',
+                    unit: item.unit || 'requests',
+                    currency: null,
+                    currentUsage: item.used || 0,
+                    usageLimit: item.total || item.limit || 0,
+                    currentOverages: 0,
+                    overageCap: 0,
+                    overageRate: null,
+                    overageCharges: 0,
+                    nextDateReset: result.nextDateReset,
+                    freeTrial: null,
+                    bonuses: []
+                });
+            }
+        } else if (quotaInfo.used !== undefined && quotaInfo.total !== undefined) {
+            // 简单用量格式
+            result.usageBreakdown.push({
+                resourceType: 'USAGE',
+                displayName: 'Kimi Usage',
+                displayNamePlural: 'Kimi Usage',
+                unit: 'requests',
+                currency: null,
+                currentUsage: quotaInfo.used,
+                usageLimit: quotaInfo.total,
+                currentOverages: 0,
+                overageCap: 0,
+                overageRate: null,
+                overageCharges: 0,
+                nextDateReset: result.nextDateReset,
+                freeTrial: null,
+                bonuses: []
+            });
+        }
+    }
+
+    // 如果 raw 存在（查询失败时返回的原始响应）
+    if (usageData.raw && !result.usageBreakdown.length) {
+        result.usageBreakdown.push({
+            resourceType: 'RAW_DATA',
+            displayName: 'Kimi Account Data',
+            displayNamePlural: 'Kimi Account Data',
+            unit: 'info',
+            currency: null,
+            currentUsage: 0,
+            usageLimit: 0,
+            currentOverages: 0,
+            overageCap: 0,
+            overageRate: null,
+            overageCharges: 0,
+            nextDateReset: null,
+            freeTrial: null,
+            bonuses: [],
+            rawData: usageData.raw
+        });
+    }
+
+    // 如果仍然没有用量明细，创建一个默认条目
+    if (!result.usageBreakdown.length) {
+        result.usageBreakdown.push({
+            resourceType: 'ACCOUNT',
+            displayName: 'Kimi Account',
+            displayNamePlural: 'Kimi Accounts',
+            unit: 'info',
+            currency: null,
+            currentUsage: 0,
+            usageLimit: 0,
+            currentOverages: 0,
+            overageCap: 0,
+            overageRate: null,
+            overageCharges: 0,
+            nextDateReset: null,
+            freeTrial: null,
+            bonuses: []
+        });
     }
 
     return result;

@@ -10,6 +10,7 @@
  */
 
 import logger from '../../utils/logger.js';
+import * as crypto from 'crypto';
 
 /**
  * 检查请求是否已授权
@@ -25,26 +26,44 @@ function isAuthorized(req, requestUrl, requiredApiKey) {
     const claudeApiKey = req.headers['x-api-key'];
 
     // Check for Bearer token in Authorization header (OpenAI style)
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    // 注意：timingSafeEqual 在长度不匹配时会抛出异常，因此需要先检查长度
+    // 但这不会造成时序攻击，因为长度检查在常数时间内
+    if (requiredApiKey && authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        if (token === requiredApiKey) {
-            return true;
+        try {
+            if (token && token.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(requiredApiKey))) {
+                return true;
+            }
+        } catch (e) {
+            // timingSafeEqual 在长度不匹配时抛出，这是正常的，直接继续检查下一个
         }
     }
 
     // Check for API key in URL query parameter (Gemini style)
-    if (queryKey === requiredApiKey) {
-        return true;
+    try {
+        if (requiredApiKey && queryKey && queryKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(requiredApiKey))) {
+            return true;
+        }
+    } catch (e) {
+        // 长度不匹配
     }
 
     // Check for API key in x-goog-api-key header (Gemini style)
-    if (googApiKey === requiredApiKey) {
-        return true;
+    try {
+        if (requiredApiKey && googApiKey && googApiKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(requiredApiKey))) {
+            return true;
+        }
+    } catch (e) {
+        // 长度不匹配
     }
 
     // Check for API key in x-api-key header (Claude style)
-    if (claudeApiKey === requiredApiKey) {
-        return true;
+    try {
+        if (requiredApiKey && claudeApiKey && claudeApiKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(requiredApiKey))) {
+            return true;
+        }
+    } catch (e) {
+        // 长度不匹配
     }
 
     return false;
@@ -81,7 +100,9 @@ const defaultAuthPlugin = {
         }
 
         // 认证失败，记录日志但不发送响应（由 request-handler 统一处理）
-        logger.info(`[Default Auth] Unauthorized request. Headers: Authorization=${req.headers['authorization'] ? 'present' : 'N/A'}, x-api-key=${req.headers['x-api-key'] || 'N/A'}, x-goog-api-key=${req.headers['x-goog-api-key'] || 'N/A'}`);
+        // 注意：不要记录实际的 key 值，防止敏感信息泄露
+        const maskKey = (key) => key ? `${key.slice(0, 3)}***${key.slice(-3)}` : 'N/A';
+        logger.info(`[Default Auth] Unauthorized request. Headers: Authorization=${req.headers['authorization'] ? 'present' : 'N/A'}, x-api-key=${maskKey(req.headers['x-api-key'])}, x-goog-api-key=${maskKey(req.headers['x-goog-api-key'])}`);
         
         // 返回 null 表示此插件不授权，让其他插件或默认逻辑处理
         return { handled: false, authorized: null };

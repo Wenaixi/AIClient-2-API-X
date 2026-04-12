@@ -6,17 +6,57 @@ import {
     batchImportGeminiTokensStream,
     handleQwenOAuth,
     handleKiroOAuth,
-    handleIFlowOAuth,
     handleCodexOAuth,
     batchImportCodexTokensStream,
     batchImportKiroRefreshTokensStream,
-    importAwsCredentials
+    importAwsCredentials,
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokensStream
 } from '../auth/oauth-handlers.js';
+
+// Kimi check-status 端点简单内存限速器：每个 deviceCode 在窗口期内只允许一次检查
+const _checkStatusLimiter = new Map();
+const _ipRateLimiter = new Map();
+const CHECK_STATUS_WINDOW_MS = 2000; // 2 秒冷却窗口
+const IP_RATE_LIMIT_WINDOW_MS = 10000; // 10 秒 IP 级别窗口
+const IP_RATE_LIMIT_MAX = 20; // 每窗口最多 20 个不同 deviceCode
+const CLEANUP_INTERVAL_MS = 60000; // 1 分钟清理一次过期条目
+
+// 记录上次清理时间
+let _lastCleanup = Date.now();
+
+/**
+ * 清理过期的限速器条目
+ * @param {number} now - 当前时间戳
+ */
+function _cleanupExpiredEntries(now) {
+    // 清理 IP 限速器
+    for (const [key, entry] of _ipRateLimiter.entries()) {
+        if (now - entry.windowStart > IP_RATE_LIMIT_WINDOW_MS * 2) {
+            _ipRateLimiter.delete(key);
+        }
+    }
+    // 清理 deviceCode 限速器
+    for (const [key, ts] of _checkStatusLimiter.entries()) {
+        if (now - ts > CHECK_STATUS_WINDOW_MS * 10) {
+            _checkStatusLimiter.delete(key);
+        }
+    }
+    // 限制总大小防止过度增长
+    if (_ipRateLimiter.size > 10000) {
+        logger.warn('[OAuth API] IP rate limiter size exceeded limit, clearing oldest entries');
+        _ipRateLimiter.clear();
+    }
+}
 
 /**
  * 生成 OAuth 授权 URL
  */
 export async function handleGenerateAuthUrl(req, res, currentConfig, providerType) {
+    logger.debug(`[OAuth API] Generating auth URL for provider: ${providerType}`);
+
     try {
         let authUrl = '';
         let authInfo = {};
@@ -48,14 +88,14 @@ export async function handleGenerateAuthUrl(req, res, currentConfig, providerTyp
             const result = await handleKiroOAuth(currentConfig, options);
             authUrl = result.authUrl;
             authInfo = result.authInfo;
-        } else if (providerType === 'openai-iflow') {
-            // iFlow OAuth 授权
-            const result = await handleIFlowOAuth(currentConfig, options);
-            authUrl = result.authUrl;
-            authInfo = result.authInfo;
         } else if (providerType === 'openai-codex-oauth') {
             // Codex OAuth（OAuth2 + PKCE）
             const result = await handleCodexOAuth(currentConfig, options);
+            authUrl = result.authUrl;
+            authInfo = result.authInfo;
+        } else if (providerType === 'kimi-oauth') {
+            // Kimi OAuth（Device Flow）
+            const result = await handleKimiOAuth(currentConfig, options);
             authUrl = result.authUrl;
             authInfo = result.authInfo;
         } else {
@@ -89,6 +129,150 @@ export async function handleGenerateAuthUrl(req, res, currentConfig, providerTyp
 }
 
 /**
+ * 处理 Kimi OAuth 授权完成（Device Flow 轮询）
+ */
+export async function handleCompleteKimiOAuth(req, res, currentConfig) {
+    try {
+        const body = await getRequestBody(req);
+        const { deviceCode, interval, expiresIn } = body;
+
+        if (!deviceCode) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'deviceCode is required'
+            }));
+            return true;
+        }
+
+        // 参数类型校验
+        if (interval !== undefined && (typeof interval !== 'number' || interval <= 0)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'interval must be a positive number'
+            }));
+            return true;
+        }
+        if (expiresIn !== undefined && (typeof expiresIn !== 'number' || expiresIn <= 0)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'expiresIn must be a positive number'
+            }));
+            return true;
+        }
+
+        logger.info('[Kimi OAuth Complete] Waiting for user authorization...');
+
+        const result = await completeKimiOAuth(currentConfig, {
+            deviceCode,
+            interval,
+            expiresIn
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: true,
+            filepath: result.filepath,
+            tokenInfo: result.tokenInfo
+        }));
+        return true;
+
+    } catch (error) {
+        logger.error('[UI API] Kimi OAuth completion failed:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            success: false,
+            error: `Authorization failed: ${error.message}`
+        }));
+        return true;
+    }
+}
+
+/**
+ * 检查 Kimi 设备码授权状态（单次非阻塞检查）
+ */
+export async function handleCheckKimiAuthStatus(req, res, currentConfig) {
+    logger.debug(`[OAuth API] Checking Kimi auth status`);
+
+    try {
+        const body = await getRequestBody(req);
+        const { deviceCode } = body;
+
+        logger.debug('[OAuth API] deviceCode from request:', deviceCode);
+
+        if (!deviceCode) {
+            logger.warn('[OAuth API] Missing deviceCode');
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'deviceCode is required'
+            }));
+            return true;
+        }
+
+        // 速率限制：基于 IP + deviceCode 的组合限速
+        const now = Date.now();
+        const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                         req.headers['x-real-ip'] ||
+                         req.socket?.remoteAddress ||
+                         'unknown';
+
+        // 定期清理过期条目，防止内存泄漏
+        if (now - _lastCleanup > CLEANUP_INTERVAL_MS) {
+            _cleanupExpiredEntries(now);
+            _lastCleanup = now;
+        }
+
+        // IP 级别限速：防止枚举攻击
+        const ipKey = `ip:${clientIp}`;
+        const ipEntry = _ipRateLimiter.get(ipKey);
+        if (ipEntry && now - ipEntry.windowStart < IP_RATE_LIMIT_WINDOW_MS) {
+            if (ipEntry.count >= IP_RATE_LIMIT_MAX) {
+                res.writeHead(429, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: false,
+                    error: 'Too many requests from this IP. Please wait a moment.'
+                }));
+                return true;
+            }
+            ipEntry.count++;
+        } else {
+            _ipRateLimiter.set(ipKey, { windowStart: now, count: 1 });
+        }
+
+        // deviceCode 级别限速：防止单个 deviceCode 被频繁查询
+        const lastCheck = _checkStatusLimiter.get(deviceCode) || 0;
+        if (now - lastCheck < CHECK_STATUS_WINDOW_MS) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'Too many requests. Please wait a moment before checking again.'
+            }));
+            return true;
+        }
+        _checkStatusLimiter.set(deviceCode, now);
+
+        const result = await checkKimiAuthStatus(currentConfig, deviceCode);
+        logger.debug(`[OAuth API] checkKimiAuthStatus result:`, result);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+        return true;
+
+    } catch (error) {
+        logger.error('[OAuth API] handleCheckKimiAuthStatus() error:', error.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            authorized: false,
+            error: error.message
+        }));
+        return true;
+    }
+}
+
+/**
  * 处理手动 OAuth 回调
  */
 export async function handleManualOAuthCallback(req, res) {
@@ -109,7 +293,17 @@ export async function handleManualOAuthCallback(req, res) {
         logger.info(`[OAuth Manual Callback] Callback URL: ${callbackUrl}`);
 
         // 解析回调URL
-        const url = new URL(callbackUrl);
+        let url;
+        try {
+            url = new URL(callbackUrl);
+        } catch (urlError) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'Invalid callback URL format'
+            }));
+            return true;
+        }
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
         const token = url.searchParams.get('token');
@@ -423,13 +617,109 @@ export async function handleBatchImportCodexTokens(req, res) {
 }
 
 /**
+ * 批量导入 Kimi Refresh Tokens（带实时进度 SSE）
+ */
+export async function handleBatchImportKimiTokens(req, res) {
+    try {
+        const body = await getRequestBody(req);
+        const { refreshTokens } = body;
+
+        if (!refreshTokens || !Array.isArray(refreshTokens) || refreshTokens.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: 'refreshTokens array is required and must not be empty'
+            }));
+            return true;
+        }
+
+        logger.info(`[Kimi Batch Import] Starting batch import of ${refreshTokens.length} tokens with SSE...`);
+
+        // 设置 SSE 响应头
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        });
+
+        // 发送 SSE 事件的辅助函数（带错误处理）
+        const sendSSE = (event, data) => {
+            if (!res.writableEnded && !res.destroyed) {
+                try {
+                    res.write(`event: ${event}\n`);
+                    res.write(`data: ${JSON.stringify(data)}\n\n`);
+                } catch (err) {
+                    logger.error('[Kimi Batch Import] Failed to write SSE:', err.message);
+                    return false;
+                }
+            } else {
+                return false;
+            }
+            return true;
+        };
+
+        // 发送开始事件
+        sendSSE('start', { total: refreshTokens.length });
+
+        // 执行流式批量导入
+        let abortRequested = false;
+        const result = await batchImportKimiRefreshTokensStream(
+            refreshTokens,
+            (progress) => {
+                // 如果 SSE 写入失败且请求已中止，不再继续处理
+                if (abortRequested) return;
+                const sent = sendSSE('progress', progress);
+                if (sent === false) {
+                    abortRequested = true;
+                    logger.warn('[Kimi Batch Import] Client disconnected, aborting further processing');
+                }
+            }
+        );
+
+        logger.info(`[Kimi Batch Import] Completed: ${result.success} success, ${result.failed} failed`);
+
+        // 发送完成事件
+        sendSSE('complete', {
+            success: true,
+            total: result.total,
+            successCount: result.success,
+            failedCount: result.failed,
+            details: result.details
+        });
+
+        res.end();
+        return true;
+
+    } catch (error) {
+        logger.error('[Kimi Batch Import] Error:', error);
+        if (res.headersSent && !res.writableEnded && !res.destroyed) {
+            try {
+                res.write(`event: error\n`);
+                res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+                res.end();
+            } catch (writeErr) {
+                logger.error('[Kimi Batch Import] Failed to write error:', writeErr.message);
+            }
+        } else if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                error: error.message
+            }));
+        }
+        return true;
+    }
+}
+
+/**
  * 导入 AWS SSO 凭据用于 Kiro（支持单个或批量导入）
  */
 export async function handleImportAwsCredentials(req, res) {
     try {
         const body = await getRequestBody(req);
         const { credentials } = body;
-        
+
         if (!credentials) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
@@ -438,7 +728,7 @@ export async function handleImportAwsCredentials(req, res) {
             }));
             return true;
         }
-        
+
         // 检查是否为批量导入（数组）
         if (Array.isArray(credentials)) {
             // 批量导入模式 - 使用 SSE 流式响应
