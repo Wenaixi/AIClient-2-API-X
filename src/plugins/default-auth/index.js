@@ -10,7 +10,7 @@
  */
 
 import logger from '../../utils/logger.js';
-import * as crypto from 'crypto';
+import { safeCompare } from '../../utils/common.js';
 
 /**
  * 检查请求是否已授权
@@ -25,45 +25,17 @@ function isAuthorized(req, requestUrl, requiredApiKey) {
     const googApiKey = req.headers['x-goog-api-key'];
     const claudeApiKey = req.headers['x-api-key'];
 
-    // Check for Bearer token in Authorization header (OpenAI style)
-    // 注意：timingSafeEqual 在长度不匹配时会抛出异常，因此需要先检查长度
-    // 但这不会造成时序攻击，因为长度检查在常数时间内
-    if (requiredApiKey && authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        try {
-            if (token && token.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(requiredApiKey))) {
-                return true;
-            }
-        } catch (e) {
-            // timingSafeEqual 在长度不匹配时抛出，这是正常的，直接继续检查下一个
-        }
+    if (authHeader?.startsWith('Bearer ') && safeCompare(authHeader.substring(7), requiredApiKey)) {
+        return true;
     }
-
-    // Check for API key in URL query parameter (Gemini style)
-    try {
-        if (requiredApiKey && queryKey && queryKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(requiredApiKey))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
+    if (safeCompare(queryKey, requiredApiKey)) {
+        return true;
     }
-
-    // Check for API key in x-goog-api-key header (Gemini style)
-    try {
-        if (requiredApiKey && googApiKey && googApiKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(requiredApiKey))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
+    if (safeCompare(googApiKey, requiredApiKey)) {
+        return true;
     }
-
-    // Check for API key in x-api-key header (Claude style)
-    try {
-        if (requiredApiKey && claudeApiKey && claudeApiKey.length === requiredApiKey.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(requiredApiKey))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
+    if (safeCompare(claudeApiKey, requiredApiKey)) {
+        return true;
     }
 
     return false;

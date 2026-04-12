@@ -250,6 +250,19 @@ export async function logConversation(type, content, logMode, logFilename) {
 }
 
 /**
+ * Safe string comparison using constant-time comparison to prevent timing attacks.
+ * @param {string} a - First string
+ * @param {string} b - Second string
+ * @returns {boolean}
+ */
+export function safeCompare(a, b) {
+    if (!a || !b) return false;
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+/**
  * Checks if the request is authorized based on API key.
  * @param {http.IncomingMessage} req - The HTTP request object.
  * @param {URL} requestUrl - The parsed URL object.
@@ -260,50 +273,23 @@ export function isAuthorized(req, requestUrl, REQUIRED_API_KEY) {
     const authHeader = req.headers['authorization'];
     const queryKey = requestUrl.searchParams.get('key');
     const googApiKey = req.headers['x-goog-api-key'];
-    const claudeApiKey = req.headers['x-api-key']; // Claude-specific header
+    const claudeApiKey = req.headers['x-api-key'];
 
-    // Check for Bearer token in Authorization header (OpenAI style)
-    // 注意：timingSafeEqual 在长度不匹配时会抛出异常，因此需要先检查长度
-    // 但这不会造成时序攻击，因为长度检查在常数时间内
-    if (REQUIRED_API_KEY && authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        try {
-            if (token && token.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(REQUIRED_API_KEY))) {
-                return true;
-            }
-        } catch (e) {
-            // timingSafeEqual 在长度不匹配时抛出，这是正常的，直接继续检查下一个
-        }
+    if (authHeader?.startsWith('Bearer ') && safeCompare(authHeader.substring(7), REQUIRED_API_KEY)) {
+        return true;
+    }
+    if (safeCompare(queryKey, REQUIRED_API_KEY)) {
+        return true;
+    }
+    if (safeCompare(googApiKey, REQUIRED_API_KEY)) {
+        return true;
+    }
+    if (safeCompare(claudeApiKey, REQUIRED_API_KEY)) {
+        return true;
     }
 
-    // Check for API key in URL query parameter (Gemini style)
-    try {
-        if (REQUIRED_API_KEY && queryKey && queryKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(queryKey), Buffer.from(REQUIRED_API_KEY))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
-    }
-
-    // Check for API key in x-goog-api-key header (Gemini style)
-    try {
-        if (REQUIRED_API_KEY && googApiKey && googApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(googApiKey), Buffer.from(REQUIRED_API_KEY))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
-    }
-
-    // Check for API key in x-api-key header (Claude style)
-    try {
-        if (REQUIRED_API_KEY && claudeApiKey && claudeApiKey.length === REQUIRED_API_KEY.length && crypto.timingSafeEqual(Buffer.from(claudeApiKey), Buffer.from(REQUIRED_API_KEY))) {
-            return true;
-        }
-    } catch (e) {
-        // 长度不匹配
-    }
-
-    logger.info(`[Auth] Unauthorized request denied. Bearer: "${authHeader ? 'present' : 'N/A'}", Query Key: "${queryKey}", x-goog-api-key: "${googApiKey}", x-api-key: "${claudeApiKey}"`);
+    const maskKey = (key) => key ? `${key.slice(0, 3)}***${key.slice(-3)}` : 'N/A';
+    logger.info(`[Auth] Unauthorized request denied. Bearer: "${authHeader ? 'present' : 'N/A'}", Query Key: "${maskKey(queryKey)}", x-goog-api-key: "${maskKey(googApiKey)}", x-api-key: "${maskKey(claudeApiKey)}"`);
     return false;
 }
 
@@ -314,11 +300,11 @@ export function isAuthorized(req, requestUrl, REQUIRED_API_KEY) {
  * @param {Object} responsePayload - The actual response payload (string for unary, object for stream chunks).
  * @param {boolean} isStream - Whether the response is a stream.
  */
-export async function handleUnifiedResponse(res, responsePayload, isStream) {
+export async function handleUnifiedResponse(res, responsePayload, isStream, statusCode = 200) {
     if (isStream) {
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "Transfer-Encoding": "chunked" });
     } else {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
     }
 
     if (isStream) {
@@ -726,7 +712,7 @@ export async function handleUnaryRequest(res, service, model, requestBody, fromP
         }
 
         //logger.info(`[Response] Sending response to client: ${JSON.stringify(clientResponse)}`);
-        await handleUnifiedResponse(res, JSON.stringify(clientResponse), false);
+        await handleUnifiedResponse(res, JSON.stringify(clientResponse), false, 200);
         await logConversation('output', responseText, PROMPT_LOG_MODE, PROMPT_LOG_FILENAME);
         // fs.writeFile('oldResponse'+Date.now()+'.json', JSON.stringify(clientResponse));
         
@@ -822,7 +808,8 @@ export async function handleUnaryRequest(res, service, model, requestBody, fromP
 
         // 使用新方法创建符合 fromProvider 格式的错误响应
         const errorResponse = createErrorResponse(error, fromProvider);
-        await handleUnifiedResponse(res, JSON.stringify(errorResponse), false);
+        const statusCode = error.response?.status || error.statusCode || error.status || error.code || 500;
+        await handleUnifiedResponse(res, JSON.stringify(errorResponse), false, statusCode);
     } finally {
         // 确保在请求结束或出错时释放插槽
         if (providerPoolManager && pooluuid) {
@@ -1163,11 +1150,9 @@ export function handleError(res, error, provider = null) {
             logger.error(`  ${index + 1}. ${suggestion}`);
         });
     }
-    // 只在非生产环境记录完整堆栈，生产环境记录简化的错误信息以避免泄露内部路径
+    // 只在非生产环境记录完整堆栈
     if (process.env.NODE_ENV !== 'production') {
         logger.error('[Server] Error details:', error.stack);
-    } else {
-        logger.error(`[Server] Error source: ${error.fileName || 'unknown'}:${error.lineNumber || 'unknown'}`);
     }
 
     // 检查响应流是否已关闭或结束
@@ -1435,24 +1420,21 @@ export function formatToLocal(dateInput) {
  * 支持动态配置组的前缀匹配机制，例如 openai-custom-1 → openai-custom
  * @param {Map|Object|Set} registry - 注册表（Map、Set 或普通对象）
  * @param {string} key - 要查找的键
+ * @param {boolean} [returnKey=false] - 是否返回匹配的键而非值（仅对 Set 有效，Map/Object 直接返回 key）
  * @returns {*} 匹配的值或 undefined
  */
-export function findByPrefix(registry, key) {
-    if (registry == null) {
-        return undefined;
-    }
+function findMatch(registry, key, returnKey = false) {
+    if (registry == null) return undefined;
 
-    // Handle Set: iterate over values directly (Set doesn't have keys, only values)
     if (registry instanceof Set) {
         for (const v of registry) {
             if (key === v || key.startsWith(v + '-')) {
-                return v;
+                return returnKey ? v : v;
             }
         }
         return undefined;
     }
 
-    // Handle Map and Object
     const entries = registry instanceof Map ? registry.entries() : Object.entries(registry);
     for (const [k, v] of entries) {
         if (key === k || key.startsWith(k + '-')) {
@@ -1463,56 +1445,26 @@ export function findByPrefix(registry, key) {
 }
 
 /**
+ * 通过前缀查找匹配值
+ */
+export function findByPrefix(registry, key) {
+    return findMatch(registry, key, false);
+}
+
+/**
  * 检查键是否存在于注册表中（支持前缀匹配）
- * @param {Map|Object|Set} registry - 注册表
- * @param {string} key - 要检查的键
- * @returns {boolean}
  */
 export function hasByPrefix(registry, key) {
-    return findByPrefix(registry, key) !== undefined;
+    return findMatch(registry, key) !== undefined;
 }
 
 /**
  * 根据键获取基础类型（用于查找配置和模型）
  * 例如：openai-custom-1 → openai-custom
- * @param {Object|Map|Set} registry - 包含键的对象、Map 或 Set
- * @param {string} key - 要查找的键
- * @returns {string} 基础类型或原始键
  */
 export function getBaseType(registry, key) {
-    // Handle Set: check if key equals any value in the set
-    if (registry instanceof Set) {
-        for (const v of registry) {
-            if (key === v || key.startsWith(v + '-')) {
-                return v;
-            }
-        }
-        return key;
-    }
-
-    // Handle Map
-    if (registry instanceof Map) {
-        if (registry.has(key)) {
-            return key;
-        }
-        for (const k of registry.keys()) {
-            if (key.startsWith(k + '-')) {
-                return k;
-            }
-        }
-        return key;
-    }
-
-    // Handle Object
-    if (Object.prototype.hasOwnProperty.call(registry, key)) {
-        return key;
-    }
-    for (const k of Object.keys(registry)) {
-        if (key.startsWith(k + '-')) {
-            return k;
-        }
-    }
-    return key;
+    const matched = findMatch(registry, key, true);
+    return matched !== undefined ? matched : key;
 }
 
 /**
