@@ -34,8 +34,8 @@ describe('HEALTH_CHECK Constants', () => {
   });
 
   test('should have correct maximum interval', () => {
-    // 最大范围支持48小时
-    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(172800000);
+    // 最大范围支持108小时
+    expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBe(388800000);
     expect(HEALTH_CHECK.MAX_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.DEFAULT_INTERVAL_MS);
   });
 

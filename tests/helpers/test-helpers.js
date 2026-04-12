@@ -97,7 +97,7 @@ export function createMockResponse(overrides = {}) {
   return {
     statusCode: 200,
     headers,
-    writeHead: jest.fn((code, hdrs) => {
+    writeHead: jest.fn(function(code, hdrs) {
       this.statusCode = code;
       Object.assign(headers, hdrs);
     }),
