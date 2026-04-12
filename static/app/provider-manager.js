@@ -3456,7 +3456,7 @@ function showAddProviderGroupModal(defaultBaseType = null) {
                 throw new Error(response.error?.message || 'Unknown error');
             }
         } catch (error) {
-            logger?.error?.('[ProviderManager] Failed to add provider group:', error);
+            console.error('[ProviderManager] Failed to add provider group:', error);
             showToast(t('common.error'), t('providers.addGroup.error') + ': ' + error.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = `<i class="fas fa-check"></i> <span>${t('common.confirm')}</span>`;
