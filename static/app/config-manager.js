@@ -393,8 +393,8 @@ async function loadConfiguration() {
             if (healthCheckHoursEl) healthCheckHoursEl.value = hours;
             if (healthCheckMinutesEl) healthCheckMinutesEl.value = minutes;
             if (healthCheckSecondsEl) healthCheckSecondsEl.value = seconds;
-            // 加载健康检查间隔
-            const healthyInterval = data.SCHEDULED_HEALTH_CHECK.healthyCheckInterval || 3600000;
+            // 加载健康检查间隔（使用 ?? 以支持 0 值表示禁用）
+            const healthyInterval = data.SCHEDULED_HEALTH_CHECK.healthyCheckInterval ?? 3600000;
             const healthyHms = msToHms(healthyInterval);
             if (healthyCheckHoursEl) healthyCheckHoursEl.value = healthyHms.hours;
             if (healthyCheckMinutesEl) healthyCheckMinutesEl.value = healthyHms.minutes;
