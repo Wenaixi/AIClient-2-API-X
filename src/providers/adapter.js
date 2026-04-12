@@ -5,11 +5,14 @@ import { OpenAIApiService } from './openai/openai-core.js';
 import { ClaudeApiService } from './claude/claude-core.js';
 import { KiroApiService } from './claude/claude-kiro.js';
 import { QwenApiService } from './openai/qwen-core.js';
-import { IFlowApiService } from './openai/iflow-core.js';
 import { CodexApiService } from './openai/codex-core.js';
 import { ForwardApiService } from './forward/forward-core.js';
 import { GrokApiService } from './grok/grok-core.js';
-import { MODEL_PROVIDER } from '../utils/constants.js';
+import { KimiApiService } from './kimi/kimi-core.js';
+import { KimiTokenStorage } from '../auth/kimi-oauth.js';
+import { readFileSync, existsSync, promises as fsPromises } from 'fs';
+import { resolve } from 'path';
+import { MODEL_PROVIDER, findByPrefix, hasByPrefix } from '../utils/common.js';
 import logger from '../utils/logger.js';
 
 // 适配器注册表
@@ -485,62 +488,6 @@ export class QwenApiServiceAdapter extends ApiServiceAdapter {
     }
 }
 
-// iFlow API 服务适配器
-export class IFlowApiServiceAdapter extends ApiServiceAdapter {
-    constructor(config) {
-        super();
-        this.iflowApiService = new IFlowApiService(config);
-    }
-
-    async generateContent(model, requestBody) {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        return this.iflowApiService.generateContent(model, requestBody);
-    }
-
-    async *generateContentStream(model, requestBody) {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        yield* this.iflowApiService.generateContentStream(model, requestBody);
-    }
-
-    async listModels() {
-        if (!this.iflowApiService.isInitialized) {
-            logger.warn("iflowApiService not initialized, attempting to re-initialize...");
-            await this.iflowApiService.initialize();
-        }
-        return this.iflowApiService.listModels();
-    }
-
-    async refreshToken() {
-        if (!this.iflowApiService.isInitialized) {
-            await this.iflowApiService.initialize();
-        }
-        if (this.isExpiryDateNear()) {
-            logger.info(`[iFlow] Expiry date is near, refreshing API key...`);
-            await this.iflowApiService.initializeAuth(true);
-        }
-        return Promise.resolve();
-    }
-
-    async forceRefreshToken() {
-        if (!this.iflowApiService.isInitialized) {
-            await this.iflowApiService.initialize();
-        }
-        logger.info(`[iFlow] Force refreshing API key...`);
-        return this.iflowApiService.initializeAuth(true);
-    }
-
-    isExpiryDateNear() {
-        return this.iflowApiService.isExpiryDateNear();
-    }
-
-}
-
 // Codex API 服务适配器
 export class CodexApiServiceAdapter extends ApiServiceAdapter {
     constructor(config) {
@@ -576,7 +523,6 @@ export class CodexApiServiceAdapter extends ApiServiceAdapter {
             logger.info(`[Codex] Expiry date is near, refreshing token...`);
             await this.codexApiService.initializeAuth(true);
         }
-        return Promise.resolve();
     }
 
     async forceRefreshToken() {
@@ -688,6 +634,129 @@ export class GrokApiServiceAdapter extends ApiServiceAdapter {
     }
 }
 
+// Kimi API 服务适配器
+export class KimiApiServiceAdapter extends ApiServiceAdapter {
+    constructor(config) {
+        super();
+        this.kimiApiService = new KimiApiService(config);
+        this.config = config;
+        this._tokenLoadingPromise = null; // 用于防止并发加载 token 的锁
+    }
+
+    async generateContent(model, requestBody) {
+        // 确保 token 已加载（线程安全）
+        await this._ensureTokenLoaded();
+        return this.kimiApiService.chatCompletion(requestBody);
+    }
+
+    async *generateContentStream(model, requestBody) {
+        // 确保 token 已加载（线程安全）
+        await this._ensureTokenLoaded();
+        yield* this.kimiApiService.chatCompletionStream(requestBody);
+    }
+
+    async listModels() {
+        // 如果 tokenStorage 未加载，尝试从配置中加载
+        if (!this.kimiApiService.tokenStorage) {
+            logger.info('[Kimi Adapter] Token not loaded, attempting to load from config...');
+            try {
+                await this._ensureTokenLoaded();
+            } catch (error) {
+                logger.warn('[Kimi Adapter] Failed to load token, returning hardcoded model list');
+            }
+        }
+        return this.kimiApiService.listModels();
+    }
+
+    /**
+     * 确保 token 已加载（线程安全）
+     * 使用 Promise 锁防止并发重复加载
+     * @private
+     */
+    async _ensureTokenLoaded() {
+        // 如果 token 已加载，直接返回
+        if (this.kimiApiService.tokenStorage) {
+            return;
+        }
+
+        // 如果正在加载中，等待加载完成
+        if (this._tokenLoadingPromise) {
+            return this._tokenLoadingPromise;
+        }
+
+        // 开始加载 token
+        this._tokenLoadingPromise = this._loadTokenInternal();
+
+        try {
+            await this._tokenLoadingPromise;
+        } finally {
+            this._tokenLoadingPromise = null;
+        }
+    }
+
+    /**
+     * 从配置文件加载 Kimi token（内部方法）
+     * @private
+     */
+    async _loadTokenInternal() {
+        const credPath = this.config.KIMI_OAUTH_CREDS_FILE_PATH;
+        if (!credPath) {
+            throw new Error('No KIMI_OAUTH_CREDS_FILE_PATH configured');
+        }
+
+        const configDir = process.cwd();
+        const fullPath = resolve(configDir, credPath);
+
+        if (!existsSync(fullPath)) {
+            throw new Error(`Kimi credentials file not found: ${fullPath}`);
+        }
+
+        let credData;
+        try {
+            const fileContent = await fsPromises.readFile(fullPath, 'utf-8');
+            credData = JSON.parse(fileContent);
+        } catch (parseErr) {
+            throw new Error(`Invalid JSON in Kimi credentials file: ${parseErr.message}`);
+        }
+        this.kimiApiService.setTokenStorage(KimiTokenStorage.fromJSON(credData));
+        logger.info('[Kimi Adapter] Token loaded successfully');
+    }
+
+    async refreshToken() {
+        // Kimi 的 token 刷新在 KimiApiService 内部自动处理
+        logger.info('[Kimi] Token refresh handled automatically by service');
+    }
+
+    async forceRefreshToken() {
+        // 强制刷新 token
+        if (this.kimiApiService.tokenStorage?.refresh_token) {
+            logger.info('[Kimi] Force refreshing token...');
+            const { refreshKimiToken } = await import('../auth/kimi-oauth.js');
+            this.kimiApiService.tokenStorage = await refreshKimiToken(
+                this.kimiApiService.tokenStorage,
+                this.config
+            );
+        }
+        return Promise.resolve();
+    }
+
+    isExpiryDateNear() {
+        return this.kimiApiService.tokenStorage?.needsRefresh() || false;
+    }
+
+    /**
+     * 获取用量限制信息
+     * @returns {Promise<Object>} 用量限制信息
+     */
+    async getUsageLimits() {
+        // 确保 token 已加载
+        if (!this.kimiApiService.tokenStorage) {
+            await this._ensureTokenLoaded();
+        }
+        return this.kimiApiService.getUsageLimits();
+    }
+}
+
 // 注册所有内置适配器
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM, OpenAIApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES, OpenAIResponsesApiServiceAdapter);
@@ -696,13 +765,106 @@ registerAdapter(MODEL_PROVIDER.ANTIGRAVITY, AntigravityApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CLAUDE_CUSTOM, ClaudeApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIRO_API, KiroApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.QWEN_API, QwenApiServiceAdapter);
-// registerAdapter(MODEL_PROVIDER.IFLOW_API, IFlowApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CODEX_API, CodexApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
+registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);
 // registerAdapter(MODEL_PROVIDER.FORWARD_API, ForwardApiServiceAdapter);
 
-// 用于存储服务适配器单例的映射
-export const serviceInstances = {};
+/**
+ * LRU缓存类，用于管理服务适配器实例避免内存泄漏
+ */
+class LRUCache {
+    constructor(maxSize = 50) {
+        this.maxSize = maxSize;
+        this.cache = new Map();
+    }
+
+    get(key) {
+        if (!this.cache.has(key)) {
+            return undefined;
+        }
+        // 移动到末尾（最新使用）
+        const value = this.cache.get(key);
+        this.cache.delete(key);
+        this.cache.set(key, value);
+        return value;
+    }
+
+    set(key, value) {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            // 删除最旧的条目
+            const oldestKey = this.cache.keys().next().value;
+            this.cache.delete(oldestKey);
+        }
+        this.cache.set(key, value);
+    }
+
+    has(key) {
+        return this.cache.has(key);
+    }
+
+    /**
+     * 删除指定键值（O(1)操作）
+     * @param {string} key - 要删除的键
+     * @returns {boolean} 是否成功删除
+     */
+    delete(key) {
+        return this.cache.delete(key);
+    }
+
+    clear() {
+        this.cache.clear();
+    }
+
+    get size() {
+        return this.cache.size;
+    }
+}
+
+// 用于存储服务适配器单例的LRU缓存
+const serviceInstancesCache = new LRUCache(50);
+
+/**
+ * 服务适配器实例的兼容层导出
+ * 使用Proxy使其既能像普通对象一样使用，又能与LRU缓存交互
+ */
+export const serviceInstances = new Proxy({}, {
+    get(target, prop) {
+        if (prop === 'keys') {
+            return () => Array.from(serviceInstancesCache.cache.keys());
+        }
+        if (typeof prop === 'string') {
+            return serviceInstancesCache.get(prop);
+        }
+        return target[prop];
+    },
+    set(target, prop, value) {
+        if (typeof prop === 'string') {
+            serviceInstancesCache.set(prop, value);
+            return true;
+        }
+        target[prop] = value;
+        return true;
+    },
+    deleteProperty(target, prop) {
+        // 直接使用 LRU Cache 的 delete 方法（O(1) 操作）
+        if (typeof prop === 'string') {
+            return serviceInstancesCache.delete(prop);
+        }
+        return delete target[prop];
+    },
+    ownKeys(target) {
+        return Array.from(serviceInstancesCache.cache.keys());
+    },
+    getOwnPropertyDescriptor(target, prop) {
+        if (serviceInstancesCache.cache.has(prop)) {
+            return { enumerable: true, configurable: true, value: serviceInstancesCache.get(prop) };
+        }
+        return undefined;
+    }
+});
 
 /**
  * 检查提供商是否已注册（支持前缀匹配）
@@ -710,18 +872,7 @@ export const serviceInstances = {};
  * @returns {boolean} - 是否有效
  */
 export function isRegisteredProvider(provider) {
-    if (adapterRegistry.has(provider)) {
-        return true;
-    }
-    
-    // 检查前缀 (例如 openai-custom-1 -> openai-custom)
-    for (const key of adapterRegistry.keys()) {
-        if (provider.startsWith(key + '-')) {
-            return true;
-        }
-    }
-    
-    return false;
+    return hasByPrefix(adapterRegistry, provider);
 }
 
 // 服务适配器工厂
@@ -730,26 +881,20 @@ export function getServiceAdapter(config) {
     logger.info(`[Adapter] getServiceAdapter, provider: ${config.MODEL_PROVIDER}, uuid: ${config.uuid}${customNameDisplay}`);
     const provider = config.MODEL_PROVIDER;
     const providerKey = config.uuid ? provider + config.uuid : provider;
-    
-    if (!serviceInstances[providerKey]) {
-        let AdapterClass = adapterRegistry.get(provider);
-        
-        // 如果没找到精确匹配，尝试通过前缀查找 (例如 openai-custom-1 -> openai-custom)
-        if (!AdapterClass) {
-            for (const [key, value] of adapterRegistry.entries()) {
-                if (provider === key || provider.startsWith(key + '-')) {
-                    AdapterClass = value;
-                    break;
-                }
-            }
-        }
-        
-        if (AdapterClass) {
-            serviceInstances[providerKey] = new AdapterClass(config);
-        } else {
-            throw new Error(`Unsupported model provider: ${provider}`);
-        }
+
+    const cachedInstance = serviceInstancesCache.get(providerKey);
+    if (cachedInstance) {
+        return cachedInstance;
     }
-    return serviceInstances[providerKey];
+
+    const AdapterClass = findByPrefix(adapterRegistry, provider);
+
+    if (AdapterClass) {
+        const newInstance = new AdapterClass(config);
+        serviceInstancesCache.set(providerKey, newInstance);
+        return newInstance;
+    } else {
+        throw new Error(`Unsupported model provider: ${provider}`);
+    }
 }
 
