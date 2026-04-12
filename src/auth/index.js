@@ -19,6 +19,11 @@ export {
     handleQwenOAuth
 } from './qwen-oauth.js';
 
+// iFlow OAuth
+export {
+    handleIFlowOAuth
+} from './iflow-oauth.js';
+
 // Kiro OAuth
 export {
     handleKiroOAuth,
@@ -28,8 +33,21 @@ export {
     importAwsCredentials
 } from './kiro-oauth.js';
 
-// iFlow OAuth
+// Kimi OAuth
 export {
-    handleIFlowOAuth,
-    refreshIFlowTokens
-} from './iflow-oauth.js';
+    startKimiDeviceFlow,
+    refreshKimiToken,
+    KimiOAuthClient,
+    KimiTokenStorage
+} from './kimi-oauth.js';
+
+// Kimi OAuth Handlers
+export {
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokens,
+    batchImportKimiRefreshTokensStream,
+    checkKimiCredentialsDuplicate,
+    refreshKimiTokens
+} from './kimi-oauth-handler.js';

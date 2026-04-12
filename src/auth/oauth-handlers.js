@@ -3,6 +3,8 @@
 
 // 重新导出所有 OAuth 处理函数以保持向后兼容
 export {
+    // iFlow OAuth
+    handleIFlowOAuth,
     // Codex OAuth
     refreshCodexTokensWithRetry,
     handleCodexOAuth,
@@ -21,7 +23,12 @@ export {
     batchImportKiroRefreshTokens,
     batchImportKiroRefreshTokensStream,
     importAwsCredentials,
-    // iFlow OAuth
-    handleIFlowOAuth,
-    refreshIFlowTokens,
+    // Kimi OAuth
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokens,
+    batchImportKimiRefreshTokensStream,
+    checkKimiCredentialsDuplicate,
+    refreshKimiTokens
 } from './index.js';
