@@ -39,7 +39,7 @@ jest.mock('../../../src/utils/common.js', () => ({
     isRetryableNetworkError: jest.fn((err) => {
         return ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND'].includes(err?.code);
     }),
-    MODEL_PROVIDER: { KIMI: 'kimi' },
+    MODEL_PROVIDER: { KIMI_API: 'kimi' },
 }));
 jest.mock('../../../src/providers/kimi/kimi-message-normalizer.js', () => ({
     normalizeKimiToolMessageLinks: jest.fn((body) => body),

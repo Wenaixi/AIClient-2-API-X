@@ -88,7 +88,7 @@ export class KimiApiService {
             axiosConfig.proxy = false;
         }
 
-        configureAxiosProxy(axiosConfig, config, MODEL_PROVIDER.KIMI);
+        configureAxiosProxy(axiosConfig, config, MODEL_PROVIDER.KIMI_API);
 
         this.axiosInstance = axios.create(axiosConfig);
     }
@@ -158,7 +158,7 @@ export class KimiApiService {
      * 应用 TLS Sidecar
      */
     _applySidecar(axiosConfig) {
-        return configureTLSSidecar(axiosConfig, this.config, MODEL_PROVIDER.KIMI, this.baseUrl);
+        return configureTLSSidecar(axiosConfig, this.config, MODEL_PROVIDER.KIMI_API, this.baseUrl);
     }
 
     /**
