@@ -110,17 +110,9 @@ export class KimiStrategy extends ProviderStrategy {
             for await (const chunk of this.apiService.chatCompletionStream(openaiBody)) {
                 // 如果需要返回 Claude 格式，进行转换
                 if (sourceFormat === 'claude') {
-                    // 流式 Claude 格式转换
-                    const claudeChunk = this.convertStreamChunkToClaude(chunk);
-                    if (claudeChunk) {
-                        // convertStreamChunkToClaude 返回数组，需要逐个 yield
-                        if (Array.isArray(claudeChunk)) {
-                            for (const c of claudeChunk) {
-                                yield c;
-                            }
-                        } else {
-                            yield claudeChunk;
-                        }
+                    // convertStreamChunkToClaude 始终返回数组
+                    for (const c of this.convertStreamChunkToClaude(chunk)) {
+                        yield c;
                     }
                 } else {
                     yield chunk;
@@ -223,25 +215,26 @@ export class KimiStrategy extends ProviderStrategy {
 
     /**
      * 转换流式响应块为 Claude 格式
+     * 始终返回数组（可能为空数组），保证类型一致
      */
     convertStreamChunkToClaude(openaiChunk) {
         try {
             // OpenAI 流式格式
             const choice = openaiChunk.choices?.[0];
-            if (!choice) return null;
+            if (!choice) return [];
 
             const delta = choice.delta;
-            if (!delta) return null;
+            if (!delta) return [];
 
             // 处理结束
             if (choice.finish_reason) {
-                return {
+                return [{
                     type: 'message_delta',
                     delta: {
                         stop_reason: this.mapFinishReason(choice.finish_reason)
                     },
                     usage: openaiChunk.usage
-                };
+                }];
             }
 
             // 用于收集需要返回的多个 content block delta
@@ -277,11 +270,10 @@ export class KimiStrategy extends ProviderStrategy {
                 }
             }
 
-            // 返回所有 chunks（流式响应需要返回完整的 delta 数组）
-            return chunks.length > 0 ? chunks : null;
+            return chunks;
         } catch (error) {
             logger.warn('[Kimi Strategy] Failed to convert stream chunk:', error.message);
-            return null;
+            return [];
         }
     }
 

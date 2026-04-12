@@ -49,6 +49,17 @@ process.on('SIGINT', cleanupSharedAgents);
 process.on('exit', cleanupSharedAgents);
 
 /**
+ * 构建请求体（标准化模型名和消息格式）
+ */
+function buildRequestBody(body, normalizeModelName) {
+    const reqBody = { ...body };
+    if (reqBody.model) {
+        reqBody.model = normalizeModelName(reqBody.model);
+    }
+    return normalizeKimiToolMessageLinks(reqBody);
+}
+
+/**
  * Kimi API 服务类
  */
 export class KimiApiService {
@@ -152,12 +163,22 @@ export class KimiApiService {
 
     /**
      * 标准化模型名称
+     *
+     * 注意：Kimi API 内部使用统一的端点处理 thinking 和非 thinking 模型，
+     * thinking 模式通过请求参数（如 temperature 等）控制，而非模型名称。
+     * 因此 kimi-k2.5-thinking 和 kimi-k2.5 都映射到 k2.5。
+     *
+     * 映射规则：
      * - kimi-k2.5-thinking -> k2.5 (thinking 模型映射到基础模型)
      * - kimi-k2.5 -> k2.5
      * - kimi-k2-thinking -> k2-thinking
      * - 其他以 kimi- 开头 -> 移除前缀
+     *
+     * @param {string} model - 原始模型名称
+     * @returns {string} 标准化后的模型名称
      */
     normalizeModelName(model) {
+        // thinking 模型映射到基础模型，因为 Kimi API 使用相同端点
         if (model === 'kimi-k2.5-thinking') {
             return 'k2.5';
         }
@@ -196,84 +217,123 @@ export class KimiApiService {
     }
 
     /**
-     * 调用 Kimi API（非流式）
+     * 通用请求执行方法
+     * @param {string} endpoint - API 端点
+     * @param {Object} body - 请求体
+     * @param {Object} options - 选项 { stream, isRetry, retryCount }
+     * @returns {Promise|AsyncGenerator} 响应数据
      */
-    async callApi(endpoint, body, isRetry = false, retryCount = 0) {
+    async _executeRequest(endpoint, body, options = {}) {
+        const { stream = false, isRetry = false, retryCount = 0 } = options;
         const maxRetries = this.config.REQUEST_MAX_RETRIES || 3;
         const baseDelay = this.config.REQUEST_BASE_DELAY || 1000;
 
-        try {
-            // 获取访问令牌
-            const accessToken = await this.getAccessToken();
+        // 获取访问令牌
+        const accessToken = await this.getAccessToken();
 
-            // 标准化模型名称（使用浅拷贝避免修改原始对象）
-            const requestBody = { ...body };
-            if (requestBody.model) {
-                requestBody.model = this.normalizeModelName(requestBody.model);
+        // 构建请求体
+        const requestBody = stream
+            ? { ...body, stream: true, stream_options: { include_usage: true } }
+            : body;
+        const normalizedBody = buildRequestBody(requestBody, this.normalizeModelName.bind(this));
+
+        // 构建 axios 配置
+        const axiosConfig = {
+            method: 'post',
+            url: endpoint,
+            data: normalizedBody,
+            headers: this.getKimiHeaders(accessToken, stream)
+        };
+
+        if (stream) {
+            axiosConfig.responseType = 'stream';
+        }
+
+        this._applySidecar(axiosConfig);
+        const response = await this.axiosInstance.request(axiosConfig);
+        return response;
+    }
+
+    /**
+     * 统一重试处理
+     * @param {Object} error - 错误对象
+     * @param {Object} config - { endpoint, body, options }
+     * @returns {boolean} 是否需要调用者重新发起请求
+     */
+    async _handleErrorRetry(error, config) {
+        const { endpoint, body, options } = config;
+        const { stream = false, isRetry = false, retryCount = 0 } = options;
+        const maxRetries = this.config.REQUEST_MAX_RETRIES || 3;
+        const baseDelay = this.config.REQUEST_BASE_DELAY || 1000;
+
+        const status = error.response?.status;
+        const errorCode = error.code;
+        const errorMessage = error.message || '';
+        const isNetworkError = isRetryableNetworkError(error);
+
+        // 401/403 尝试刷新 token
+        if ((status === 401 || status === 403) && !isRetry && this.tokenStorage?.refresh_token) {
+            logger.info('[Kimi API] Token expired, refreshing and retrying...');
+            try {
+                await this._refreshTokenSafe();
+                return true; // 调用者重试
+            } catch (refreshError) {
+                logger.error('[Kimi API] Token refresh failed:', refreshError.message);
+                return false;
             }
+        }
 
-            // 标准化消息格式（使用浅拷贝避免修改原始对象）
-            const normalizedBody = normalizeKimiToolMessageLinks(requestBody);
+        // 流式请求已产出数据后不再重试
+        if (stream && options.hasYielded) {
+            return false;
+        }
 
-            const axiosConfig = {
-                method: 'post',
-                url: endpoint,
-                data: normalizedBody,
-                headers: this.getKimiHeaders(accessToken, false)
-            };
+        const canRetry = retryCount < maxRetries;
 
-            this._applySidecar(axiosConfig);
-            const response = await this.axiosInstance.request(axiosConfig);
+        const retryReasons = {
+            429: `Rate limited (429)`,
+            500: `Server error (500)`,
+            network: `Network error (${errorCode || errorMessage.substring(0, 50)})`
+        };
+
+        let reason = null;
+        if (status === 429 && canRetry) {
+            reason = retryReasons[429];
+        } else if (status >= 500 && status < 600 && canRetry) {
+            reason = retryReasons[500];
+        } else if (isNetworkError && canRetry) {
+            reason = retryReasons.network;
+        }
+
+        if (reason) {
+            const delay = baseDelay * Math.pow(2, retryCount);
+            const suffix = stream ? ' in stream' : '';
+            logger.info(`[Kimi API] ${reason}${suffix}. Retrying in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return true;
+        }
+
+        const prefix = stream ? 'Stream error' : 'Error';
+        logger.error(`[Kimi API] ${prefix} (Status: ${status}, Code: ${errorCode}):`, errorMessage);
+        return false;
+    }
+
+    /**
+     * 调用 Kimi API（非流式）
+     */
+    async callApi(endpoint, body, isRetry = false, retryCount = 0) {
+        try {
+            const response = await this._executeRequest(endpoint, body, { isRetry, retryCount });
             return response.data;
         } catch (error) {
-            const status = error.response?.status;
-            const errorCode = error.code;
-            const errorMessage = error.message || '';
-            const isNetworkError = isRetryableNetworkError(error);
-
-            // 401/403 可能是 token 过期
-            if (status === 401 || status === 403) {
-                logger.error(`[Kimi API] Received ${status}. Token might be invalid or expired.`);
-
-                // 尝试刷新 token 并重试一次
-                if (!isRetry && this.tokenStorage?.refresh_token) {
-                    logger.info('[Kimi API] Attempting to refresh token and retry...');
-                    try {
-                        await this._refreshTokenSafe();
-                        return this.callApi(endpoint, body, true, 0);
-                    } catch (refreshError) {
-                        logger.error('[Kimi API] Token refresh failed:', refreshError.message);
-                    }
-                }
-                throw error;
+            const shouldRetry = await this._handleErrorRetry(error, {
+                endpoint,
+                body,
+                options: { isRetry, retryCount }
+            });
+            if (shouldRetry) {
+                return this.callApi(endpoint, body, true, retryCount + 1);
             }
-
-            // 429 限流
-            if (status === 429 && retryCount < maxRetries) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                logger.info(`[Kimi API] Rate limited (429). Retrying in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return this.callApi(endpoint, body, isRetry, retryCount + 1);
-            }
-
-            // 5xx 服务器错误
-            if (status >= 500 && status < 600 && retryCount < maxRetries) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                logger.info(`[Kimi API] Server error (${status}). Retrying in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return this.callApi(endpoint, body, isRetry, retryCount + 1);
-            }
-
-            // 网络错误
-            if (isNetworkError && retryCount < maxRetries) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                const errorIdentifier = errorCode || errorMessage.substring(0, 50);
-                logger.info(`[Kimi API] Network error (${errorIdentifier}). Retrying in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return this.callApi(endpoint, body, isRetry, retryCount + 1);
-            }
-
-            logger.error(`[Kimi API] Error (Status: ${status}, Code: ${errorCode}):`, errorMessage);
             throw error;
         }
     }
@@ -282,40 +342,14 @@ export class KimiApiService {
      * 调用 Kimi API（流式）
      */
     async *streamApi(endpoint, body, isRetry = false, retryCount = 0) {
-        const maxRetries = this.config.REQUEST_MAX_RETRIES || 3;
-        const baseDelay = this.config.REQUEST_BASE_DELAY || 1000;
-
         let hasYielded = false;
 
         try {
-            // 先获取 token，确保能正确处理 token 过期
-            const accessToken = await this.getAccessToken();
-
-            // 标准化模型名称和消息格式
-            const streamRequestBody = {
-                ...body,
+            const response = await this._executeRequest(endpoint, body, {
                 stream: true,
-                stream_options: { include_usage: true }
-            };
-
-            // 标准化模型名称
-            if (streamRequestBody.model) {
-                streamRequestBody.model = this.normalizeModelName(streamRequestBody.model);
-            }
-
-            // 标准化消息格式（流式请求也需要）
-            const normalizedBody = normalizeKimiToolMessageLinks(streamRequestBody);
-
-            const axiosConfig = {
-                method: 'post',
-                url: endpoint,
-                data: normalizedBody,
-                responseType: 'stream',
-                headers: this.getKimiHeaders(accessToken, true)
-            };
-
-            this._applySidecar(axiosConfig);
-            const response = await this.axiosInstance.request(axiosConfig);
+                isRetry,
+                retryCount
+            });
 
             const stream = response.data;
             let buffer = '';
@@ -347,54 +381,15 @@ export class KimiApiService {
                 }
             }
         } catch (error) {
-            const status = error.response?.status;
-            const errorCode = error.code;
-            const errorMessage = error.message || '';
-            const isNetworkError = isRetryableNetworkError(error);
-
-            // 401/403 尝试刷新 token（仅未在流中产出数据时重试，token 刷新也需要 token 未完全过期）
-            if ((status === 401 || status === 403) && !isRetry && this.tokenStorage?.refresh_token) {
-                logger.info('[Kimi API] Token expired in stream, refreshing and retrying...');
-                try {
-                    await this._refreshTokenSafe();
-                    yield* this.streamApi(endpoint, body, true, 0);
-                    return;
-                } catch (refreshError) {
-                    logger.error('[Kimi API] Token refresh failed:', refreshError.message);
-                }
-            }
-
-            // 已产出部分数据后不再重试，避免消费者收到重复/残缺的流
-            const canRetry = !hasYielded && retryCount < maxRetries;
-
-            // 429 限流
-            if (status === 429 && canRetry) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                logger.info(`[Kimi API] Rate limited (429) in stream. Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                yield* this.streamApi(endpoint, body, isRetry, retryCount + 1);
+            const shouldRetry = await this._handleErrorRetry(error, {
+                endpoint,
+                body,
+                options: { stream: true, isRetry, retryCount, hasYielded }
+            });
+            if (shouldRetry) {
+                yield* this.streamApi(endpoint, body, true, retryCount + 1);
                 return;
             }
-
-            // 5xx 服务器错误
-            if (status >= 500 && status < 600 && canRetry) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                logger.info(`[Kimi API] Server error (${status}) in stream. Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                yield* this.streamApi(endpoint, body, isRetry, retryCount + 1);
-                return;
-            }
-
-            // 网络错误
-            if (isNetworkError && canRetry) {
-                const delay = baseDelay * Math.pow(2, retryCount);
-                logger.info(`[Kimi API] Network error in stream. Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                yield* this.streamApi(endpoint, body, isRetry, retryCount + 1);
-                return;
-            }
-
-            logger.error(`[Kimi API] Stream error (Status: ${status}, Code: ${errorCode}):`, errorMessage);
             throw error;
         }
     }
@@ -418,7 +413,6 @@ export class KimiApiService {
      * 与参考项目一致，返回硬编码的模型列表（不调用 Kimi API）
      */
     async listModels() {
-        // 返回与参考项目一致的硬编码模型列表
         return {
             object: "list",
             data: [

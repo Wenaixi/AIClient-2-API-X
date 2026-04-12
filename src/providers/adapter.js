@@ -640,21 +640,18 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
         super();
         this.kimiApiService = new KimiApiService(config);
         this.config = config;
+        this._tokenLoadingPromise = null; // 用于防止并发加载 token 的锁
     }
 
     async generateContent(model, requestBody) {
-        // 确保 token 已加载
-        if (!this.kimiApiService.tokenStorage) {
-            await this._ensureTokenLoaded();
-        }
+        // 确保 token 已加载（线程安全）
+        await this._ensureTokenLoaded();
         return this.kimiApiService.chatCompletion(requestBody);
     }
 
     async *generateContentStream(model, requestBody) {
-        // 确保 token 已加载
-        if (!this.kimiApiService.tokenStorage) {
-            await this._ensureTokenLoaded();
-        }
+        // 确保 token 已加载（线程安全）
+        await this._ensureTokenLoaded();
         yield* this.kimiApiService.chatCompletionStream(requestBody);
     }
 
@@ -671,8 +668,37 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
         return this.kimiApiService.listModels();
     }
 
+    /**
+     * 确保 token 已加载（线程安全）
+     * 使用 Promise 锁防止并发重复加载
+     * @private
+     */
     async _ensureTokenLoaded() {
-        // 从配置文件加载 Kimi token
+        // 如果 token 已加载，直接返回
+        if (this.kimiApiService.tokenStorage) {
+            return;
+        }
+
+        // 如果正在加载中，等待加载完成
+        if (this._tokenLoadingPromise) {
+            return this._tokenLoadingPromise;
+        }
+
+        // 开始加载 token
+        this._tokenLoadingPromise = this._loadTokenInternal();
+
+        try {
+            await this._tokenLoadingPromise;
+        } finally {
+            this._tokenLoadingPromise = null;
+        }
+    }
+
+    /**
+     * 从配置文件加载 Kimi token（内部方法）
+     * @private
+     */
+    async _loadTokenInternal() {
         const credPath = this.config.KIMI_OAUTH_CREDS_FILE_PATH;
         if (!credPath) {
             throw new Error('No KIMI_OAUTH_CREDS_FILE_PATH configured');

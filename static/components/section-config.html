@@ -268,7 +268,9 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label data-i18n="config.healthCheck.interval">检查间隔</label>
+                    <label data-i18n="config.healthCheck.interval">
+                        <i class="fas fa-exclamation-triangle"></i> 异常检查间隔
+                    </label>
                     <div class="time-input-group" id="healthCheckIntervalGroup">
                         <div class="time-input-unit">
                             <input type="number" id="healthCheckHours" class="form-control" min="0" max="24" value="0" placeholder="0">
@@ -283,17 +285,16 @@
                             <label for="healthCheckSeconds">秒</label>
                         </div>
                         <div class="quick-select-btns">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="60000">1分钟</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="300000">5分钟</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="600000">10分钟</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="1800000">30分钟</button>
                         </div>
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">范围：60秒 ~ 48小时。快捷按钮自动填充时/分/秒输入框</small>
+                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">当供应商处于异常状态时的检查间隔</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="config.healthCheck.healthyInterval">
-                        <i class="fas fa-heart"></i> 健康检查常数
-                        <span class="config-badge">健康供应商专用</span>
+                        <i class="fas fa-heart"></i> 健康检查间隔
                     </label>
                     <div class="time-input-group" id="healthyCheckIntervalGroup">
                         <div class="time-input-unit">
@@ -314,14 +315,14 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="0">不检查</button>
                         </div>
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.healthyIntervalNote">健康供应商的检查间隔，设为0则不对健康供应商进行检查。异常供应商始终按上方间隔检查。范围：0（不检查）~ 24小时</small>
+                    <small class="form-text" data-i18n="config.healthCheck.healthyIntervalNote">当供应商处于健康状态时的检查间隔，设为0则不检查健康供应商</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="config.healthCheck.providerTypes">定时检查的供应商</label>
                     <div id="scheduledHealthCheckProviders" class="provider-tags">
                         <!-- 由 config-manager.js updateConfigProviderConfigs 动态渲染，勿在此处硬编码 -->
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型，长按/右键已选中的供应商可设置自定义间隔</small>
+                    <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型，留空则不进行任何检查。提示：右键已勾选的供应商可以自定义检查间隔</small>
                 </div>
                 <!-- 自定义间隔列表 -->
                 <div class="form-group hidden" id="customIntervalsSection">
@@ -505,7 +506,6 @@
         </div>
         <div class="popup-section">
             <label><i class="fas fa-heart"></i> 健康检查间隔</label>
-            <small class="popup-section-note">当供应商处于健康状态时的检查间隔，设为0则不检查健康供应商</small>
             <div class="time-input-group">
                 <div class="time-input-unit">
                     <input type="number" id="popupHealthyHours" class="form-control" min="0" max="24" value="0" placeholder="0">

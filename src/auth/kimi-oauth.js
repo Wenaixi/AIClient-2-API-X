@@ -14,6 +14,11 @@ import logger from '../utils/logger.js';
 // Kimi OAuth 常量
 // 内置默认值，支持通过环境变量覆盖
 const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID || '17e5f671-d194-4dfb-9706-5516cb48c098';
+
+// 检查是否使用内置 CLIENT_ID，如果是则发出警告
+if (!process.env.KIMI_CLIENT_ID) {
+    logger.warn('[Kimi OAuth] Using built-in CLIENT_ID. For production use, please set KIMI_CLIENT_ID environment variable to your own client ID.');
+}
 const KIMI_OAUTH_HOST = 'https://auth.kimi.com';
 const KIMI_DEVICE_CODE_URL = `${KIMI_OAUTH_HOST}/api/oauth/device_authorization`;
 const KIMI_TOKEN_URL = `${KIMI_OAUTH_HOST}/api/oauth/token`;
@@ -139,22 +144,6 @@ export class KimiOAuthClient {
     }
 
     /**
-     * 获取通用请求头（与参考项目 cli-proxy-api 保持一致）
-     * 注意：这是同步版本，如果设备ID尚未初始化可能返回null
-     */
-    getCommonHeaders() {
-        // 同步版本可能返回不完整的headers
-        const deviceId = this._deviceId || (_cachedDeviceId ?? null);
-        return {
-            'X-Msh-Platform': 'cli-proxy-api',
-            'X-Msh-Version': '1.0.0',
-            'X-Msh-Device-Name': getHostname(),
-            'X-Msh-Device-Model': getDeviceModel(),
-            'X-Msh-Device-Id': deviceId
-        };
-    }
-
-    /**
      * 获取通用请求头（异步版本，确保设备ID已初始化）
      */
     async getCommonHeadersAsync() {
@@ -166,13 +155,6 @@ export class KimiOAuthClient {
             'X-Msh-Device-Model': getDeviceModel(),
             'X-Msh-Device-Id': deviceId
         };
-    }
-
-    /**
-     * 获取设备ID（同步版本）
-     */
-    getDeviceId() {
-        return this._deviceId || _cachedDeviceId || null;
     }
 
     /**

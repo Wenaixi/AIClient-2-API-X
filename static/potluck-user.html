@@ -666,7 +666,7 @@
 
             // 渲染模型分布
             renderDistribution('modelDistribution', aggregatedModels, totalCalls);
-            document.getElementById('modelTotalCount').textContent = `${totalCalls} 次`;
+            document.getElementById('modelTotalCount').textContent = `${formatNumber(totalCalls)} 次`;
         }
 
         function renderDistribution(elementId, data, total) {

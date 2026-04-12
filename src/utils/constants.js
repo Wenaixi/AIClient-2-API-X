@@ -9,8 +9,8 @@ export const HEALTH_CHECK = {
     MIN_INTERVAL_MS: 60000,
     // 默认检查间隔：10分钟（600000毫秒）
     DEFAULT_INTERVAL_MS: 600000,
-    // 最大检查间隔：48小时（172800000毫秒）
-    MAX_INTERVAL_MS: 172800000,
+    // 最大检查间隔：108小时（388800000毫秒）
+    MAX_INTERVAL_MS: 388800000,
     // 最大并发健康检查数量
     MAX_CONCURRENT_CHECKS: 5,
     // 随机抖动时间（毫秒），用于防止时序攻击
@@ -21,8 +21,8 @@ export const HEALTH_CHECK = {
     HEALTHY_CHECK_INTERVAL_MS: 3600000,
     // 最小健康检查间隔：1分钟（60000毫秒）
     MIN_HEALTHY_CHECK_INTERVAL_MS: 60000,
-    // 最大健康检查间隔：24小时（86400000毫秒）
-    MAX_HEALTHY_CHECK_INTERVAL_MS: 86400000
+    // 最大健康检查间隔：108小时（388800000毫秒）
+    MAX_HEALTHY_CHECK_INTERVAL_MS: 388800000
 };
 
 // 密码安全相关常量

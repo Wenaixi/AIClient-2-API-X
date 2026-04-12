@@ -483,24 +483,26 @@ describe('KimiStrategy', () => {
             const strategy = createStrategy();
             const chunk = { choices: [{ delta: {}, finish_reason: 'stop' }] };
             const result = strategy.convertStreamChunkToClaude(chunk);
-            expect(result.type).toBe('message_delta');
-            expect(result.delta.stop_reason).toBe('end_turn');
+            expect(Array.isArray(result)).toBe(true);
+            expect(result.length).toBe(1);
+            expect(result[0].type).toBe('message_delta');
+            expect(result[0].delta.stop_reason).toBe('end_turn');
         });
 
-        test('should return null when no choices', () => {
+        test('should return empty array when no choices', () => {
             const strategy = createStrategy();
-            expect(strategy.convertStreamChunkToClaude({})).toBeNull();
+            expect(strategy.convertStreamChunkToClaude({})).toEqual([]);
         });
 
-        test('should return null when no delta', () => {
+        test('should return empty array when no delta', () => {
             const strategy = createStrategy();
-            expect(strategy.convertStreamChunkToClaude({ choices: [{}] })).toBeNull();
+            expect(strategy.convertStreamChunkToClaude({ choices: [{}] })).toEqual([]);
         });
 
-        test('should return null on conversion error', () => {
+        test('should return empty array on conversion error', () => {
             const strategy = createStrategy();
             // Pass invalid data that will cause an error in the conversion
-            expect(strategy.convertStreamChunkToClaude(null)).toBeNull();
+            expect(strategy.convertStreamChunkToClaude(null)).toEqual([]);
         });
     });
 

@@ -612,16 +612,16 @@ async function saveConfiguration() {
     const healthCheckMinutes = parseInt(document.getElementById('healthCheckMinutes')?.value) || 0;
     const healthCheckSeconds = parseInt(document.getElementById('healthCheckSeconds')?.value) || 0;
     const rawInterval = hmsToMs(healthCheckHours, healthCheckMinutes, healthCheckSeconds);
-    // 验证范围：最小 60000ms (60秒)，最大 172800000ms (48小时)
-    const validatedInterval = Math.max(60000, Math.min(172800000, rawInterval));
+    // 验证范围：最小 60000ms (60秒)，最大 388800000ms (108小时)
+    const validatedInterval = Math.max(60000, Math.min(388800000, rawInterval));
 
     // 健康检查间隔
     const healthyCheckHours = parseInt(document.getElementById('healthyCheckHours')?.value) || 0;
     const healthyCheckMinutes = parseInt(document.getElementById('healthyCheckMinutes')?.value) || 0;
     const healthyCheckSeconds = parseInt(document.getElementById('healthyCheckSeconds')?.value) || 0;
     const rawHealthyInterval = hmsToMs(healthyCheckHours, healthyCheckMinutes, healthyCheckSeconds);
-    // 验证范围：0（禁用）~ 86400000ms (24小时)
-    const validatedHealthyInterval = Math.max(0, Math.min(86400000, rawHealthyInterval));
+    // 验证范围：0（禁用）~ 388800000ms (108小时)
+    const validatedHealthyInterval = Math.max(0, Math.min(388800000, rawHealthyInterval));
 
     config.SCHEDULED_HEALTH_CHECK = {
         enabled: document.getElementById('scheduledHealthCheckEnabled')?.checked !== false,
@@ -989,8 +989,8 @@ function saveCustomInterval() {
         return;
     }
 
-    if (ms > 172800000) {
-        showToast('异常检查间隔不能超过48小时', 'error');
+    if (ms > 388800000) {
+        showToast('异常检查间隔不能超过108小时', 'error');
         return;
     }
 
@@ -1007,8 +1007,8 @@ function saveCustomInterval() {
         return;
     }
 
-    if (healthyMs > 86400000) {
-        showToast('健康检查间隔不能超过24小时', 'error');
+    if (healthyMs > 388800000) {
+        showToast('健康检查间隔不能超过108小时', 'error');
         return;
     }
 
