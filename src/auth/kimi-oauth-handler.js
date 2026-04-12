@@ -135,7 +135,7 @@ export async function checkKimiAuthStatus(config = {}, deviceCode) {
 
     try {
         const client = new KimiOAuthClient(config);
-        logger.debug('[Kimi OAuth] Client created, deviceId:', client.getDeviceId());
+        logger.debug('[Kimi OAuth] Client created, deviceId:', await client.getDeviceIdAsync());
 
         const { token, error, shouldContinue } = await client.exchangeDeviceCode(deviceCode);
         logger.debug('[Kimi OAuth] exchangeDeviceCode result:', { hasToken: !!token, error: error?.message, shouldContinue });
