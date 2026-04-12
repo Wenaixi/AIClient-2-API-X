@@ -1,7 +1,7 @@
 // 提供商管理功能模块
 
 import { providerStats, updateProviderStats } from './constants.js';
-import { showToast, formatUptime, getProviderConfigs, getBaseProviderConfigs } from './utils.js';
+import { showToast, formatUptime, getProviderConfigs, getBaseProviderConfigs, escapeHtml } from './utils.js';
 import { fileUploadHandler } from './file-upload.js';
 import { t, getCurrentLanguage } from './i18n.js';
 import { renderRoutingExamples } from './routing-examples.js';
@@ -11,6 +11,7 @@ import { updateUsageProviderConfigs } from './usage-manager.js';
 import { updateConfigProviderConfigs } from './config-manager.js';
 import { loadConfigList, updateProviderFilterOptions } from './upload-config-manager.js';
 import { setServiceMode } from './event-handlers.js';
+import { showKimiAuthMethodSelector } from './kimi-oauth-modal.js';
 
 // 保存初始服务器时间和运行时间
 let initialServerTime = null;
@@ -367,52 +368,7 @@ function renderProviders(providers, supportedProviders = []) {
         if (addGroupBtn) {
             addGroupBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                
-                // 使用自定义的主题风格 Prompt
-                showSimplePrompt(
-                    t('providers.addGroup.title'),
-                    t('providers.addGroup.suffixPlaceholder'),
-                    async (suffix) => {
-                        const cleanSuffix = suffix.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        if (!cleanSuffix) {
-                            showToast(t('common.warning'), t('common.invalidSuffix'), 'warning');
-                            return;
-                        }
-                        
-                        const newProviderType = `${providerType}-${cleanSuffix}`;
-                        
-                        // 显示加载状态
-                        addGroupBtn.disabled = true;
-                        const originalHtml = addGroupBtn.innerHTML;
-                        addGroupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                        
-                        try {
-                            const response = await window.apiClient.post('/providers', {
-                                providerType: newProviderType,
-                                providerConfig: {
-                                    customName: cleanSuffix.toUpperCase(),
-                                    isHealthy: true,
-                                    isDisabled: false,
-                                    usageCount: 0,
-                                    errorCount: 0
-                                }
-                            });
-                            
-                            if (response.success) {
-                                showToast(t('common.success'), t('providers.addGroup.success'), 'success');
-                                await loadProviders(true);
-                                setTimeout(() => openProviderManager(newProviderType), 500);
-                            } else {
-                                throw new Error(response.error?.message || 'Unknown error');
-                            }
-                        } catch (error) {
-                            console.error('Failed to add provider group:', error);
-                            showToast(t('common.error'), t('providers.addGroup.error') + ': ' + error.message, 'error');
-                            addGroupBtn.disabled = false;
-                            addGroupBtn.innerHTML = originalHtml;
-                        }
-                    }
-                );
+                showAddProviderGroupModal(providerType);
             });
         }
 
@@ -485,16 +441,16 @@ function updateProviderStatsDisplay(activeProviders, healthyProviders, totalAcco
     if (healthyProvidersEl) healthyProvidersEl.textContent = healthyProviders;
     if (activeConnectionsEl) activeConnectionsEl.textContent = activeConnections;
     
-    // 打印调试信息到控制台
-    console.log('Provider Stats Updated:', {
-        activeProviders,
-        activeProvidersByUsage,
-        healthyProviders,
-        totalAccounts,
-        totalUsage,
-        totalErrors,
-        providerTypeStats: providerStats.providerTypeStats
-    });
+    // 打印调试信息到控制台 (已注释 - 如需调试可取消注释)
+    // console.log('Provider Stats Updated:', {
+    //     activeProviders,
+    //     activeProvidersByUsage,
+    //     healthyProviders,
+    //     totalAccounts,
+    //     totalUsage,
+    //     totalErrors,
+    //     providerTypeStats: providerStats.providerTypeStats
+    // });
 }
 
 /**
@@ -519,7 +475,7 @@ async function openProviderManager(providerType) {
  */
 function generateAuthButton(providerType) {
     // 只为支持OAuth的提供商显示授权按钮
-    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-iflow', 'openai-codex-oauth'];
+    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-codex-oauth', 'kimi-oauth'];
 
     if (!oauthProviders.includes(providerType)) {
         return '';
@@ -535,6 +491,16 @@ function generateAuthButton(providerType) {
         `;
     }
 
+    // Kimi 提供商使用钥匙图标（与其他OAuth提供商保持一致）
+    if (providerType === 'kimi-oauth') {
+        return `
+            <button class="generate-auth-btn" title="生成 Kimi OAuth 授权链接">
+                <i class="fas fa-key"></i>
+                <span data-i18n="providers.auth.generate">${t('providers.auth.generate')}</span>
+            </button>
+        `;
+    }
+
     return `
         <button class="generate-auth-btn" title="生成OAuth授权链接">
             <i class="fas fa-key"></i>
@@ -544,54 +510,6 @@ function generateAuthButton(providerType) {
 }
 
 /**
- * 显示一个极简的主题风格输入框
- * @param {string} title - 标题
- * @param {string} placeholder - 占位符
- * @param {function} callback - 确认回调
- */
-function showSimplePrompt(title, placeholder, callback) {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.style.display = 'flex';
-    overlay.style.zIndex = '3000';
-    overlay.style.background = 'rgba(0, 0, 0, 0.2)';
-    overlay.style.backdropFilter = 'blur(2px)';
-    
-    overlay.innerHTML = `
-        <div class="modal-content" style="max-width: 320px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--border-color); padding: 20px;">
-            <div style="margin-bottom: 12px; font-weight: 600; font-size: 14px; color: var(--text-primary);">${title}</div>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="simple-prompt-input" placeholder="${placeholder}" style="flex: 1; padding: 8px 12px; border: 1.5px solid var(--border-color); border-radius: 6px; font-size: 13px; outline: none;">
-                <button id="simple-prompt-submit" class="btn btn-primary btn-sm" style="padding: 0 12px; height: 34px; border-radius: 6px; font-size: 13px;">${t('common.confirm')}</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    const input = overlay.querySelector('#simple-prompt-input');
-    const submitBtn = overlay.querySelector('#simple-prompt-submit');
-    
-    input.focus();
-    
-    const finish = () => {
-        const val = input.value.trim();
-        if (val) {
-            overlay.remove();
-            callback(val);
-        }
-    };
-    
-    submitBtn.onclick = finish;
-    input.onkeydown = (e) => {
-        if (e.key === 'Enter') finish();
-        if (e.key === 'Escape') overlay.remove();
-    };
-    overlay.onclick = (e) => {
-        if (e.target === overlay) overlay.remove();
-    };
-}
-
 /**
  * 生成添加分组按钮HTML
  * @param {string} providerType - 提供商类型
@@ -631,6 +549,12 @@ async function handleGenerateAuthUrl(providerType) {
     // 如果是 Codex OAuth，显示认证方式选择对话框
     if (providerType === 'openai-codex-oauth') {
         showCodexAuthMethodSelector(providerType);
+        return;
+    }
+
+    // 如果是 Kimi OAuth，显示设备流认证对话框
+    if (providerType === 'kimi-oauth') {
+        showKimiAuthMethodSelector(providerType);
         return;
     }
 
@@ -928,12 +852,12 @@ function showCodexBatchImportModal(providerType) {
                                     const resultItem = document.createElement('div');
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     resultsList.appendChild(resultItem);
                                     resultsList.scrollTop = resultsList.scrollHeight;
@@ -961,7 +885,7 @@ function showCodexBatchImportModal(providerType) {
                                     
                                     resultDiv.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     if (data.successCount > 0) {
                                         importSuccess = true;
@@ -1392,12 +1316,12 @@ function showGeminiBatchImportModal(providerType) {
                                     const resultItem = document.createElement('div');
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     resultsList.appendChild(resultItem);
                                     resultsList.scrollTop = resultsList.scrollHeight;
@@ -1425,7 +1349,7 @@ function showGeminiBatchImportModal(providerType) {
                                     
                                     resultDiv.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     if (data.successCount > 0) {
                                         importSuccess = true;
@@ -1656,12 +1580,12 @@ function showKiroBatchImportModal() {
                                     resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                     
                                     if (current.success) {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                     } else if (current.error === 'duplicate') {
                                         resultItem.innerHTML = `Token ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateToken')}</span>
-                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                     } else {
-                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                        resultItem.innerHTML = `Token ${current.index}: <span style="color: #991b1b;">✗ ${escapeHtml(current.error)}</span>`;
                                     }
                                     
                                     resultsList.appendChild(resultItem);
@@ -1696,7 +1620,7 @@ function showKiroBatchImportModal() {
                                     
                                     // 更新标题
                                     const headerDiv = resultDiv.querySelector('div:first-child');
-                                    headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                    headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                     
                                     // 如果有成功的，刷新提供商列表
                                     if (data.successCount > 0) {
@@ -2468,12 +2392,12 @@ function showKiroAwsImportModal() {
                                         resultItem.style.cssText = 'padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.1);';
                                         
                                         if (current.success) {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #166534;">✓ ${current.path}</span>`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #166534;">✓ ${escapeHtml(current.path)}</span>`;
                                         } else if (current.error === 'duplicate') {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #d97706;">⚠ ${t('oauth.kiro.duplicateCredentials')}</span>
-                                                ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${current.existingPath})</span>` : ''}`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #d97706;">⚠ ${escapeHtml(t('oauth.kiro.duplicateCredentials'))}</span>
+                                                ${current.existingPath ? `<span style="color: #666; font-size: 11px;">(${escapeHtml(current.existingPath)})</span>` : ''}`;
                                         } else {
-                                            resultItem.innerHTML = `凭据 ${current.index}: <span style="color: #991b1b;">✗ ${current.error}</span>`;
+                                            resultItem.innerHTML = `凭据 ${escapeHtml(String(current.index))}: <span style="color: #991b1b;">✗ ${escapeHtml(String(current.error))}</span>`;
                                         }
                                         
                                         resultsList.appendChild(resultItem);
@@ -2503,7 +2427,7 @@ function showKiroAwsImportModal() {
                                         validationResult.style.cssText = `display: block; margin-top: 16px; padding: 12px; border-radius: 8px; ${resultClass}`;
                                         
                                         const headerDiv = validationResult.querySelector('div:first-child');
-                                        headerDiv.innerHTML = `<i class="fas ${resultIcon}"></i> <strong>${resultMessage}</strong>`;
+                                        headerDiv.innerHTML = `<i class="fas ${escapeHtml(resultIcon)}"></i> <strong>${escapeHtml(resultMessage)}</strong>`;
                                         
                                         // 如果有成功的，标记为成功并刷新提供商列表
                                         if (data.successCount > 0) {
@@ -2594,7 +2518,7 @@ function showKiroAwsImportModal() {
 async function executeGenerateAuthUrl(providerType, extraOptions = {}) {
     try {
         showToast(t('common.info'), t('modal.provider.auth.initializing'), 'info');
-        
+
         // 使用 fileUploadHandler 中的 getProviderKey 获取目录名称
         const providerDir = fileUploadHandler.getProviderKey(providerType);
 
@@ -2603,10 +2527,9 @@ async function executeGenerateAuthUrl(providerType, extraOptions = {}) {
             {
                 saveToConfigs: true,
                 providerDir: providerDir,
-                ...extraOptions
-            }
+                ...extraOptions}
         );
-        
+
         if (response.success && response.authUrl) {
             // 如果提供了 targetInputId，设置成功监听器
             if (extraOptions.targetInputId) {
@@ -2632,7 +2555,6 @@ async function executeGenerateAuthUrl(providerType, extraOptions = {}) {
             showToast(t('common.error'), t('modal.provider.auth.failed'), 'error');
         }
     } catch (error) {
-        console.error('生成授权链接失败:', error);
         showToast(t('common.error'), t('modal.provider.auth.failed') + `: ${error.message}`, 'error');
     }
 }
@@ -2647,8 +2569,7 @@ function getAuthFilePath(provider) {
         'gemini-cli-oauth': '~/.gemini/oauth_creds.json',
         'gemini-antigravity': '~/.antigravity/oauth_creds.json',
         'openai-qwen-oauth': '~/.qwen/oauth_creds.json',
-        'claude-kiro-oauth': '~/.aws/sso/cache/kiro-auth-token.json',
-        'openai-iflow': '~/.iflow/oauth_creds.json'
+        'claude-kiro-oauth': '~/.aws/sso/cache/kiro-auth-token.json'
     };
     return authFilePaths[provider] || (getCurrentLanguage() === 'en-US' ? 'Unknown Path' : '未知路径');
 }
@@ -2668,7 +2589,7 @@ function showAuthModal(authUrl, authInfo) {
     
     // 获取需要开放的端口号（从 authInfo 或当前页面 URL）
     const requiredPort = authInfo.callbackPort || authInfo.port || window.location.port || '3000';
-    const isDeviceFlow = authInfo.provider === 'openai-qwen-oauth' || (authInfo.provider === 'claude-kiro-oauth' && authInfo.authMethod === 'builder-id');
+    const isDeviceFlow = authInfo.provider === 'openai-qwen-oauth' || authInfo.provider === 'kimi-oauth' || (authInfo.provider === 'claude-kiro-oauth' && authInfo.authMethod === 'builder-id');
 
     let instructionsHtml = '';
     if (authInfo.provider === 'openai-qwen-oauth') {
@@ -2698,16 +2619,24 @@ function showAuthModal(authUrl, authInfo) {
                 </ol>
             </div>
         `;
-    } else if (authInfo.provider === 'openai-iflow') {
+    } else if (authInfo.provider === 'kimi-oauth') {
+        // Kimi Device Flow - special handling
+        // 简化UI：移除设备码显示区域，因为浏览器已自动打开授权页面
+        // 授权成功/失败由后端轮询检测，前端自动处理
         instructionsHtml = `
             <div class="auth-instructions">
                 <h4 data-i18n="oauth.modal.steps">${t('oauth.modal.steps')}</h4>
                 <ol>
-                    <li data-i18n="oauth.iflow.step1">${t('oauth.iflow.step1')}</li>
-                    <li data-i18n="oauth.iflow.step2">${t('oauth.iflow.step2')}</li>
-                    <li data-i18n="oauth.iflow.step3">${t('oauth.iflow.step3')}</li>
-                    <li data-i18n="oauth.iflow.step4">${t('oauth.iflow.step4')}</li>
+                    <li data-i18n="oauth.kimi.step1">${t('oauth.kimi.step1', '浏览器已自动打开授权页面')}</li>
+                    <li data-i18n="oauth.kimi.step2">${t('oauth.kimi.step2', '在授权页面中完成登录和授权')}</li>
+                    <li data-i18n="oauth.kimi.step3">${t('oauth.kimi.step3', '授权完成后此窗口将自动关闭')}</li>
                 </ol>
+            </div>
+            <div class="kimi-polling-status" style="margin-top: 12px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
+                <p class="kimi-polling-text" style="margin: 0; color: #64748b; font-size: 13px;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span data-i18n="oauth.kimi.waiting">${t('oauth.kimi.waiting', '等待授权中...')}</span>
+                </p>
             </div>
         `;
     } else {
@@ -2801,6 +2730,12 @@ function showAuthModal(authUrl, authInfo) {
             </div>
             <div class="modal-footer">
                 <button class="modal-cancel" data-i18n="modal.provider.cancel">${t('modal.provider.cancel')}</button>
+                ${(authInfo.provider === 'kimi-oauth') ? `
+                    <button class="complete-auth-btn" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-check-circle"></i>
+                        <span data-i18n="oauth.kimi.complete">${t('oauth.kimi.complete', '完成认证')}</span>
+                    </button>
+                ` : ''}
                 <button class="open-auth-btn">
                     <i class="fas fa-external-link-alt"></i>
                     <span data-i18n="oauth.modal.openInBrowser">${t('oauth.modal.openInBrowser')}</span>
@@ -2863,22 +2798,62 @@ function showAuthModal(authUrl, authInfo) {
 
     // 复制链接按钮
     const copyBtn = modal.querySelector('.copy-btn');
-    copyBtn.addEventListener('click', () => {
-        const input = modal.querySelector('.auth-url-input');
-        input.select();
-        document.execCommand('copy');
-        showToast(t('common.success'), t('oauth.success.msg'), 'success');
-    });
-    
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const input = modal.querySelector('.auth-url-input');
+            input.select();
+            document.execCommand('copy');
+            showToast(t('common.success'), t('oauth.success.msg'), 'success');
+        });
+    }
+
+    // Kimi Device Flow: 授权成功时关闭小浏览器窗口
+    // 注意：设备码显示区域已移除，授权成功/失败由后端轮询检测
+
     // 在浏览器中打开按钮
     const openBtn = modal.querySelector('.open-auth-btn');
+    let kimiWindowCheck = null;
+    let kimiAuthWindow = null; // 提升到外层作用域，以便 startKimiAutoPolling 能访问
     openBtn.addEventListener('click', () => {
-        // 使用子窗口打开，以便监听 URL 变化
+        // Kimi Device Flow: 不需要监控子窗口 URL 变化（Device Flow 没有 redirect callback）
+        // 直接打开浏览器，然后让 startKimiAutoPolling 在后端轮询等待授权
+        if (authInfo.provider === 'kimi-oauth') {
+            const width = 600;
+            const height = 700;
+            const left = (window.screen.width - width) / 2 + 600;
+            const top = (window.screen.height - height) / 2;
+
+            kimiAuthWindow = window.open(
+                authUrl,
+                'KimiAuthWindow',
+                `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+            );
+
+            if (kimiAuthWindow) {
+                showToast(t('common.info'), '请在打开的页面中完成登录', 'info');
+                // 轮询子窗口是否被关闭，如果关闭则检查授权状态
+                kimiWindowCheck = setInterval(() => {
+                    try {
+                        if (kimiAuthWindow.closed) {
+                            clearInterval(kimiWindowCheck);
+                            kimiWindowCheck = null;
+                        }
+                    } catch (e) {
+                        // 跨域是正常的
+                    }
+                }, 1000);
+            } else {
+                showToast(t('common.error'), '浏览器弹窗被拦截，请允许弹窗后重试', 'error');
+            }
+            return;
+        }
+
+        // 使用子窗口打开，以便监听 URL 变化（其他 OAuth 提供商）
         const width = 600;
         const height = 700;
         const left = (window.screen.width - width) / 2 + 600;
         const top = (window.screen.height - height) / 2;
-        
+
         const authWindow = window.open(
             authUrl,
             'OAuthAuthWindow',
@@ -2902,7 +2877,7 @@ function showAuthModal(authUrl, authInfo) {
             }
             modal.remove();
             cleanupAuthListeners();
-            
+
             // 授权成功后刷新配置和提供商列表
             loadProviders();
             loadConfigList();
@@ -2928,10 +2903,10 @@ function showAuthModal(authUrl, authInfo) {
 
         window.addEventListener('oauth_success_event', handleOAuthSuccess);
         window.addEventListener('message', handlePopupMessage);
-        
+
         if (authWindow) {
             showToast(t('common.info'), t('oauth.window.opened'), 'info');
-            
+
             // 添加手动输入回调 URL 的 UI
             const urlSection = modal.querySelector('.auth-url-section');
             if (urlSection && !modal.querySelector('.manual-callback-section')) {
@@ -2959,7 +2934,7 @@ function showAuthModal(authUrl, authInfo) {
                     // 尝试清理 URL（有些用户可能会复制多余的文字）
                     const cleanUrlStr = urlStr.trim().match(/https?:\/\/[^\s]+/)?.[0] || urlStr.trim();
                     const url = new URL(cleanUrlStr);
-                    
+
                     if (url.searchParams.has('code') || url.searchParams.has('token')) {
                         if (pollTimer) {
                             clearInterval(pollTimer);
@@ -2969,9 +2944,9 @@ function showAuthModal(authUrl, authInfo) {
                         const localUrl = new URL(url.href);
                         localUrl.hostname = window.location.hostname;
                         localUrl.protocol = window.location.protocol;
-                        
+
                         showToast(t('common.info'), t('oauth.processing'), 'info');
-                        
+
                         // 如果是手动输入，直接通过 fetch 请求处理，然后关闭子窗口
                         if (isManualInput) {
                             // 通过服务端API处理手动输入的回调URL
@@ -3014,7 +2989,7 @@ function showAuthModal(authUrl, authInfo) {
                                     });
                             }
                         }
-                        
+
                     } else {
                         showToast(t('common.warning'), t('oauth.invalid.url'), 'warning');
                     }
@@ -3048,6 +3023,84 @@ function showAuthModal(authUrl, authInfo) {
             showToast(t('common.error'), t('oauth.window.blocked'), 'error');
         }
     });
+
+    // Kimi Device Flow: "完成认证" 按钮 + 自动轮询
+    const completeBtn = modal.querySelector('.complete-auth-btn');
+    if (completeBtn && authInfo.deviceCode) {
+        let kimiPollTimer = null;
+        let kimiPollingActive = false;
+
+        // 前端定时轮询后端检查授权状态
+        const startKimiAutoPolling = () => {
+            if (kimiPollingActive) {
+                return;
+            }
+            kimiPollingActive = true;
+            completeBtn.disabled = true;
+            completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>等待授权中...</span>';
+
+            // 立即执行一次检查
+            const checkStatus = async () => {
+                try {
+                    const result = await window.apiClient.post('/oauth/kimi/check-status', {
+                        deviceCode: authInfo.deviceCode
+                    });
+
+                    if (result.authorized) {
+                        clearInterval(kimiPollTimer);
+                        kimiPollTimer = null;
+                        // 关闭小浏览器窗口
+                        if (kimiAuthWindow && !kimiAuthWindow.closed) {
+                            kimiAuthWindow.close();
+                        }
+                        modal.remove();
+                        showToast(t('common.success'), '授权成功！凭据已保存', 'success');
+                        loadProviders();
+                        loadConfigList();
+                    } else if (result.error) {
+                        // 终端错误（授权被拒绝、设备码过期等）
+                        clearInterval(kimiPollTimer);
+                        kimiPollTimer = null;
+                        kimiPollingActive = false;
+                        showToast(t('common.error'), `授权失败: ${result.error}`, 'error');
+                        completeBtn.disabled = false;
+                        completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> <span data-i18n="oauth.kimi.complete">' + t('oauth.kimi.complete', '完成认证') + '</span>';
+                    }
+                    // result.authorized === false 且没有 error 表示还在等待中，继续轮询
+                } catch (error) {
+                    // 网络错误等，继续等待
+                }
+            };
+
+            // 立即执行一次，然后每 2 秒轮询一次
+            checkStatus();
+            kimiPollTimer = setInterval(checkStatus, 2000);
+        };
+
+        // 模态框打开后立即启动自动轮询
+        startKimiAutoPolling();
+
+        // 手动点击"完成认证"按钮也可以触发（如果轮询被中断后想重新开始）
+        completeBtn.addEventListener('click', () => {
+            if (!kimiPollTimer) {
+                startKimiAutoPolling();
+            }
+        });
+
+        // 模态框关闭时清理定时器
+        const origRemove = modal.remove.bind(modal);
+        modal.remove = function () {
+            if (kimiPollTimer) {
+                clearInterval(kimiPollTimer);
+                kimiPollTimer = null;
+            }
+            if (kimiWindowCheck) {
+                clearInterval(kimiWindowCheck);
+                kimiWindowCheck = null;
+            }
+            return origRemove();
+        };
+    }
     
 }
 
@@ -3403,7 +3456,7 @@ function showAddProviderGroupModal(defaultBaseType = null) {
                 throw new Error(response.error?.message || 'Unknown error');
             }
         } catch (error) {
-            console.error('Failed to add provider group:', error);
+            logger?.error?.('[ProviderManager] Failed to add provider group:', error);
             showToast(t('common.error'), t('providers.addGroup.error') + ': ' + error.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = `<i class="fas fa-check"></i> <span>${t('common.confirm')}</span>`;

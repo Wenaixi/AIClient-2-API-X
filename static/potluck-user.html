@@ -389,10 +389,6 @@
         
         <!-- 统计卡片 -->
         <div class="stats-grid">
-            <div class="stat-card orange">
-                <div class="label">最后使用</div>
-                <div class="value" id="statLastUsed">从未</div>
-            </div>
             <div class="stat-card purple">
                 <div class="label">每日用量</div>
                 <div class="value">
@@ -409,6 +405,10 @@
             <div class="stat-card cyan">
                 <div class="label">累计调用</div>
                 <div class="value" id="statTotal">0</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="label">最后使用</div>
+                <div class="value" id="statLastUsed">从未</div>
             </div>
             <div class="stat-card green">
                 <div class="label">今日 Tokens</div>
@@ -601,12 +601,6 @@
             
             // 累计调用
             document.getElementById('statTotal').textContent = data.total || 0;
-
-            // Token 用量
-            document.getElementById('statTodayTokens').textContent = formatTokenCompact(data.usage?.totalTokens || 0);
-            document.getElementById('statTodayCachedTokens').textContent = formatTokenCompact(data.usage?.cachedTokens || 0);
-            document.getElementById('statTotalTokens').textContent = formatTokenCompact(data.tokens?.total || 0);
-            document.getElementById('statTotalCachedTokens').textContent = formatTokenCompact(data.tokens?.cached || 0);
             
             // 最后使用时间
             if (data.lastUsedAt) {
@@ -621,6 +615,12 @@
 
             // 渲染个人使用分布
             renderUsageHistory(data.usageHistory);
+
+            // Token 用量
+            document.getElementById('statTodayTokens').textContent = formatTokenCompact(data.usage?.totalTokens || 0);
+            document.getElementById('statTodayCachedTokens').textContent = formatTokenCompact(data.usage?.cachedTokens || 0);
+            document.getElementById('statTotalTokens').textContent = formatTokenCompact(data.tokens?.total || 0);
+            document.getElementById('statTotalCachedTokens').textContent = formatTokenCompact(data.tokens?.cached || 0);
         }
 
         /**

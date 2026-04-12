@@ -165,8 +165,21 @@
                         <input type="number" id="requestMaxRetries" class="form-control" min="0" max="10" value="3">
                     </div>
                     <div class="form-group">
-                        <label for="requestBaseDelay" data-i18n="config.advanced.baseDelay">重试基础延迟(毫秒)</label>
-                        <input type="number" id="requestBaseDelay" class="form-control" min="0" step="100" value="1000">
+                        <label for="requestBaseDelay" data-i18n="config.advanced.baseDelay">重试基础延迟</label>
+                        <div class="time-input-group" id="requestBaseDelayGroup">
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelayHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                                <label for="requestBaseDelayHours">时</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelayMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                                <label for="requestBaseDelayMinutes">分</label>
+                            </div>
+                            <div class="time-input-unit">
+                                <input type="number" id="requestBaseDelaySeconds" class="form-control" min="0" max="59" value="10" placeholder="0">
+                                <label for="requestBaseDelaySeconds">秒</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-row">
@@ -216,9 +229,22 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="loginExpiry" data-i18n="config.advanced.loginExpiry">登录过期时间(秒)</label>
-                    <input type="number" id="loginExpiry" class="form-control" min="60" value="3600">
-                    <small class="form-text" data-i18n="config.advanced.loginExpiryNote">管理后台登录后的 Token 有效期，默认 3600 秒 (1小时)</small>
+                    <label for="loginExpiry" data-i18n="config.advanced.loginExpiry">登录过期时间</label>
+                    <div class="time-input-group" id="loginExpiryGroup">
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpiryHours" class="form-control" min="0" max="24" value="1" placeholder="0">
+                            <label for="loginExpiryHours">时</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpiryMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="loginExpiryMinutes">分</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="loginExpirySeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="loginExpirySeconds">秒</label>
+                        </div>
+                    </div>
+                    <small class="form-text" data-i18n="config.advanced.loginExpiryNote">管理后台登录后的 Token 有效期</small>
                 </div>
             </div>
 
@@ -242,23 +268,68 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="scheduledHealthCheckInterval" data-i18n="config.healthCheck.interval">检查间隔</label>
-                    <div class="input-with-quick-select">
-                        <input type="number" id="scheduledHealthCheckInterval" class="form-control" min="60000" max="3600000" step="60000" value="600000" placeholder="毫秒">
+                    <label data-i18n="config.healthCheck.interval">
+                        <i class="fas fa-exclamation-triangle"></i> 异常检查间隔
+                    </label>
+                    <div class="time-input-group" id="healthCheckIntervalGroup">
+                        <div class="time-input-unit">
+                            <input type="number" id="healthCheckHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                            <label for="healthCheckHours">时</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="healthCheckMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="healthCheckMinutes">分</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="healthCheckSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="healthCheckSeconds">秒</label>
+                        </div>
                         <div class="quick-select-btns">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="300000">5分钟</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="600000">10分钟</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-value="1800000">30分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="60000">1分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="300000">5分钟</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="600000">10分钟</button>
                         </div>
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">单位毫秒，最小60000ms(1分钟)，最大3600000ms(1小时)</small>
+                    <small class="form-text" data-i18n="config.healthCheck.intervalNote">当供应商处于异常状态时的检查间隔</small>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="config.healthCheck.healthyInterval">
+                        <i class="fas fa-heart"></i> 健康检查间隔
+                    </label>
+                    <div class="time-input-group" id="healthyCheckIntervalGroup">
+                        <div class="time-input-unit">
+                            <input type="number" id="healthyCheckHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                            <label for="healthyCheckHours">时</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="healthyCheckMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="healthyCheckMinutes">分</label>
+                        </div>
+                        <div class="time-input-unit">
+                            <input type="number" id="healthyCheckSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                            <label for="healthyCheckSeconds">秒</label>
+                        </div>
+                        <div class="quick-select-btns">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="3600000">1小时</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="7200000">2小时</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="0">不检查</button>
+                        </div>
+                    </div>
+                    <small class="form-text" data-i18n="config.healthCheck.healthyIntervalNote">当供应商处于健康状态时的检查间隔，设为0则不检查健康供应商</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="config.healthCheck.providerTypes">定时检查的供应商</label>
                     <div id="scheduledHealthCheckProviders" class="provider-tags">
                         <!-- 由 config-manager.js updateConfigProviderConfigs 动态渲染，勿在此处硬编码 -->
                     </div>
-                    <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型</small>
+                    <small class="form-text" data-i18n="config.healthCheck.providerTypesNote">选择需要进行定时健康检查的供应商类型，留空则不进行任何检查。提示：右键已勾选的供应商可以自定义检查间隔</small>
+                </div>
+                <!-- 自定义间隔列表 -->
+                <div class="form-group hidden" id="customIntervalsSection">
+                    <label data-i18n="config.healthCheck.customIntervals">自定义间隔</label>
+                    <div id="customIntervalsList" class="custom-interval-list">
+                        <!-- 动态渲染: [{providerType, customInterval, providerName}, ...] -->
+                    </div>
                 </div>
             </div>
 
@@ -401,3 +472,63 @@
         </div>
     </div>
 </section>
+
+<!-- 自定义间隔弹出框 -->
+<div class="config-popup-overlay" id="customIntervalOverlay"></div>
+<div class="custom-interval-popup hidden" id="customIntervalPopup">
+    <div class="popup-header">
+        <span class="provider-name" id="popupProviderName">-</span>
+        <button class="popup-close" onclick="window.closeCustomIntervalPopup()">&times;</button>
+    </div>
+    <div class="popup-body">
+        <div class="popup-section">
+            <label><i class="fas fa-exclamation-circle"></i> 异常检查间隔</label>
+            <small class="popup-section-note">当供应商处于异常状态时的检查间隔</small>
+            <div class="time-input-group">
+                <div class="time-input-unit">
+                    <input type="number" id="popupHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                    <label for="popupHours">时</label>
+                </div>
+                <div class="time-input-unit">
+                    <input type="number" id="popupMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                    <label for="popupMinutes">分</label>
+                </div>
+                <div class="time-input-unit">
+                    <input type="number" id="popupSeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                    <label for="popupSeconds">秒</label>
+                </div>
+            </div>
+            <div class="quick-select-btns">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="60000">1分钟</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="300000">5分钟</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="600000">10分钟</button>
+            </div>
+        </div>
+        <div class="popup-section">
+            <label><i class="fas fa-heart"></i> 健康检查间隔</label>
+            <div class="time-input-group">
+                <div class="time-input-unit">
+                    <input type="number" id="popupHealthyHours" class="form-control" min="0" max="24" value="0" placeholder="0">
+                    <label for="popupHealthyHours">时</label>
+                </div>
+                <div class="time-input-unit">
+                    <input type="number" id="popupHealthyMinutes" class="form-control" min="0" max="59" value="0" placeholder="0">
+                    <label for="popupHealthyMinutes">分</label>
+                </div>
+                <div class="time-input-unit">
+                    <input type="number" id="popupHealthySeconds" class="form-control" min="0" max="59" value="0" placeholder="0">
+                    <label for="popupHealthySeconds">秒</label>
+                </div>
+            </div>
+            <div class="quick-select-btns">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="3600000">1小时</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="7200000">2小时</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-ms="0">不检查</button>
+            </div>
+        </div>
+    </div>
+    <div class="popup-actions">
+        <button type="button" class="btn btn-secondary" onclick="window.closeCustomIntervalPopup()" data-i18n="common.cancel">取消</button>
+        <button type="button" class="btn btn-primary" onclick="window.saveCustomInterval()" data-i18n="common.save">保存</button>
+    </div>
+</div>

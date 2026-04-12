@@ -3,6 +3,31 @@ import { t, getCurrentLanguage } from './i18n.js';
 import { apiClient } from './auth.js';
 
 /**
+ * 将毫秒转换为 小时/分钟/秒
+ * @param {number} ms - 毫秒
+ * @returns {{hours: number, minutes: number, seconds: number}}
+ */
+export function msToHms(ms) {
+    if (!ms || ms < 0) ms = 0;
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return { hours, minutes, seconds };
+}
+
+/**
+ * 将 小时/分钟/秒 转换为毫秒
+ * @param {number} hours
+ * @param {number} minutes
+ * @param {number} seconds
+ * @returns {number} 毫秒
+ */
+export function hmsToMs(hours, minutes, seconds) {
+    return ((hours || 0) * 3600 + (minutes || 0) * 60 + (seconds || 0)) * 1000;
+}
+
+/**
  * 获取所有支持的提供商配置列表
  * @param {string[]} supportedProviders - 已注册的提供商类型列表
  * @returns {Object[]} 提供商配置对象数组
@@ -48,30 +73,30 @@ function getBaseProviderConfigs() {
             icon: 'fa-cloud',
             defaultPath: 'configs/qwen/'
         },
-        { 
-            id: 'openai-iflow', 
-            name: t('dashboard.routing.nodeName.iflow'), 
-            icon: 'fa-stream',
-            defaultPath: 'configs/iflow/'
+        {
+            id: 'kimi-oauth',
+            name: t('dashboard.routing.nodeName.kimi'),
+            icon: 'fa-moon',
+            defaultPath: 'configs/kimi/'
         },
-        { 
-            id: 'grok-custom', 
-            name: t('dashboard.routing.nodeName.grok'), 
+        {
+            id: 'grok-custom',
+            name: t('dashboard.routing.nodeName.grok'),
             icon: 'fa-user-secret'
         },
-        { 
-            id: 'openai-custom', 
-            name: t('dashboard.routing.nodeName.openai'), 
+        {
+            id: 'openai-custom',
+            name: t('dashboard.routing.nodeName.openai'),
             icon: 'fa-microchip'
         },
-        { 
-            id: 'claude-custom', 
-            name: t('dashboard.routing.nodeName.claude'), 
+        {
+            id: 'claude-custom',
+            name: t('dashboard.routing.nodeName.claude'),
             icon: 'fa-brain'
         },
-        { 
-            id: 'openaiResponses-custom', 
-            name: 'OpenAI Responses', 
+        {
+            id: 'openaiResponses-custom',
+            name: 'OpenAI Responses',
             icon: 'fa-reply-all'
         },
     ];
@@ -149,8 +174,9 @@ function escapeHtml(text) {
  * @param {string} title - 提示标题 (可选，旧接口为 message)
  * @param {string} message - 提示消息
  * @param {string} type - 消息类型 (info, success, error)
+ * @param {number} duration - 显示持续时间(毫秒)，默认3000ms
  */
-function showToast(title, message, type = 'info') {
+function showToast(title, message, type = 'info', duration = 3000) {
     // 兼容旧接口 (message, type)
     if (arguments.length === 2 && (message === 'success' || message === 'error' || message === 'info' || message === 'warning')) {
         type = message;
@@ -172,7 +198,7 @@ function showToast(title, message, type = 'info') {
 
         setTimeout(() => {
             toast.remove();
-        }, 3000);
+        }, duration);
     }
 }
 
@@ -197,7 +223,6 @@ function getFieldLabel(key) {
         'KIRO_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'QWEN_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'ANTIGRAVITY_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
-        'IFLOW_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'CODEX_OAUTH_CREDS_FILE_PATH': t('modal.provider.field.oauthPath'),
         'GROK_COOKIE_TOKEN': t('modal.provider.field.ssoToken'),
         'GROK_CF_CLEARANCE': t('modal.provider.field.cfClearance'),
@@ -210,7 +235,6 @@ function getFieldLabel(key) {
         'QWEN_OAUTH_BASE_URL': t('modal.provider.field.oauthBaseUrl'),
         'ANTIGRAVITY_BASE_URL_DAILY': t('modal.provider.field.dailyBaseUrl'),
         'ANTIGRAVITY_BASE_URL_AUTOPUSH': t('modal.provider.field.autopushBaseUrl'),
-        'IFLOW_BASE_URL': t('modal.provider.field.iflowBaseUrl'),
         'CODEX_BASE_URL': t('modal.provider.field.codexBaseUrl'),
         'GROK_BASE_URL': t('modal.provider.field.grokBaseUrl'),
         'FORWARD_API_KEY': 'Forward API Key',
@@ -365,18 +389,18 @@ function getProviderTypeFields(providerType) {
                 placeholder: 'https://autopush-cloudcode-pa.sandbox.googleapis.com'
             }
         ],
-        'openai-iflow': [
+        'kimi-oauth': [
             {
-                id: 'IFLOW_OAUTH_CREDS_FILE_PATH',
+                id: 'KIMI_OAUTH_CREDS_FILE_PATH',
                 label: t('modal.provider.field.oauthPath'),
                 type: 'text',
-                placeholder: t('modal.provider.field.oauthPath.iflow.placeholder')
+                placeholder: t('modal.provider.field.oauthPath.kimi.placeholder')
             },
             {
-                id: 'IFLOW_BASE_URL',
-                label: `iFlow Base URL <span class="optional-tag">${t('config.optional')}</span>`,
+                id: 'KIMI_BASE_URL',
+                label: `Kimi Base URL <span class="optional-tag">${t('config.optional')}</span>`,
                 type: 'text',
-                placeholder: 'https://iflow.cn/api'
+                placeholder: 'https://api.kimi.com/coding'
             }
         ],
         'openai-codex-oauth': [
