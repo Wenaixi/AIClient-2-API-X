@@ -30,3 +30,5 @@ configs/*
 docker/docker-compose.local.yml
 
 model-usage-stats.json
+
+1.bat
