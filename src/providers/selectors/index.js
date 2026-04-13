@@ -108,13 +108,24 @@ export class FillFirstSelector extends ProviderSelector {
         }
 
         // 创建新的选择操作
-        const selectionPromise = this._doSelect(providers, options);
-        this._selectPromise = selectionPromise.finally(() => {
-            // 清理引用
-            this._selectPromise = null;
-        });
+        const result = this._doSelect(providers, options);
 
-        return selectionPromise;
+        // 如果 _doSelect 返回 null（同步结果），直接返回
+        if (result === null) {
+            return null;
+        }
+
+        // 如果返回的是 Promise（异步结果），正确处理 finally
+        if (result && typeof result.then === 'function') {
+            this._selectPromise = result.finally(() => {
+                // 清理引用
+                this._selectPromise = null;
+            });
+            return this._selectPromise;
+        }
+
+        // 同步结果（provider 对象）- 不设置 _selectPromise，直接返回
+        return result;
     }
 
     /**

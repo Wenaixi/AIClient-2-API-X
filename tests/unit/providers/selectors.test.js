@@ -48,120 +48,15 @@ function createTestProvider(overrides = {}) {
     };
 }
 
-// ==================== Selector 实现（从 selectors/index.js 复制用于测试） ====================
+// ==================== 真实 Selector 实现导入（来自 selectors/index.js） ====================
 
-class ProviderSelector {
-    select(providers, options = {}) {
-        throw new Error('Not implemented');
-    }
-}
-
-class ScoreBasedSelector extends ProviderSelector {
-    constructor(poolManager) {
-        super();
-        this.poolManager = poolManager;
-    }
-
-    select(providers, options = {}) {
-        if (!providers || providers.length === 0) return null;
-
-        const now = Date.now();
-        const minSeq = Math.min(...providers.map(p => p.config?._lastSelectionSeq || 0));
-
-        const sorted = [...providers].sort((a, b) => {
-            const scoreA = this.poolManager._calculateNodeScore ? this.poolManager._calculateNodeScore(a, now, minSeq) : 0;
-            const scoreB = this.poolManager._calculateNodeScore ? this.poolManager._calculateNodeScore(b, now, minSeq) : 0;
-            if (scoreA !== scoreB) return scoreA - scoreB;
-            return (a.uuid || '').localeCompare(b.uuid || '');
-        });
-
-        return sorted[0] || null;
-    }
-}
-
-class RoundRobinSelector extends ProviderSelector {
-    constructor() {
-        super();
-        this.indices = {};
-    }
-
-    select(providers, options = {}) {
-        if (!providers || providers.length === 0) return null;
-
-        const type = providers[0]?.type;
-        if (!type) return null;
-
-        if (!(type in this.indices)) {
-            this.indices[type] = 0;
-        }
-
-        const idx = this.indices[type];
-        this.indices[type] = (idx + 1) % providers.length;
-
-        return providers[idx] || null;
-    }
-
-    reset(type) {
-        if (type && this.indices[type] !== undefined) {
-            delete this.indices[type];
-        }
-    }
-}
-
-class FillFirstSelector extends ProviderSelector {
-    constructor(poolManager) {
-        super();
-        this.poolManager = poolManager;
-        this.lastSelected = null;
-    }
-
-    select(providers, options = {}) {
-        if (!providers || providers.length === 0) return null;
-
-        // 优先选择上次选中的节点（如果还健康）
-        if (this.lastSelected) {
-            const stillValid = providers.find(p =>
-                p.uuid === this.lastSelected.uuid &&
-                p.config?.isHealthy &&
-                !p.config?.isDisabled
-            );
-
-            if (stillValid) {
-                const state = stillValid.state || {};
-                const concurrencyLimit = parseInt(stillValid.config?.concurrencyLimit || 0);
-                if (concurrencyLimit <= 0 || (state.activeCount || 0) < concurrencyLimit) {
-                    return stillValid;
-                }
-            }
-        }
-
-        // 否则使用评分选择
-        const selector = new ScoreBasedSelector(this.poolManager);
-        const selected = selector.select(providers, options);
-        if (selected) {
-            this.lastSelected = selected;
-        }
-        return selected;
-    }
-
-    reset() {
-        this.lastSelected = null;
-    }
-}
-
-class SelectorFactory {
-    static create(type, poolManager) {
-        switch (type) {
-            case 'round-robin':
-                return new RoundRobinSelector();
-            case 'fill-first':
-                return new FillFirstSelector(poolManager);
-            case 'score-based':
-            default:
-                return new ScoreBasedSelector(poolManager);
-        }
-    }
-}
+import {
+    ProviderSelector,
+    ScoreBasedSelector,
+    RoundRobinSelector,
+    FillFirstSelector,
+    SelectorFactory
+} from '../../../src/providers/selectors/index.js';
 
 // ==================== 测试用例 ====================
 
@@ -335,7 +230,7 @@ describe('FillFirstSelector', () => {
         poolManager = createMockPoolManager();
         selector = new FillFirstSelector(poolManager);
         // 设置评分函数使 p1 分数最低（优先选中）
-        poolManager._calculateNodeScore = (p) => {
+        poolManager._calculateNodeScore = (p, now, minSeq) => {
             if (p.uuid === 'p1') return 100;
             if (p.uuid === 'p2') return 200;
             return 300;
@@ -352,7 +247,7 @@ describe('FillFirstSelector', () => {
             expect(selector.select(undefined)).toBeNull();
         });
 
-        test('should prefer last selected healthy provider', () => {
+        test('should prefer last selected healthy provider', async () => {
             const type = 'test-type';
             const providers = [
                 createTestProvider({ uuid: 'p1', type, isHealthy: true }),
@@ -360,11 +255,11 @@ describe('FillFirstSelector', () => {
             ];
 
             // 首次选择 p1（分数最低）
-            const first = selector.select(providers);
+            const first = await selector.select(providers);
             expect(first.uuid).toBe('p1');
 
             // 再次选择应该还是 p1（优先填充）
-            const second = selector.select(providers);
+            const second = await selector.select(providers);
             expect(second.uuid).toBe('p1');
         });
 
