@@ -901,19 +901,6 @@ function startCacheCleanup() {
 setTimeout(startCacheCleanup, 1000).unref();
 
 /**
- * 获取分组缓存
- * @param {string} groupKey - 分组键（如 provider type）
- */
-function getGroupCache(groupKey) {
-    let groupCache = groupCacheRegistry.get(groupKey);
-    if (!groupCache) {
-        groupCache = new GroupCache();
-        groupCacheRegistry.set(groupKey, groupCache);
-    }
-    return groupCache;
-}
-
-/**
  * 服务适配器实例的兼容层导出
  * 使用Proxy使其既能像普通对象一样使用，又能与LRU缓存交互
  */
