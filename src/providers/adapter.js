@@ -772,21 +772,36 @@ registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);
 
 /**
  * LRU缓存类，用于管理服务适配器实例避免内存泄漏
+ * 支持固定大小和 TTL 滑动过期
  */
 class LRUCache {
-    constructor(maxSize = 50) {
+    constructor(maxSize = 50, ttlMs = 0) {
         this.maxSize = maxSize;
+        this.ttlMs = ttlMs; // 0 表示无 TTL
         this.cache = new Map();
+    }
+
+    _isExpired(entry) {
+        if (!this.ttlMs) return false;
+        return Date.now() - entry.timestamp > this.ttlMs;
     }
 
     get(key) {
         if (!this.cache.has(key)) {
             return undefined;
         }
-        // 移动到末尾（最新使用）
-        const value = this.cache.get(key);
+        const entry = this.cache.get(key);
+
+        // 检查 TTL 过期
+        if (this._isExpired(entry)) {
+            this.cache.delete(key);
+            return undefined;
+        }
+
+        // 移动到末尾（最新使用）- O(1) 操作
+        const value = entry.value;
         this.cache.delete(key);
-        this.cache.set(key, value);
+        this.cache.set(key, entry);
         return value;
     }
 
@@ -798,11 +813,24 @@ class LRUCache {
             const oldestKey = this.cache.keys().next().value;
             this.cache.delete(oldestKey);
         }
-        this.cache.set(key, value);
+        this.cache.set(key, {
+            value,
+            timestamp: Date.now()
+        });
     }
 
     has(key) {
-        return this.cache.has(key);
+        if (!this.cache.has(key)) {
+            return false;
+        }
+        const entry = this.cache.get(key);
+
+        // 检查 TTL 过期
+        if (this._isExpired(entry)) {
+            this.cache.delete(key);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -821,10 +849,69 @@ class LRUCache {
     get size() {
         return this.cache.size;
     }
+
+    /**
+     * 清理过期条目
+     */
+    purgeExpired() {
+        if (!this.ttlMs) return;
+
+        const now = Date.now();
+        const keysToDelete = [];
+
+        for (const [key, entry] of this.cache) {
+            if (now - entry.timestamp > this.ttlMs) {
+                keysToDelete.push(key);
+            }
+        }
+
+        for (const key of keysToDelete) {
+            this.cache.delete(key);
+        }
+    }
 }
 
-// 用于存储服务适配器单例的LRU缓存
-const serviceInstancesCache = new LRUCache(50);
+// 缓存 TTL 常量
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 分钟 TTL
+const CACHE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟清理间隔
+
+// 用于存储服务适配器单例的LRU缓存（带 TTL）
+const serviceInstancesCache = new LRUCache(50, CACHE_TTL_MS);
+
+// 缓存清理定时器
+let cacheCleanupTimer = null;
+
+/**
+ * 启动缓存自动清理
+ */
+function startCacheCleanup() {
+    if (cacheCleanupTimer) return;
+
+    cacheCleanupTimer = setInterval(() => {
+        // 清理主缓存的过期条目
+        serviceInstancesCache.purgeExpired();
+    }, CACHE_CLEANUP_INTERVAL_MS);
+
+    if (cacheCleanupTimer.unref) {
+        cacheCleanupTimer.unref();
+    }
+}
+
+// 延迟启动清理（首次访问时启动）
+setTimeout(startCacheCleanup, 1000).unref();
+
+/**
+ * 获取分组缓存
+ * @param {string} groupKey - 分组键（如 provider type）
+ */
+function getGroupCache(groupKey) {
+    let groupCache = groupCacheRegistry.get(groupKey);
+    if (!groupCache) {
+        groupCache = new GroupCache();
+        groupCacheRegistry.set(groupKey, groupCache);
+    }
+    return groupCache;
+}
 
 /**
  * 服务适配器实例的兼容层导出
