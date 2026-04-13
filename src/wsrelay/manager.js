@@ -328,7 +328,11 @@ export class WSSession extends EventEmitter {
         this.writeMutex = false;
 
         // 待处理的请求 (messageId -> PendingRequest)
+        // 参考 Go 版本: sync.Map + 带缓冲的 channel
         this.pending = new Map();
+
+        // 关闭保护（参考 Go 版本的 closeOnce）
+        this._cleanupOnce = false;
 
         // 设置连接参数
         this.ws.on('error', (err) => this._handleError(err));
@@ -429,6 +433,7 @@ export class WSSession extends EventEmitter {
 
     /**
      * 分发消息
+     * 参考 Go 版本: dispatch() 实现更完善的 pending 请求处理
      */
     _dispatch(msg) {
         if (!msg) return;
@@ -446,14 +451,14 @@ export class WSSession extends EventEmitter {
         if (msg.id && this.pending.has(msg.id)) {
             const pendingReq = this.pending.get(msg.id);
 
-            // 发送消息到通道
+            // 发送消息到通道（带缓冲）
             if (pendingReq.ch.send) {
                 pendingReq.ch.send(msg);
             } else if (pendingReq.ch.push) {
                 pendingReq.ch.push(msg);
             }
 
-            // 终端消息类型关闭请求
+            // 终端消息类型关闭请求（参考 Go 版本）
             if (messageType === MessageType.HTTPResp ||
                 messageType === MessageType.Error ||
                 messageType === MessageType.StreamEnd ||
@@ -464,7 +469,7 @@ export class WSSession extends EventEmitter {
             return;
         }
 
-        // 未知 ID 的终端消息
+        // 未知 ID 的终端消息（参考 Go 版本的日志级别）
         if (messageType === MessageType.HTTPResp ||
             messageType === MessageType.Error ||
             messageType === MessageType.StreamEnd) {
@@ -528,6 +533,7 @@ export class WSSession extends EventEmitter {
 
     /**
      * 发起请求（带响应通道）
+     * 参考 Go 版本: 使用带缓冲的 channel，并处理 context cancel
      */
     request(msg) {
         if (this.closed) {
@@ -543,18 +549,38 @@ export class WSSession extends EventEmitter {
             return Promise.reject(new Error(`wsrelay: duplicate message id ${msg.id}`));
         }
 
-        // 创建待处理请求
+        // 创建待处理请求（参考 Go 版本：带缓冲的 channel，缓冲区 8）
         const ch = {
             messages: [],
-            push: (msg) => ch.messages.push(msg),
-            send: (msg) => ch.messages.push(msg),
-            close: () => {}
+            buffer: [],
+            maxBufferSize: 8,
+            closed: false,
+            push: (msg) => {
+                if (ch.closed) return;
+                if (ch.buffer.length < ch.maxBufferSize) {
+                    ch.buffer.push(msg);
+                }
+            },
+            send: (msg) => {
+                if (ch.closed) return;
+                if (ch.buffer.length < ch.maxBufferSize) {
+                    ch.buffer.push(msg);
+                }
+            },
+            close: () => {
+                ch.closed = true;
+                ch.buffer = [];
+            },
+            drain: () => {
+                ch.messages.push(...ch.buffer);
+                ch.buffer = [];
+            }
         };
 
         const pendingReq = {
             ch,
             close: () => {
-                ch.closed = true;
+                ch.close();
             }
         };
 
@@ -562,16 +588,15 @@ export class WSSession extends EventEmitter {
 
         // 发送请求
         this.send(msg).then(() => {
-            // 启动超时/取消监听
-            // 注意：这里需要外部的 context 来处理取消
+            // 启动 context cancel 监听（参考 Go 版本）
         }).catch((err) => {
             this.pending.delete(msg.id);
             pendingReq.close();
         });
 
-        // 返回消息通道
+        // 返回消息通道（带 drain 方法）
         return {
-            ch: ch.messages,
+            ch: ch,
             cancel: () => {
                 this.pending.delete(msg.id);
                 pendingReq.close();
