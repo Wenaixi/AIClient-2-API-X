@@ -25,6 +25,7 @@
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复
 - [x] WSRelay 模块实现（Manager-Session 架构，30 测试）
+- [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
 
 ---
 
