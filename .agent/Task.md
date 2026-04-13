@@ -7,8 +7,9 @@
 ## 当前任务状态
 
 ### 正在进行
+- [ ] 提升 LRU Cache TTL 至 3 小时（参考 Go 设计）
+- [ ] 实现空 Cache Bucket 清理机制
 - [ ] 提升核心模块测试覆盖率（utils/common.js, proxy-utils.js 等 0% 模块优先）
-- [ ] 分析并解决 Worker 进程优雅退出警告
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
 
 ### 已完成
@@ -22,14 +23,15 @@
 - [x] 健康检查定时器修复
 - [x] 安全漏洞修复（日志脱敏、路径保护）
 - [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
-- [x] LRU Cache TTL 优化（参考 CLIProxyAPI 设计）
+- [x] LRU Cache TTL 优化（30分钟，参考 CLIProxyAPI 设计）
 - [x] adapter.js 死代码清理
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复
 - [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
 - [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
 - [x] 深度分析 CLIProxyAPI wsrelay/session.go 和 manager.go 设计
-- [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计（3小时 TTL + 滑动过期）
+- [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
+- [x] FillFirstSelector 异步问题修复
 
 ---
 

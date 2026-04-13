@@ -280,11 +280,12 @@ CLIProxyAPI-6.9.15/
 | 终端消息 | `http_resp/error/stream_end` | 相同 |
 | Context 取消 | goroutine 监听 ctx.Done() | cancel 回调 |
 
-### Cache 模块对比（signature_cache.go）
-- 3 小时 TTL + 10 分钟清理间隔
-- 分组 Map 架构：sync.Map (groupKey -> groupCache)
-- 滑动过期：每次访问刷新 Timestamp
-- 单例清理 goroutine：sync.Once 保证只启动一次
+### Cache 模块对比（signature_cache.go）- 2026-04-15 深度分析
+- **3 小时 TTL** - 远超 Node.js 当前 30 分钟
+- **滑动过期** - 每次访问刷新 Timestamp（Node.js 已实现）
+- **分组 Map 架构** - sync.Map (groupKey -> groupCache)
+- **单例清理 goroutine** - sync.Once 保证只启动一次（Node.js 已实现）
+- **空组删除** - 清理时删除空的 cache bucket（**Node.js 未实现**）
 
 ### Auth 模块对比（gemini_auth.go）
 - OAuth2 Web 流程：启动本地 server 监听 callback

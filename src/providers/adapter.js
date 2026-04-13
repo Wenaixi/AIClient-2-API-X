@@ -871,9 +871,10 @@ class LRUCache {
     }
 }
 
-// 缓存 TTL 常量
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 分钟 TTL
-const CACHE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟清理间隔
+// 缓存 TTL 常量 - 参考 CLIProxyAPI Go version (signature_cache.go)
+// Go 版本使用 3 小时 TTL，Node.js 当前使用 30 分钟
+const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 小时 TTL（参考 Go 的 SignatureCacheTTL = 3 * time.Hour）
+const CACHE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟清理间隔（与 Go 的 CacheCleanupInterval = 10 * time.Minute 一致）
 
 // 用于存储服务适配器单例的LRU缓存（带 TTL）
 const serviceInstancesCache = new LRUCache(50, CACHE_TTL_MS);
