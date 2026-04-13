@@ -270,6 +270,30 @@ CLIProxyAPI-6.9.15/
 
 ---
 
+## CLIProxyAPI Go vs Node.js 深度对比（2026-04-15）
+
+### WSRelay 模块对比
+| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
+|------|------------------|---------------------|
+| 存储 | `sync.Map` | `Map` |
+| Channel 缓冲 | `make(chan Message, 8)` | 自定义 buffer 实现 |
+| 终端消息 | `http_resp/error/stream_end` | 相同 |
+| Context 取消 | goroutine 监听 ctx.Done() | cancel 回调 |
+
+### Cache 模块对比（signature_cache.go）
+- 3 小时 TTL + 10 分钟清理间隔
+- 分组 Map 架构：sync.Map (groupKey -> groupCache)
+- 滑动过期：每次访问刷新 Timestamp
+- 单例清理 goroutine：sync.Once 保证只启动一次
+
+### Auth 模块对比（gemini_auth.go）
+- OAuth2 Web 流程：启动本地 server 监听 callback
+- Token 存储：GeminiTokenStorage 结构
+- 错误处理：5 分钟超时 + 手动输入支持
+- Browser 检测：跨平台 browser.OpenURL
+
+---
+
 ## 近期修复（2026-04-14）
 
 ### FillFirstSelector 异步问题修复
@@ -279,4 +303,4 @@ CLIProxyAPI-6.9.15/
 
 ---
 
-*最后更新: 2026-04-14*
+*最后更新: 2026-04-15*

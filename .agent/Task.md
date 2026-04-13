@@ -7,12 +7,13 @@
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 完善测试系统覆盖率
+- [ ] 提升核心模块测试覆盖率（utils/common.js, proxy-utils.js 等 0% 模块优先）
+- [ ] 分析并解决 Worker 进程优雅退出警告
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1264 测试，31 套件）
+- [x] 测试基础设施搭建（1337 测试，32 套件全部通过）
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
 - [x] LRU Adapter Cache 实现
@@ -24,8 +25,10 @@
 - [x] adapter.js 死代码清理
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复
-- [x] WSRelay 模块实现（Manager-Session 架构，30 测试）
+- [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
 - [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
+- [x] 深度分析 CLIProxyAPI wsrelay/session.go 和 manager.go 设计
+- [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计（3小时 TTL + 滑动过期）
 
 ---
 
