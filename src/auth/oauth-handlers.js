@@ -31,4 +31,4 @@ export {
     batchImportKimiRefreshTokensStream,
     checkKimiCredentialsDuplicate,
     refreshKimiTokens
-} from './index.js';
+} from './kimi-oauth-handler.js';
