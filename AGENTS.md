@@ -62,8 +62,8 @@ origin/pro → 深度定制分支（所有开发在此分支进行）
 
 ### 测试状态（2026-04-15）
 ```
-Test Suites: 34 passed, 34 total
-Tests:       1391 passed, 1391 total
+Test Suites: 35 passed, 35 total
+Tests:       1438 passed, 1438 total
 Time:        ~35s
 ```
 
@@ -74,6 +74,7 @@ Time:        ~35s
 4. **adapter.js 死代码清理** - 删除未定义引用
 5. **oauth-handlers.js 导出修复** - 按提供商拆分导入
 6. **proxy-utils.js 测试覆盖** - 33 测试用例
+7. **token-utils.js 测试覆盖** - 47 测试用例
 
 ### 测试覆盖率（2026-04-15）
 | 模块 | 覆盖率 | 状态 |
@@ -82,6 +83,7 @@ Time:        ~35s
 | providers/selectors | 91% | ✅ 良好 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
+| utils/token-utils | 100% | ✅ 47 测试新增 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter | 较好 | ✅ |
