@@ -855,6 +855,7 @@ class LRUCache {
      * 参考 CLIProxyAPI Go signature_cache.go 设计：
      * - 清理过期条目
      * - 当组内无有效条目时删除 bucket（空 Cache Bucket 清理）
+     * Go 实现: purgeExpiredCaches() 中检查 isEmpty = len(sc.entries) == 0，然后 Delete(key)
      */
     purgeExpired() {
         if (!this.ttlMs) return;
@@ -874,10 +875,9 @@ class LRUCache {
 
         // 参考 Go: purgeExpiredCaches() - 当 bucket 为空时删除整个 bucket
         // Go: isEmpty := len(sc.entries) == 0; if isEmpty { signatureCache.Delete(key) }
-        // Node.js: 当 cache.map 中所有条目都被清理后，可以选择清除 map 释放内存
-        // 但这里 LRU Cache 保持 map 结构，因为后续还会有新条目写入
-        // 注意：与 Go 不同，Node.js LRU Cache 使用固定大小的 Map，不是分组 Map
-        // 所以不需要删除整个 bucket，只需要清理过期条目即可
+        // Node.js LRU Cache 是单一 Map 结构，不是分组 Map
+        // 空 Cache Bucket 清理不适用于当前设计（固定大小 LRU Cache）
+        // 注：如果后续改为分组 Map 架构，此逻辑可启用
     }
 }
 

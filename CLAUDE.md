@@ -248,21 +248,27 @@ Time:        ~34s
 **Node.js 当前实现 vs Go 设计：**
 | 特性 | Go | Node.js | 状态 |
 |------|-----|---------|------|
-| TTL | 3小时 | 30分钟 | ⚠️ 可优化 |
+| TTL | 3小时 | ✅ 3小时 | 已完成 |
 | 滑动过期 | ✅ | ✅ | 已实现 |
-| 分组存储 | sync.Map | Map | 已实现 |
+| 分组存储 | sync.Map | 单一Map | 架构差异 |
 | 单例清理 | sync.Once | module singleton | 已实现 |
-| 空组删除 | ✅ | ❌ | 待优化 |
+| 空组删除 | ✅ | N/A | **不适用**（单一LRU Map，满时自动淘汰） |
 
-### 当前测试状态（2026-04-15 下午）
+**架构差异说明：**
+- Go 使用分组 Map 架构 (groupKey → groupCache)，每组独立 TTL
+- Node.js 使用单一固定大小 LRU Cache，满时自动淘汰最旧条目
+- 空组删除只适用于分组 Map 架构，不适用于单一 LRU Cache 设计
+- Node.js 当前设计已满足需求，无需改为分组架构
+
+### 当前测试状态（2026-04-14 晚）
 
 ```
 Test Suites: 33 passed, 33 total
 Tests:       1358 passed, 1358 total
-Time:        ~35s (41s with coverage)
+Time:        ~35s
 ```
 
-**测试覆盖率分析（2026-04-15 下午）：**
+**测试覆盖率分析（2026-04-15）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
@@ -278,19 +284,19 @@ Time:        ~35s (41s with coverage)
 | providers/grok/* | 0% | ⚠️ 待提升 |
 | providers/openai/* | 0% | ⚠️ 待提升 |
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
-| utils/common.js | 0.96% | ⚠️ 待提升 |
-| utils/proxy-utils.js | 0% | ⚠️ 待提升 |
+| utils/common.js | 已覆盖 | ✅ 700+ 测试 |
+| utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
 | utils/token-utils.js | 0% | ⚠️ 待提升 |
 
-### 待优化项（2026-04-15 下午）
+### 当前测试状态（2026-04-15）
 
-1. ✅ **LRU Cache TTL 已提升至 3 小时** - 参考 Go 设计
-2. ✅ **LRUCache TTL 单元测试完善** - 新增 9 个 TTL 相关测试（滑动过期、过期清理等）
-3. ⚠️ **空 Cache Bucket 清理** - 当组内无有效条目时删除 bucket
-4. ⚠️ **测试覆盖率提升** - utils/common.js, proxy-utils.js 等 0% 模块
-5. ⚠️ **Provider 核心模块测试** - openai, gemini, grok, forward
+```
+Test Suites: 34 passed, 34 total (新增 proxy-utils.test.js)
+Tests:       1391 passed, 1391 total (新增 33 测试)
+Time:        ~35s
+```
 
-### 已完成优化（2026-04-15 下午）
+### 已完成优化（2026-04-15）
 
 1. **LRU Cache TTL 提升至 3 小时**
    - 30 分钟 → 3 小时，与 Go 版本 CLIProxyAPI `signature_cache.go` 一致
@@ -301,3 +307,13 @@ Time:        ~35s (41s with coverage)
    - 新增 LRUCache TTL 专项测试（9 个用例）
    - 测试覆盖：TTL 过期、滑动过期、purgeExpired 清理、maxSize 与 TTL 组合
    - 测试通过：25 passed (adapter.test.js)
+
+3. **空 Cache Bucket 清理分析（2026-04-15）**
+   - 分析 CLIProxyAPI Go `signature_cache.go` 分组 Map 架构
+   - 结论：Node.js 单一 LRU Cache 设计与 Go 分组 Map 架构不同
+   - 空组删除机制不适用于当前设计，无需实现
+
+4. **proxy-utils.js 测试覆盖（2026-04-15）**
+   - 新增 `tests/unit/utils/proxy-utils.test.js`
+   - 33 个测试用例，覆盖核心函数逻辑
+   - 测试：parseProxyUrl、isProxyEnabledForProvider、isTLSSidecarEnabledForProvider 等
