@@ -43,7 +43,7 @@ async function executeHealthCheck() {
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
     const customIntervals = config.customIntervals || {};
-    const healthyCheckInterval = config.healthyCheckInterval || HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
+    const healthyCheckInterval = config.healthyCheckInterval ?? HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
     const healthyCustomIntervals = config.healthyCustomIntervals || {};
     const configuredProviderTypes = config.providerTypes || [];
     const now = Date.now();
