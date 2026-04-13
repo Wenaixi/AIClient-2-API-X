@@ -13,7 +13,8 @@
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1337 测试，32 套件全部通过）
+- [x] 测试基础设施搭建（1350 测试，33 套件全部通过）
+- [x] 修复 wsrelay/index.test.js 动态 import 问题
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
 - [x] LRU Adapter Cache 实现
