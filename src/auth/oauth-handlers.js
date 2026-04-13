@@ -2,26 +2,45 @@
 // 此文件已按提供商拆分为多个独立文件，请从 index.js 导入
 
 // 重新导出所有 OAuth 处理函数以保持向后兼容
+
+// iFlow OAuth
+export { handleIFlowOAuth, refreshIFlowTokens } from './iflow-oauth.js';
+
+// Codex OAuth
 export {
-    // Codex OAuth
     refreshCodexTokensWithRetry,
     handleCodexOAuth,
     handleCodexOAuthCallback,
     batchImportCodexTokensStream,
-    // Gemini OAuth
+} from './codex-oauth.js';
+
+// Gemini OAuth
+export {
     handleGeminiCliOAuth,
     handleGeminiAntigravityOAuth,
     batchImportGeminiTokensStream,
     checkGeminiCredentialsDuplicate,
-    // Qwen OAuth
-    handleQwenOAuth,
-    // Kiro OAuth
+} from './gemini-oauth.js';
+
+// Qwen OAuth
+export { handleQwenOAuth } from './qwen-oauth.js';
+
+// Kiro OAuth
+export {
     handleKiroOAuth,
     checkKiroCredentialsDuplicate,
     batchImportKiroRefreshTokens,
     batchImportKiroRefreshTokensStream,
     importAwsCredentials,
-    // iFlow OAuth
-    handleIFlowOAuth,
-    refreshIFlowTokens,
-} from './index.js';
+} from './kiro-oauth.js';
+
+// Kimi OAuth
+export {
+    handleKimiOAuth,
+    completeKimiOAuth,
+    checkKimiAuthStatus,
+    batchImportKimiRefreshTokens,
+    batchImportKimiRefreshTokensStream,
+    checkKimiCredentialsDuplicate,
+    refreshKimiTokens
+} from './kimi-oauth-handler.js';
