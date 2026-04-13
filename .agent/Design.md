@@ -26,7 +26,15 @@ Client → API Server → Request Handler → Adapter → Provider Pool
 - **关键类**: `ProviderPoolManager` `FillFirstSelector`
 - **特性**: 健康检查、实例池化、动态扩容
 
-#### 3. Converters (src/converters/)
+#### 3. Provider Selectors (src/providers/selectors/index.js)
+- **职责**: 提供商选择策略
+- **选择器**:
+  - `ScoreBasedSelector` - 基于评分的选择（分数越低越优先）
+  - `RoundRobinSelector` - 轮询策略
+  - `FillFirstSelector` - 优先填充单个节点策略
+- **特性**: 支持并发串行化，防止竞争条件
+
+#### 4. Converters (src/converters/)
 - **职责**: 请求/响应格式转换
 - **转换器**:
   - `ClaudeConverter.js` - Claude 格式 ↔ OpenAI 格式
@@ -37,7 +45,7 @@ Client → API Server → Request Handler → Adapter → Provider Pool
   - `GrokConverter.js` - Grok 格式
   - `OpenAIResponsesConverter.js` - OpenAI Responses API
 
-#### 4. Health Check Timer (src/services/health-check-timer.js)
+#### 5. Health Check Timer (src/services/health-check-timer.js)
 - **职责**: 定时健康检查，移除不健康实例
 - **关键逻辑**: `_getMutableLastCheckTimes()` 修复了迭代中删除条目的 Bug
 
@@ -134,6 +142,8 @@ tests/
 │   ├── handlers/
 │   ├── plugins/
 │   ├── providers/
+│   │   ├── selectors/        # 选择器测试
+│   │   └── ...
 │   ├── services/
 │   ├── ui-modules/
 │   └── utils/
@@ -252,10 +262,20 @@ CLIProxyAPI-6.9.15/
 6. ✅ Timer 泄漏问题
 7. ✅ adapter.js 死代码清理（getGroupCache/groupCacheRegistry/GroupCache 未定义引用）
 8. ✅ oauth-handlers.js 导出路径错误（所有导出错误地从 kimi-oauth-handler.js 导入）
+9. ✅ FillFirstSelector 返回 Promise 而非同步值的问题（2026-04-14）
 
 ### 待监控
 1. ⚠️ Worker 进程异步句柄警告（不影响正确性）
 2. ⚠️ `MAX_INTERVAL_MS` 期望值测试修复
+
+---
+
+## 近期修复（2026-04-14）
+
+### FillFirstSelector 异步问题修复
+**问题**: `select()` 方法在有并发调用时可能返回 Promise，但底层 `_doSelect()` 实际返回同步值
+**修复**: 区分 Promise 和同步返回值，正确处理 finally 清理
+**代码位置**: `src/providers/selectors/index.js`
 
 ---
 
