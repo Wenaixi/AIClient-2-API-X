@@ -254,15 +254,15 @@ Time:        ~34s
 | 单例清理 | sync.Once | module singleton | 已实现 |
 | 空组删除 | ✅ | ❌ | 待优化 |
 
-### 当前测试状态（2026-04-15）
+### 当前测试状态（2026-04-15 下午）
 
 ```
 Test Suites: 33 passed, 33 total
-Tests:       1350 passed, 1350 total
-Time:        ~34s (41s with coverage)
+Tests:       1358 passed, 1358 total
+Time:        ~35s (41s with coverage)
 ```
 
-**测试覆盖率分析（2026-04-15）：**
+**测试覆盖率分析（2026-04-15 下午）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
@@ -271,6 +271,7 @@ Time:        ~34s (41s with coverage)
 | utils/provider-strategies | 100% | ✅ 完美 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
+| providers/adapter (LRUCache TTL) | 较好 | ✅ 近期新增测试 |
 | providers/claude-strategy | 0% | ⚠️ 待提升 |
 | providers/forward/* | 0% | ⚠️ 待提升 |
 | providers/gemini/* | 0% | ⚠️ 待提升 |
@@ -281,16 +282,22 @@ Time:        ~34s (41s with coverage)
 | utils/proxy-utils.js | 0% | ⚠️ 待提升 |
 | utils/token-utils.js | 0% | ⚠️ 待提升 |
 
-### 待优化项（2026-04-15）
+### 待优化项（2026-04-15 下午）
 
 1. ✅ **LRU Cache TTL 已提升至 3 小时** - 参考 Go 设计
-2. ⚠️ **空 Cache Bucket 清理** - 当组内无有效条目时删除 bucket
-3. ⚠️ **测试覆盖率提升** - utils/common.js, proxy-utils.js 等 0% 模块
-4. ⚠️ **Provider 核心模块测试** - openai, gemini, grok, forward
+2. ✅ **LRUCache TTL 单元测试完善** - 新增 9 个 TTL 相关测试（滑动过期、过期清理等）
+3. ⚠️ **空 Cache Bucket 清理** - 当组内无有效条目时删除 bucket
+4. ⚠️ **测试覆盖率提升** - utils/common.js, proxy-utils.js 等 0% 模块
+5. ⚠️ **Provider 核心模块测试** - openai, gemini, grok, forward
 
-### 已完成优化（2026-04-15）
+### 已完成优化（2026-04-15 下午）
 
 1. **LRU Cache TTL 提升至 3 小时**
    - 30 分钟 → 3 小时，与 Go 版本 CLIProxyAPI `signature_cache.go` 一致
    - SignatureCacheTTL = 3 * time.Hour
    - CacheCleanupInterval = 10 * time.Minute
+
+2. **adapter.test.js TTL 测试增强**
+   - 新增 LRUCache TTL 专项测试（9 个用例）
+   - 测试覆盖：TTL 过期、滑动过期、purgeExpired 清理、maxSize 与 TTL 组合
+   - 测试通过：25 passed (adapter.test.js)

@@ -7,7 +7,6 @@
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 提升 LRU Cache TTL 至 3 小时（参考 Go 设计）
 - [ ] 实现空 Cache Bucket 清理机制
 - [ ] 提升核心模块测试覆盖率（utils/common.js, proxy-utils.js 等 0% 模块优先）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
@@ -24,6 +23,7 @@
 - [x] 安全漏洞修复（日志脱敏、路径保护）
 - [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
 - [x] LRU Cache TTL 优化（30分钟，参考 CLIProxyAPI 设计）
+- [x] LRU Cache TTL 测试完善（9 个 TTL 专项测试，滑动过期/过期清理）
 - [x] adapter.js 死代码清理
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复

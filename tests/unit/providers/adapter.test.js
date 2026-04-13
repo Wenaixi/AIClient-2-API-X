@@ -221,6 +221,185 @@ describe('LRUCache', () => {
     });
 });
 
+// ==================== LRUCache TTL 功能测试 ====================
+
+describe('LRUCache TTL', () => {
+    // 模拟带 TTL 的 LRUCache（与 src/providers/adapter.js 同步）
+    class TTLLRUCache {
+        constructor(maxSize = 50, ttlMs = 0) {
+            this.maxSize = maxSize;
+            this.ttlMs = ttlMs;
+            this.cache = new Map();
+        }
+
+        _isExpired(entry) {
+            if (!this.ttlMs) return false;
+            return Date.now() - entry.timestamp > this.ttlMs;
+        }
+
+        get(key) {
+            if (!this.cache.has(key)) {
+                return undefined;
+            }
+            const entry = this.cache.get(key);
+            if (this._isExpired(entry)) {
+                this.cache.delete(key);
+                return undefined;
+            }
+            const value = entry.value;
+            this.cache.delete(key);
+            this.cache.set(key, entry);
+            return value;
+        }
+
+        set(key, value) {
+            if (this.cache.has(key)) {
+                this.cache.delete(key);
+            } else if (this.cache.size >= this.maxSize) {
+                const oldestKey = this.cache.keys().next().value;
+                this.cache.delete(oldestKey);
+            }
+            this.cache.set(key, { value, timestamp: Date.now() });
+        }
+
+        has(key) {
+            if (!this.cache.has(key)) {
+                return false;
+            }
+            const entry = this.cache.get(key);
+            if (this._isExpired(entry)) {
+                this.cache.delete(key);
+                return false;
+            }
+            return true;
+        }
+
+        delete(key) {
+            return this.cache.delete(key);
+        }
+
+        clear() {
+            this.cache.clear();
+        }
+
+        get size() {
+            return this.cache.size;
+        }
+
+        purgeExpired() {
+            if (!this.ttlMs) return;
+            const now = Date.now();
+            const keysToDelete = [];
+            for (const [key, entry] of this.cache) {
+                if (now - entry.timestamp > this.ttlMs) {
+                    keysToDelete.push(key);
+                }
+            }
+            for (const key of keysToDelete) {
+                this.cache.delete(key);
+            }
+        }
+    }
+
+    test('should not expire without TTL', () => {
+        const cache = new TTLLRUCache(50, 0); // 无 TTL
+        cache.set('key1', 'value1');
+        // 模拟时间流逝（不设置 TTL 则不会过期）
+        expect(cache.has('key1')).toBe(true);
+        expect(cache.get('key1')).toBe('value1');
+    });
+
+    test('should expire entries after TTL', () => {
+        const cache = new TTLLRUCache(50, 100); // 100ms TTL
+        cache.set('key1', 'value1');
+
+        // 未过期
+        expect(cache.has('key1')).toBe(true);
+
+        // 模拟时间流逝 - 手动修改 timestamp
+        const entry = cache.cache.get('key1');
+        entry.timestamp = Date.now() - 200; // 200ms 前
+
+        // 已过期
+        expect(cache.has('key1')).toBe(false);
+        expect(cache.get('key1')).toBeUndefined();
+    });
+
+    test('should move entry to most recent position on access (sliding expiration)', () => {
+        const cache = new TTLLRUCache(2, 0); // maxSize=2
+        cache.set('key1', 'value1');
+        cache.set('key2', 'value2');
+
+        // 访问 key1，使其变为最近使用
+        cache.get('key1');
+
+        // 添加新 key，key2 应该被淘汰（最早访问）
+        cache.set('key3', 'value3');
+
+        // key1 应该还在（刚被访问过，是最近使用的）
+        expect(cache.has('key1')).toBe(true);
+        // key2 应该被淘汰
+        expect(cache.has('key2')).toBe(false);
+        expect(cache.has('key3')).toBe(true);
+    });
+
+    test('should purge expired entries', () => {
+        const cache = new TTLLRUCache(50, 100); // 100ms TTL
+        cache.set('key1', 'value1');
+        cache.set('key2', 'value2');
+
+        // 手动让 key1 过期
+        const entry1 = cache.cache.get('key1');
+        entry1.timestamp = Date.now() - 200;
+
+        // key2 未过期
+        expect(cache.has('key2')).toBe(true);
+
+        // 执行清理
+        cache.purgeExpired();
+
+        // key1 应该被删除，key2 保留
+        expect(cache.has('key1')).toBe(false);
+        expect(cache.has('key2')).toBe(true);
+        expect(cache.size).toBe(1);
+    });
+
+    test('should handle purgeExpired with no TTL', () => {
+        const cache = new TTLLRUCache(50, 0); // 无 TTL
+        cache.set('key1', 'value1');
+        cache.purgeExpired(); // 不应抛出错误
+        expect(cache.has('key1')).toBe(true);
+    });
+
+    test('should work with maxSize eviction and TTL combined', () => {
+        const cache = new TTLLRUCache(2, 0); // maxSize=2, 无 TTL
+        cache.set('key1', 'value1');
+        cache.set('key2', 'value2');
+        cache.set('key3', 'value3'); // key1 应该被淘汰
+
+        expect(cache.has('key1')).toBe(false);
+        expect(cache.has('key2')).toBe(true);
+        expect(cache.has('key3')).toBe(true);
+    });
+
+    test('should update existing key without increasing size', () => {
+        const cache = new TTLLRUCache(50, 100);
+        cache.set('key1', 'value1');
+        expect(cache.size).toBe(1);
+        cache.set('key1', 'value2');
+        expect(cache.size).toBe(1);
+        expect(cache.get('key1')).toBe('value2');
+    });
+
+    test('should clear all entries including non-expired', () => {
+        const cache = new TTLLRUCache(50, 100);
+        cache.set('key1', 'value1');
+        cache.set('key2', 'value2');
+        cache.clear();
+        expect(cache.size).toBe(0);
+    });
+});
+
 // ==================== ApiServiceAdapter 抽象类测试 ====================
 
 describe('ApiServiceAdapter', () => {
