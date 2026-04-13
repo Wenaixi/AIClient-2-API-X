@@ -1,0 +1,250 @@
+# Task.md - 任务追踪与进度管理
+
+> 规范驱动开发第三步：分解任务并跟踪进度
+
+---
+
+## 当前任务状态
+
+### 正在进行
+- [ ] 完善测试系统覆盖率
+- [ ] 维护 CLAUDE.md 和 .claude/ 文档
+
+### 已完成
+- [x] 创建 .claude 目录结构
+- [x] 测试基础设施搭建（1264 测试，31 套件）
+- [x] Kimi OAuth 集成
+- [x] iFlow 提供商支持恢复
+- [x] LRU Adapter Cache 实现
+- [x] Provider Pool Manager 重构
+- [x] 健康检查定时器修复
+- [x] 安全漏洞修复（日志脱敏、路径保护）
+- [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
+
+---
+
+## 项目结构
+
+### 源码组织 (src/)
+```
+src/
+├── auth/                    # 认证模块
+│   ├── index.js
+│   ├── oauth-handlers.js
+│   ├── kimi-oauth.js        # Kimi OAuth
+│   ├── kimi-oauth-handler.js
+│   ├── kiro-oauth.js
+│   ├── gemini-oauth.js
+│   ├── codex-oauth.js
+│   ├── qwen-oauth.js
+│   └── iflow-oauth.js
+├── converters/             # 格式转换器
+│   ├── register-converters.js
+│   ├── BaseConverter.js
+│   ├── ConverterFactory.js
+│   └── strategies/
+│       ├── ClaudeConverter.js
+│       ├── OpenAIConverter.js
+│       ├── KimiConverter.js
+│       ├── GeminiConverter.js
+│       ├── CodexConverter.js
+│       ├── GrokConverter.js
+│       └── OpenAIResponsesConverter.js
+├── core/                   # 核心模块
+│   ├── config-manager.js
+│   ├── plugin-manager.js
+│   └── master.js
+├── handlers/               # 请求处理器
+│   └── request-handler.js
+├── plugins/                # 插件
+│   ├── api-potluck/
+│   ├── ai-monitor/
+│   └── default-auth/
+├── providers/              # 提供商
+│   ├── adapter.js         # 适配器（LRU Cache）
+│   ├── provider-pool-manager.js
+│   ├── provider-models.js
+│   ├── selectors/index.js
+│   ├── openai/
+│   ├── claude/
+│   ├── gemini/
+│   ├── grok/
+│   ├── forward/
+│   └── kimi/
+│       ├── kimi-core.js
+│       ├── kimi-strategy.js
+│       └── kimi-message-normalizer.js
+├── services/              # 服务
+│   ├── api-server.js
+│   ├── service-manager.js
+│   ├── ui-manager.js
+│   ├── usage-service.js
+│   └── health-check-timer.js
+├── ui-modules/            # UI 模块
+│   ├── auth.js
+│   ├── config-api.js
+│   ├── config-scanner.js
+│   ├── event-broadcast.js
+│   ├── oauth-api.js
+│   ├── provider-api.js
+│   ├── update-api.js
+│   ├── usage-api.js
+│   ├── usage-cache.js
+│   ├── plugin-api.js
+│   ├── system-api.js
+│   └── system-monitor.js
+├── utils/                 # 工具
+│   ├── common.js
+│   ├── constants.js
+│   ├── logger.js
+│   ├── provider-strategies.js
+│   ├── provider-utils.js
+│   ├── proxy-utils.js
+│   └── tls-sidecar.js
+├── scripts/               # 脚本
+│   ├── kimi-token-refresh.js
+│   ├── kiro-token-refresh.js
+│   └── kiro-idc-token-refresh.js
+└── convert/               # 转换脚本
+    ├── convert.js
+    └── convert-old.js
+```
+
+---
+
+## 测试组织 (tests/)
+
+### 单元测试 (tests/unit/)
+```
+tests/unit/
+├── auth/
+│   └── auth.test.js
+├── converters/
+│   ├── converter-utils.test.js
+│   ├── kimi-converter.test.js
+│   ├── openai-converter.test.js
+│   └── claude-converter.test.js
+├── core/
+│   └── plugin-manager.test.js
+├── handlers/
+│   └── request-handler.test.js
+├── plugins/
+│   ├── api-potluck/
+│   │   └── api-routes.test.js
+│   └── ai-monitor.test.js
+├── providers/
+│   ├── adapter.test.js
+│   ├── kimi-core.test.js
+│   ├── kimi-message-normalizer.test.js
+│   ├── kimi-strategy.test.js
+│   ├── provider-pool-manager.test.js
+│   ├── provider-pool-manager-deep.test.js
+│   └── selectors.test.js
+├── services/
+│   ├── health-check-timer.test.js
+│   └── usage-service.test.js
+├── ui-modules/
+│   ├── config-api.test.js
+│   ├── config-manager.test.js
+│   ├── event-broadcast.test.js
+│   ├── oauth-api.test.js
+│   ├── provider-data-sanitization.test.js
+│   └── usage-cache.test.js
+└── utils/
+    ├── common.test.js
+    ├── constants.test.js
+    ├── logger.test.js
+    ├── provider-strategies.test.js
+    └── provider-utils.test.js
+```
+
+### 集成测试
+```
+tests/
+├── provider-models.unit.test.js
+└── security-fixes.unit.test.js
+```
+
+---
+
+## 近期提交记录（pro 分支）
+
+| 提交 | 描述 |
+|------|------|
+| 5e2dde2 | perf(adapter): 优化 LRU Cache 实现 - 添加 TTL 滑动过期 |
+| b2e63e7 | chore: backup pro branch - gitignore update |
+| f6bd03d | feat(iflow): 恢复 iFlow 提供商支持 |
+| f9ea783 | fix(health-check): 修复 _getMutableLastCheckTimes 未定义及迭代中删除条目Bug |
+| c055c50 | fix(security): 修复认证日志敏感信息泄露和生产环境路径暴露 |
+| d83480d | Merge branch 'pr/8-frontend-enhancements' into pro |
+| c7a27dd | Merge branch 'pr/7-docker-improvements' into pro |
+| cf7314f | merge(test): 合并测试基础设施 PR #484 |
+| a4d1274 | Merge branch 'pr/4-kimi-integration' into pro |
+| 2b27297 | merge(provider-pool): 合并提供商池增强 PR #481 |
+| 788e408 | Merge branch 'pr/2-adapter-lru-cache' into pro |
+| 84dfab8 | Merge branch 'pr/1-security-fixes' into pro |
+
+---
+
+### CLIProxyAPI 参考任务
+
+参考路径: `E:\newCC\stick\AlClient-2-APIAlClient-2-API\CLIProxyAPI-6.9.15`
+
+### Go vs Node.js 深度对比分析（2026-04-14）
+- [x] 深度分析 CLIProxyAPI Go 实现 vs Node.js 实现
+- [x] Auth 模块对比：Go接口 vs Node.js OAuth处理器
+- [x] Store 模块对比：多后端 vs JSON文件
+- [x] Translator 模块对比：blank import vs 显式注册
+- [x] Usage 模块对比：聚合统计 vs Provider查询
+- [x] Cache 模块对比：sync.Map分组 vs LRU Cache
+- [x] WSRelay 模块对比：Manager-Session vs 无独立模块
+
+### Go 实现对标
+- [x] 对比 Go `internal/auth/` 设计，审视 Node.js auth 实现
+- [x] 对比 Go `internal/store/` 设计，考虑数据存储优化
+- [x] 对比 Go `internal/translator/` 设计，优化转换器
+- [x] 对比 Go `internal/usage/` 设计，完善使用量统计
+- [ ] 考虑借鉴 Go 的缓存设计优化 Node.js LRU Cache
+- [ ] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
+
+---
+
+## 下一步工作
+
+### 短期（1-3天）
+1. [ ] 完善缺失测试的模块
+2. [ ] 修复 Worker 进程异步句柄警告（--detectOpenHandles）
+3. [ ] 更新 CLAUDE.md 文档
+
+### 中期（1周）
+1. [ ] 提升测试覆盖率至 90%+
+2. [ ] 性能优化分析
+3. [ ] 借鉴 Go 设计优化 Node.js 实现
+
+### 长期
+1. [ ] 完善错误处理和边界情况
+2. [ ] 增强监控和可观测性
+3. [ ] 文档完善
+
+---
+
+## 命令速查
+
+```bash
+# 开发
+npm run start        # 启动服务
+npm run start:dev     # 开发模式
+
+# 测试
+npm test             # 运行全部测试
+npm run test:watch   # 监听模式
+npm run test:coverage # 覆盖率报告
+
+# Git
+git status           # 查看状态
+git log --oneline -10 # 最近提交
+```
+
+---
+
+*最后更新: 2026-04-13*

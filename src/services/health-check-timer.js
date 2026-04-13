@@ -20,10 +20,9 @@ let lastCheckTimes = new Map();
 
 // 注意：返回的是原始 timerState 对象的引用，不要直接替换整个对象
 const _getState = () => timerState;
-// 深拷贝 lastCheckTimes，避免外部修改影响模块内部状态
+// 深拷贝 lastCheckTimes，避免外部修改影响模块内部状态（仅在需要时拷贝）
 const _getLastCheckTimes = () => new Map(lastCheckTimes);
-
-// 用于更新模块内部的 lastCheckTimes 引用（返回真实 Map，非拷贝）
+// 获取可变引用，用于修改 lastCheckTimes
 const _getMutableLastCheckTimes = () => lastCheckTimes;
 
 /**
@@ -44,7 +43,7 @@ async function executeHealthCheck() {
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
     const customIntervals = config.customIntervals || {};
-    const healthyCheckInterval = config.healthyCheckInterval || HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
+    const healthyCheckInterval = config.healthyCheckInterval ?? HEALTH_CHECK.HEALTHY_CHECK_INTERVAL_MS;
     const healthyCustomIntervals = config.healthyCustomIntervals || {};
     const configuredProviderTypes = config.providerTypes || [];
     const now = Date.now();
@@ -66,11 +65,14 @@ async function executeHealthCheck() {
         // 使用迭代器直接删除最旧的条目，避免完整排序
         const targetSize = Math.floor(HEALTH_CHECK.MAX_LAST_CHECK_ENTRIES * 0.8);
         const entriesToRemove = mutableLastCheckTimes.size - targetSize;
-        let deleted = 0;
+        // 先收集要删除的键，避免在迭代中删除导致未定义行为
+        const keysToRemove = [];
         for (const [key, ts] of mutableLastCheckTimes.entries()) {
-            if (deleted >= entriesToRemove) break;
+            if (keysToRemove.length >= entriesToRemove) break;
+            keysToRemove.push(key);
+        }
+        for (const key of keysToRemove) {
             mutableLastCheckTimes.delete(key);
-            deleted++;
         }
     }
 

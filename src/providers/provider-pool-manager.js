@@ -81,11 +81,14 @@ export class ProviderPoolManager {
         this._selectionLocks = {};
         this._isSelecting = {}; // 同步标志位锁
 
+        // 验证配置并应用默认值（需要在使用配置字段之前调用）
+        this.validateConfig();
+
         // --- 刷新信号量配置 ---
         // 替代 activeProviderRefreshes + globalRefreshWaiters 的信号量模式
         this.refreshSemaphore = {
-            global: options.globalConfig?.REFRESH_SEMAPHORE_GLOBAL ?? 16,        // 全局最多 16 并发刷新
-            perProvider: options.globalConfig?.REFRESH_SEMAPHORE_PER_PROVIDER ?? 4,  // 每 provider 最多 4 并发
+            global: this.globalConfig.REFRESH_SEMAPHORE_GLOBAL ?? 16,        // 全局最多 16 并发刷新
+            perProvider: this.globalConfig.REFRESH_SEMAPHORE_PER_PROVIDER ?? 4,  // 每 provider 最多 4 并发
             globalUsed: 0,
             perProviderUsed: {},  // { providerType: count }
             globalWaitQueue: [],  // Promise resolve 队列
@@ -104,21 +107,21 @@ export class ProviderPoolManager {
         this.refreshBufferTimers = {}; // 按 providerType 分组的定时器
         this.bufferDelay = options.globalConfig?.REFRESH_BUFFER_DELAY ?? 5000; // 默认5秒缓冲延迟
         this.refreshTaskTimeoutMs = options.globalConfig?.REFRESH_TASK_TIMEOUT_MS ?? 60000; // 默认60秒刷新超时
-        this.maxSemaphoreWaitTime = options.globalConfig?.MAX_SEMAPHORE_WAIT_TIME ?? 60000; // 默认60秒信号量等待超时
+        this.maxSemaphoreWaitTime = this.globalConfig.MAX_SEMAPHORE_WAIT_TIME ?? 60000; // 默认60秒信号量等待超时
 
         // --- 429 指数退避配置 ---
         this.quotaBackoff = {
-            base: options.globalConfig?.QUOTA_BACKOFF_BASE ?? 1000,           // 基础延迟 1s
-            max: options.globalConfig?.QUOTA_BACKOFF_MAX ?? 1800000,          // 最大 30min
-            maxRetries: options.globalConfig?.QUOTA_BACKOFF_MAX_RETRIES ?? 3, // 默认3次重试
+            base: this.globalConfig.QUOTA_BACKOFF_BASE ?? 1000,           // 基础延迟 1s
+            max: this.globalConfig.QUOTA_BACKOFF_MAX ?? 1800000,          // 最大 30min
+            maxRetries: this.globalConfig.QUOTA_BACKOFF_MAX_RETRIES ?? 3, // 默认3次重试
             quotaResetTimes: {}  // 存储每个 provider 的 quota 重置时间
         };
 
         // --- 冷却队列配置 ---
         this.cooldownQueue = {
-            enabled: options.globalConfig?.COOLDOWN_QUEUE_ENABLED ?? true,
-            defaultCooldown: options.globalConfig?.COOLDOWN_DEFAULT ?? 60000,  // 默认 60s
-            maxCooldown: options.globalConfig?.COOLDOWN_MAX ?? 300000,          // 最大 5min
+            enabled: this.globalConfig.COOLDOWN_QUEUE_ENABLED ?? true,
+            defaultCooldown: this.globalConfig.COOLDOWN_DEFAULT ?? 60000,  // 默认 60s
+            maxCooldown: this.globalConfig.COOLDOWN_MAX ?? 300000,          // 最大 5min
             queues: {}  // per-type 冷却队列: { providerType: { uuid: expireAt } }
         };
 
@@ -529,6 +532,11 @@ export class ProviderPoolManager {
                     .then(() => {
                         ownsGlobalSlot = true;
                         tryStartProviderQueue();
+                    })
+                    .catch((err) => {
+                        this._log('error', `Failed to acquire global semaphore for ${providerType}: ${err.message}`);
+                        // 从刷新队列中移除，避免永久锁定
+                        this.refreshingUuids.delete(uuid);
                     });
             } else {
                 ownsGlobalSlot = true;
