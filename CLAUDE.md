@@ -97,8 +97,8 @@ git merge main      # 合并上游到当前分支
 ## 当前测试状态（2026-04-15）
 
 ```
-Test Suites: 34 passed, 34 total
-Tests:       1391 passed, 1391 total
+Test Suites: 35 passed, 35 total
+Tests:       1438 passed, 1438 total
 Time:        ~35s
 ```
 
@@ -109,6 +109,7 @@ Time:        ~35s
 | providers/selectors | 91% | ✅ 良好 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
+| utils/token-utils | 100% | ✅ 47 测试新增 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter (LRUCache TTL) | 较好 | ✅ 近期新增测试 |
@@ -120,7 +121,6 @@ Time:        ~35s
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
 | utils/common.js | 已覆盖 | ✅ 700+ 测试 |
 | utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
-| utils/token-utils.js | 0% | ⚠️ 待提升 |
 
 ---
 
