@@ -138,7 +138,7 @@ Tests:       1350 passed, 1350 total
 Time:        ~34s
 ```
 
-**测试覆盖率分析（2026-04-15）：**
+**测试覆盖率分析（2026-04-14）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
@@ -147,6 +147,8 @@ Time:        ~34s
 | utils/provider-strategies | 100% | ✅ 完美 |
 | src/providers/adapter | 较好 | ✅ |
 | services/health-check-timer | 81-88% | ✅ 良好 |
+| wsrelay/manager.js | 76% | ✅ 良好 |
+| wsrelay/index.js | 0% | ⚠️ 仅重导出，无独立逻辑 |
 | providers/claude-strategy | 0% | ⚠️ 待提升 |
 | providers/forward/* | 0% | ⚠️ 待提升 |
 | providers/gemini/* | 0% | ⚠️ 待提升 |
@@ -160,13 +162,13 @@ Time:        ~34s
 | utils/proxy-utils.js | 0% | ⚠️ 待提升 |
 | utils/tls-sidecar.js | 6.94% | ⚠️ 待提升 |
 | utils/token-utils.js | 0% | ⚠️ 待提升 |
-| wsrelay/index.js | 0% | ⚠️ 待提升 |
 
-**测试改进计划（2026-04-15）：**
-1. 优先提升 utils/common.js 覆盖率（基础设施）
-2. 为核心 Provider 模块添加测试（openai, gemini, grok, forward）
-3. 为 ui-modules 添加测试
-4. 分析 Worker 进程警告根因
+**测试改进计划（2026-04-14）：**
+1. ✅ 优先提升 utils/common.js 覆盖率（基础设施）
+2. ✅ 为核心 Provider 模块添加测试（openai, gemini, grok, forward）
+3. ✅ 为 ui-modules 添加测试
+4. ✅ 分析 Worker 进程警告根因
+5. ✅ 修复 wsrelay/index.test.js 动态 import 问题
 
 **近期测试改进：**
 - 修复 health-check-timer 测试中 "should skip providers when interval not exceeded" 测试用例
