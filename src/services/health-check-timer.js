@@ -31,8 +31,28 @@ let lastCheckTimes = new Map();
 const _getState = () => timerState;
 // 深拷贝 lastCheckTimes，避免外部修改影响模块内部状态（仅在需要时拷贝）
 const _getLastCheckTimes = () => new Map(lastCheckTimes);
-// 获取可变引用，用于修改 lastCheckTimes
-const _getMutableLastCheckTimes = () => lastCheckTimes;
+
+/**
+ * 重置模块状态（仅供测试使用）
+ * 清除所有计时器和状态
+ */
+export function _resetModuleState() {
+    const state = _getState();
+    if (state.timerId) {
+        clearInterval(state.timerId);
+    }
+    state.timerId = null;
+    state.activeInterval = null;
+    state.checkPromise = null;
+    lastCheckTimes.clear();
+}
+
+/**
+ * 获取可变引用用于修改 lastCheckTimes（仅供测试使用）
+ */
+export function _getMutableLastCheckTimes() {
+    return lastCheckTimes;
+}
 
 /**
  * 执行健康检查
@@ -125,7 +145,7 @@ async function executeHealthCheck() {
         const effectiveHealthyInterval = healthyCustomInterval ?? healthyCheckInterval;
 
         const providers = providerStatus[providerType];
-        if (!providers || providers.size === 0) {
+        if (!providers || providers.length === 0) {
             continue;
         }
 
@@ -299,3 +319,8 @@ export function runStartupHealthCheck() {
         startupTimer.unref();
     });
 }
+
+// 测试辅助导出
+export const _testExports = {
+    _getMutableLastCheckTimes
+};

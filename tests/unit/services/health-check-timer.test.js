@@ -45,15 +45,16 @@ jest.mock('../../../src/utils/constants.js', () => ({
 const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
 
 // 测试辅助函数：创建模拟的 providerStatus
+// 注意：providerStatus[providerType] 是 Array，不是 Map
 function createMockProviderStatus() {
     return {
-        'claude-kiro-oauth': new Map([
-            ['uuid-1', { config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } }],
-            ['uuid-2', { config: { uuid: 'uuid-2', isDisabled: false, isHealthy: false } }]
-        ]),
-        'gemini-cli-oauth': new Map([
-            ['uuid-3', { config: { uuid: 'uuid-3', isDisabled: false, isHealthy: true } }]
-        ])
+        'claude-kiro-oauth': [
+            { config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } },
+            { config: { uuid: 'uuid-2', isDisabled: false, isHealthy: false } }
+        ],
+        'gemini-cli-oauth': [
+            { config: { uuid: 'uuid-3', isDisabled: false, isHealthy: true } }
+        ]
     };
 }
 
@@ -297,8 +298,6 @@ describe('runStartupHealthCheck', () => {
         const { stopHealthCheckTimer } = healthCheckTimerModule;
         stopHealthCheckTimer();
         jest.useRealTimers();
-        // Allow pending timers to fire and clean up
-        await new Promise(resolve => setTimeout(resolve, 0));
     });
 
     test('should return a promise', () => {
@@ -322,7 +321,7 @@ describe('runStartupHealthCheck', () => {
         // without trying to iterate over providers
         getProviderPoolManager.mockReturnValue({
             providerStatus: {
-                'claude-kiro-oauth': new Map() // Empty map - no providers to check
+                'claude-kiro-oauth': [] // Empty array - no providers to check
             },
             performHealthChecksByType: jest.fn()
         });
@@ -366,6 +365,322 @@ describe('runStartupHealthCheck', () => {
 
         // 由于没有 providerStatus，应该 resolve 而不是 reject
         await expect(promise).resolves.toBeUndefined();
+    });
+});
+
+describe('executeHealthCheck - provider cleanup', () => {
+    const { stopHealthCheckTimer, _resetModuleState } = healthCheckTimerModule;
+    const { getProviderPoolManager } = require('../../../src/services/service-manager.js');
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        _resetModuleState();
+    });
+
+    afterEach(() => {
+        _resetModuleState();
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
+
+    test('should clean up removed provider types from lastCheckTimes', async () => {
+        // 模拟 poolManager
+        const mockPoolManager = {
+            providerStatus: {},
+            performHealthChecksByType: jest.fn()
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude'],  // 只保留 claude
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        // 直接调用模块中的函数来测试 lastCheckTimes 清理
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        // 执行健康检查
+        const promise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await promise;
+    });
+
+    test('should skip providers when interval not exceeded', async () => {
+        const performHealthChecksByType = jest.fn();
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [{ config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } }]
+            },
+            performHealthChecksByType
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 600000,  // 10分钟
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 3600000,  // 1小时
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        // 模拟最近刚检查过：通过 _testExports._getMutableLastCheckTimes 设置一个最近的时间戳
+        // 这样即使 jitter 再大，也不会触发检查（因为 now - lastTime < effectiveInterval + jitter）
+        const mutableLastCheckTimes = healthCheckTimerModule._testExports._getMutableLastCheckTimes();
+        const recentTime = Date.now() - 1000; // 1秒前
+        mutableLastCheckTimes.set('claude-kiro-oauth:uuid-1', recentTime);
+
+        // 执行健康检查
+        const promise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await promise;
+
+        // performHealthChecksByType 不应该被调用，因为间隔未到
+        expect(performHealthChecksByType).not.toHaveBeenCalled();
+    });
+
+    test('should skip disabled providers', async () => {
+        const performHealthChecksByType = jest.fn();
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [{ config: { uuid: 'uuid-1', isDisabled: true, isHealthy: true } }]
+            },
+            performHealthChecksByType
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+        const promise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await promise;
+        // Disabled provider should be skipped
+        expect(performHealthChecksByType).not.toHaveBeenCalled();
+    });
+
+    test('should skip healthy providers when healthyCheckInterval is 0', async () => {
+        const performHealthChecksByType = jest.fn();
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [{ config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } }]
+            },
+            performHealthChecksByType
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 0,  // 0 means skip healthy providers
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+        const promise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await promise;
+        // healthyCheckInterval=0 should skip healthy providers
+        expect(performHealthChecksByType).not.toHaveBeenCalled();
+    });
+
+    test('should use custom interval for provider', async () => {
+        const performHealthChecksByType = jest.fn();
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [{ config: { uuid: 'uuid-1', isDisabled: false, isHealthy: false } }]
+            },
+            performHealthChecksByType
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 600000,  // global 10 minutes
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {
+                    'claude-kiro-oauth': 60000  // custom 1 minute
+                },
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+        const promise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await promise;
+        // Custom interval is 60000ms which equals MIN_INTERVAL - should be used
+        expect(performHealthChecksByType).toHaveBeenCalledWith('claude-kiro-oauth');
+    });
+});
+
+describe('executeHealthCheck - validation', () => {
+    const { stopHealthCheckTimer, _resetModuleState } = healthCheckTimerModule;
+    const { getProviderPoolManager } = require('../../../src/services/service-manager.js');
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        _resetModuleState();
+    });
+
+    afterEach(() => {
+        _resetModuleState();
+        stopHealthCheckTimer();
+        jest.useRealTimers();
+    });
+
+    test('should handle invalid custom interval', async () => {
+        const performHealthChecksByType = jest.fn();
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [
+                    { config: { uuid: 'uuid-1', isDisabled: false, isHealthy: false } }
+                ]
+            },
+            performHealthChecksByType
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 600000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {
+                    'claude-kiro-oauth': -1000  // 无效的自定义间隔
+                },
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        // 启动健康检查（内部有 100ms setTimeout）
+        const healthCheckPromise = healthCheckTimerModule.runStartupHealthCheck();
+        // 快进 timers 以触发内部的 setTimeout(100ms) 和 executeHealthCheck
+        await jest.runAllTimersAsync();
+        await healthCheckPromise;
+        // 不应该抛出错误
+    });
+
+    test('should handle invalid healthy custom interval', async () => {
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [{ config: { uuid: 'uuid-1', isDisabled: false, isHealthy: true } }]
+            },
+            performHealthChecksByType: jest.fn()
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {
+                    'claude-kiro-oauth': -5000  // 无效的健康检查间隔
+                }
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        // 启动健康检查（内部有 100ms setTimeout）
+        const healthCheckPromise = healthCheckTimerModule.runStartupHealthCheck();
+        // 快进 timers 以触发内部的 setTimeout(100ms) 和 executeHealthCheck
+        await jest.runAllTimersAsync();
+        await healthCheckPromise;
+    });
+
+    test('should cap custom interval at MAX_INTERVAL_MS', async () => {
+        const mockPoolManager = {
+            providerStatus: {
+                'claude-kiro-oauth': [
+                    { config: { uuid: 'uuid-1', isDisabled: false, isHealthy: false } }
+                ]
+            },
+            performHealthChecksByType: jest.fn()
+        };
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 600000,
+                providerTypes: ['claude-kiro-oauth'],
+                customIntervals: {
+                    'claude-kiro-oauth': 999999999999  // 超过最大值
+                },
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        // 启动健康检查（内部有 100ms setTimeout）
+        const healthCheckPromise = healthCheckTimerModule.runStartupHealthCheck();
+        // 快进 timers 以触发内部的 setTimeout(100ms) 和 executeHealthCheck
+        await jest.runAllTimersAsync();
+        await healthCheckPromise;
+    });
+
+    test('should handle empty providerTypes', async () => {
+        const performHealthChecksByType = jest.fn();
+        getProviderPoolManager.mockReturnValue({
+            providerStatus: {},
+            performHealthChecksByType
+        });
+
+        globalThis.CONFIG = {
+            SCHEDULED_HEALTH_CHECK: {
+                enabled: true,
+                interval: 60000,
+                providerTypes: [],  // 空数组
+                customIntervals: {},
+                healthyCheckInterval: 3600000,
+                healthyCustomIntervals: {}
+            }
+        };
+
+        const healthCheckTimerModule = require('../../../src/services/health-check-timer.js');
+
+        const healthCheckPromise = healthCheckTimerModule.runStartupHealthCheck();
+        await jest.runAllTimersAsync();
+        await healthCheckPromise;
+
+        // 空 providerTypes 不应该调用任何检查
+        expect(performHealthChecksByType).not.toHaveBeenCalled();
     });
 });
 

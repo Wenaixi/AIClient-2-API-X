@@ -177,11 +177,18 @@ export class WSRelayManager extends EventEmitter {
     }
 
     /**
-     * 获取会话
+     * 获取会话（大小写不敏感）
      */
     getSession(provider) {
-        const key = (provider || '').toLowerCase().trim();
-        return this.sessions.get(key);
+        if (!provider) return undefined;
+        const key = provider.toLowerCase().trim();
+        // 遍历查找大小写不敏感的匹配
+        for (const [storedKey, session] of this.sessions) {
+            if (storedKey.toLowerCase() === key) {
+                return session;
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -424,12 +431,13 @@ export class WSSession extends EventEmitter {
      * 分发消息
      */
     _dispatch(msg) {
-        if (!msg || !msg.type) return;
+        if (!msg) return;
 
         const messageType = msg.type || msg.MessageType;
+        if (!messageType) return;
 
         // Ping 处理
-        if (messageType === MessageType.Ping || msg.type === 'ping') {
+        if (messageType === MessageType.Ping || messageType === 'ping') {
             this._sendPong();
             return;
         }

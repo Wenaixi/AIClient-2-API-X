@@ -331,3 +331,488 @@ describe('getDefaultManager', () => {
         expect(manager1).not.toBe(manager2);
     });
 });
+
+describe('WSRelayManager._generateProviderName', () => {
+    test('should generate provider name with aistudio prefix', () => {
+        const manager = new WSRelayManager();
+        const name = manager._generateProviderName();
+        expect(name).toMatch(/^aistudio-[a-z0-9]+$/);
+        manager.stop();
+    });
+
+    test('should generate unique names', () => {
+        const manager = new WSRelayManager();
+        const names = new Set();
+        for (let i = 0; i < 100; i++) {
+            names.add(manager._generateProviderName());
+        }
+        // 100个随机名字应该大部分是唯一的（碰撞概率极低）
+        expect(names.size).toBeGreaterThan(90);
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager._registerSession', () => {
+    test('should register session and update stats', () => {
+        const manager = new WSRelayManager();
+        const mockSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+
+        manager._registerSession(mockSession);
+
+        expect(manager.sessions.size).toBe(1);
+        expect(manager.getSession('test-provider')).toBe(mockSession);
+        expect(manager.getStats().activeSessions).toBe(1);
+        manager.stop();
+    });
+
+    test('should replace existing session with same provider', () => {
+        const manager = new WSRelayManager();
+        const oldSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+        const newSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+
+        manager._registerSession(oldSession);
+        expect(manager.sessions.size).toBe(1);
+
+        manager._registerSession(newSession);
+        expect(manager.sessions.size).toBe(1);
+        expect(manager.getSession('test-provider')).toBe(newSession);
+        expect(oldSession.cleanup).toHaveBeenCalled();
+        manager.stop();
+    });
+
+    test('should handle onConnected callback error', () => {
+        const onConnected = jest.fn().mockImplementation(() => {
+            throw new Error('callback error');
+        });
+        const manager = new WSRelayManager({ onConnected });
+        const mockSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+
+        // Should not throw
+        expect(() => manager._registerSession(mockSession)).not.toThrow();
+        expect(onConnected).toHaveBeenCalledWith('test-provider');
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager._unregisterSession', () => {
+    test('should unregister session and update stats', () => {
+        const manager = new WSRelayManager();
+        const mockSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+
+        manager._registerSession(mockSession);
+        expect(manager.sessions.size).toBe(1);
+
+        manager._unregisterSession(mockSession, new Error('disconnect'));
+        expect(manager.sessions.size).toBe(0);
+        expect(manager.getStats().activeSessions).toBe(0);
+        manager.stop();
+    });
+
+    test('should not unregister if session does not match current', () => {
+        const manager = new WSRelayManager();
+        const session1 = { provider: 'provider-1', cleanup: jest.fn() };
+        const session2 = { provider: 'provider-2', cleanup: jest.fn() };
+
+        manager._registerSession(session1);
+        expect(manager.sessions.size).toBe(1);
+
+        // Try to unregister session2 when session1 is registered
+        manager._unregisterSession(session2, new Error('test'));
+        expect(manager.sessions.size).toBe(1);
+        expect(session1.cleanup).not.toHaveBeenCalled();
+        manager.stop();
+    });
+
+    test('should handle onDisconnected callback error', () => {
+        const onDisconnected = jest.fn().mockImplementation(() => {
+            throw new Error('callback error');
+        });
+        const manager = new WSRelayManager({ onDisconnected });
+        const mockSession = {
+            provider: 'test-provider',
+            cleanup: jest.fn()
+        };
+
+        manager._registerSession(mockSession);
+        // Should not throw
+        expect(() => manager._unregisterSession(mockSession, new Error('test'))).not.toThrow();
+        manager.stop();
+    });
+
+    test('should handle null session', () => {
+        const manager = new WSRelayManager();
+        expect(() => manager._unregisterSession(null, new Error('test'))).not.toThrow();
+        manager.stop();
+    });
+
+    test('should handle session without provider', () => {
+        const manager = new WSRelayManager();
+        const mockSession = { cleanup: jest.fn() };
+        expect(() => manager._unregisterSession(mockSession, new Error('test'))).not.toThrow();
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager.getSession', () => {
+    test('should return session for exact provider name', () => {
+        const manager = new WSRelayManager();
+        const mockSession = { provider: 'Test-Provider', cleanup: jest.fn() };
+
+        manager._registerSession(mockSession);
+        expect(manager.getSession('Test-Provider')).toBe(mockSession);
+        expect(manager.getSession('test-provider')).toBe(mockSession);
+        manager.stop();
+    });
+
+    test('should return session for null/undefined provider', () => {
+        const manager = new WSRelayManager();
+        expect(manager.getSession(null)).toBeUndefined();
+        expect(manager.getSession(undefined)).toBeUndefined();
+        expect(manager.getSession('')).toBeUndefined();
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager.send', () => {
+    test('should send message to existing session', async () => {
+        const manager = new WSRelayManager();
+        const mockSend = jest.fn().mockResolvedValue();
+        const mockSession = {
+            provider: 'test-provider',
+            request: jest.fn().mockResolvedValue({ ch: [] }),
+            cleanup: jest.fn()
+        };
+
+        manager._registerSession(mockSession);
+        await manager.send('test-provider', { id: '1', type: 'http_req' });
+        expect(mockSession.request).toHaveBeenCalled();
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager.createHandler', () => {
+    test('should return 405 for non-GET method', async () => {
+        const manager = new WSRelayManager({ path: '/test' });
+        const handler = manager.createHandler();
+
+        const req = { method: 'POST', url: '/test' };
+        const res = {
+            setHeader: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            send: jest.fn()
+        };
+        const next = jest.fn();
+
+        await handler(req, res, next);
+        expect(res.status).toHaveBeenCalledWith(405);
+        expect(res.send).toHaveBeenCalledWith('Method Not Allowed');
+        expect(next).not.toHaveBeenCalled();
+        manager.stop();
+    });
+
+    test('should call next for non-matching path', async () => {
+        const manager = new WSRelayManager({ path: '/test' });
+        const handler = manager.createHandler();
+
+        const req = { method: 'GET', url: '/other' };
+        const res = {};
+        const next = jest.fn();
+
+        await handler(req, res, next);
+        expect(next).toHaveBeenCalled();
+        manager.stop();
+    });
+});
+
+describe('WSSession._handleError', () => {
+    test('should cleanup session on error', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        session._handleError(new Error('test error'));
+
+        expect(mockWs.close).toHaveBeenCalled();
+        mockManager._unregisterSession.mockRestore();
+    });
+
+    test('should not cleanup if already closed', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+        session.closed = true;
+
+        session._handleError(new Error('test error'));
+
+        expect(mockWs.close).not.toHaveBeenCalled();
+        mockManager._unregisterSession.mockRestore();
+    });
+});
+
+describe('WSSession._sendPing', () => {
+    test('should reject if session is closed', async () => {
+        const mockWs = { on: jest.fn() };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+        session.closed = true;
+
+        await expect(session._sendPing()).rejects.toThrow('session closed');
+    });
+
+    test('should handle ping error', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            ping: jest.fn((data, cb) => cb(new Error('ping failed')))
+        };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        await expect(session._sendPing()).rejects.toThrow('ping failed');
+    });
+});
+
+describe('WSSession._dispatch', () => {
+    test('should handle ping message', () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn()
+        };
+        const mockManager = {
+            stats: { messagesSent: 0 }
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        session._dispatch({ type: 'ping' });
+
+        expect(mockWs.send).toHaveBeenCalled();
+        const sentData = JSON.parse(mockWs.send.mock.calls[0][0]);
+        expect(sentData.type).toBe('pong');
+    });
+
+    test('should ignore message without type', () => {
+        const mockWs = { on: jest.fn() };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        expect(() => session._dispatch({})).not.toThrow();
+    });
+
+    test('should dispatch pending request message', () => {
+        const mockWs = { on: jest.fn() };
+        const mockCh = {
+            messages: [],
+            push: jest.fn()
+        };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        // Set up pending request
+        session.pending.set('req-1', {
+            ch: mockCh,
+            close: jest.fn()
+        });
+
+        const msg = { id: 'req-1', type: 'http_resp', payload: { result: 'ok' } };
+        session._dispatch(msg);
+
+        expect(mockCh.push).toHaveBeenCalledWith(msg);
+    });
+
+    test('should close pending request on terminal message', () => {
+        const mockWs = { on: jest.fn() };
+        const mockClose = jest.fn();
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        session.pending.set('req-1', {
+            ch: { messages: [], push: jest.fn() },
+            close: mockClose
+        });
+
+        session._dispatch({ id: 'req-1', type: 'http_resp' });
+
+        expect(mockClose).toHaveBeenCalled();
+        expect(session.pending.has('req-1')).toBe(false);
+    });
+
+    test('should emit message event for unknown messages', () => {
+        const mockWs = { on: jest.fn() };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        const listener = jest.fn();
+        session.on('message', listener);
+
+        session._dispatch({ type: 'custom', data: 'test' });
+
+        expect(listener).toHaveBeenCalled();
+    });
+
+    test('should handle message with MessageType property', () => {
+        const mockWs = { on: jest.fn(), send: jest.fn() };
+        const mockManager = { stats: { messagesSent: 0 } };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        // Test with MessageType format instead of type
+        session._dispatch({ MessageType: 'ping' });
+
+        expect(mockWs.send).toHaveBeenCalled();
+    });
+});
+
+describe('WSSession.send', () => {
+    test('should resolve on successful send', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn((data, cb) => cb && cb(null))
+        };
+        const mockManager = { stats: { messagesSent: 0 } };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        await expect(session.send({ type: 'test' })).resolves.toBeUndefined();
+        expect(mockManager.stats.messagesSent).toBe(1);
+    });
+
+    test('should reject on send error', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn((data, cb) => cb && cb(new Error('send failed')))
+        };
+        const mockManager = { stats: { messagesSent: 0 } };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        await expect(session.send({ type: 'test' })).rejects.toThrow('send failed');
+    });
+});
+
+describe('WSSession.request', () => {
+    test('should return message channel', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn((data, cb) => cb && cb(null))
+        };
+        const mockManager = { stats: { messagesSent: 0 } };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        const result = session.request({ id: 'req-1', type: 'http_req' });
+
+        expect(result).toHaveProperty('ch');
+        expect(result).toHaveProperty('cancel');
+        expect(typeof result.cancel).toBe('function');
+    });
+
+    test('should handle send failure', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn((data, cb) => cb && cb(new Error('send failed')))
+        };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        session.request({ id: 'req-1', type: 'http_req' });
+
+        // Give async send time to fail
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(session.pending.has('req-1')).toBe(false);
+    });
+
+    test('cancel should remove pending request', async () => {
+        const mockWs = {
+            on: jest.fn(),
+            send: jest.fn((data, cb) => cb && cb(null))
+        };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        const result = session.request({ id: 'req-1', type: 'http_req' });
+        expect(session.pending.has('req-1')).toBe(true);
+
+        result.cancel();
+        expect(session.pending.has('req-1')).toBe(false);
+    });
+});
+
+describe('WSSession.cleanup', () => {
+    test('should cleanup pending requests', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        // Add pending request
+        session.pending.set('req-1', {
+            ch: {
+                messages: [],
+                push: jest.fn()
+            },
+            close: jest.fn()
+        });
+
+        session.cleanup(new Error('test'));
+
+        // Pending should be cleared
+        expect(session.pending.size).toBe(0);
+        expect(mockWs.close).toHaveBeenCalled();
+        mockManager._unregisterSession.mockRestore();
+    });
+
+    test('should emit session:closed event', () => {
+        const mockWs = { on: jest.fn(), close: jest.fn() };
+        const session = new WSSession(mockWs, null, 'test-id', {});
+
+        const listener = jest.fn();
+        session.on('session:closed', listener);
+
+        session.cleanup(new Error('test'));
+
+        expect(listener).toHaveBeenCalled();
+    });
+});
+
+describe('WSRelayManager.getActiveProviders', () => {
+    test('should return all active provider names', () => {
+        const manager = new WSRelayManager();
+        manager._registerSession({ provider: 'provider-1', cleanup: jest.fn() });
+        manager._registerSession({ provider: 'provider-2', cleanup: jest.fn() });
+
+        const providers = manager.getActiveProviders();
+        expect(providers).toContain('provider-1');
+        expect(providers).toContain('provider-2');
+        expect(providers.length).toBe(2);
+        manager.stop();
+    });
+});
+
+describe('WSRelayManager.getStats', () => {
+    test('should include messagesSent and messagesReceived', () => {
+        const manager = new WSRelayManager();
+        const stats = manager.getStats();
+
+        expect(stats).toHaveProperty('messagesSent');
+        expect(stats).toHaveProperty('messagesReceived');
+        expect(stats).toHaveProperty('totalConnections');
+        manager.stop();
+    });
+});
