@@ -24,9 +24,11 @@ FROM node:20-alpine
 LABEL maintainer="AIClient2API Team"
 LABEL description="Docker image for AIClient2API server"
 
-# 代理参数仅用于构建时，不持久化到最终镜像
+# 代理参数仅用于构建时，构建完成后清除
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
 
 # 安装必要的系统工具（tar 用于更新功能，git 用于版本检查，procps 用于系统监控）
 RUN apk add --no-cache tar git procps
@@ -37,10 +39,8 @@ WORKDIR /app
 # 复制package.json和package-lock.json（如果存在）
 COPY package*.json ./
 
-# 构建时代理（如果提供了的话）
-RUN echo "http_proxy=$HTTP_PROXY" && \
-    echo "https_proxy=$HTTPS_PROXY" && \
-    npm install || npm install --ignore-scripts
+# 安装依赖（使用代理设置如果提供的话）
+RUN npm install
 
 # 复制源代码
 COPY . .
@@ -61,6 +61,10 @@ EXPOSE 3000 8085 8086 19876-19880
 # 添加健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node healthcheck.js || exit 1
+
+# 清除构建时代理变量，避免泄露到运行时
+ENV HTTP_PROXY=
+ENV HTTPS_PROXY=
 
 # 设置启动命令
 # 使用默认配置启动服务器，支持通过环境变量配置
