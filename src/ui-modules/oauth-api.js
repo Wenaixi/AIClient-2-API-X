@@ -4,6 +4,7 @@ import {
     handleGeminiCliOAuth,
     handleGeminiAntigravityOAuth,
     batchImportGeminiTokensStream,
+    handleIFlowOAuth,
     handleQwenOAuth,
     handleKiroOAuth,
     handleCodexOAuth,
