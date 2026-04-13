@@ -7,12 +7,13 @@
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 提升核心模块测试覆盖率（utils/common.js, proxy-utils.js 等 0% 模块优先）
+- [ ] 提升核心模块测试覆盖率（utils/token-utils.js 等 0% 模块优先）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
+- [ ] 分析 CLIProxyAPI 最新实现寻找优化点
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1358 测试，33 套件全部通过）
+- [x] 测试基础设施搭建（1391 测试，34 套件全部通过）
 - [x] 修复 wsrelay/index.test.js 动态 import 问题
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
@@ -21,17 +22,19 @@
 - [x] 健康检查定时器修复
 - [x] 安全漏洞修复（日志脱敏、路径保护）
 - [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
-- [x] LRU Cache TTL 优化（30分钟，参考 CLIProxyAPI 设计）
+- [x] LRU Cache TTL 优化（3小时，参考 CLIProxyAPI 设计）
 - [x] LRU Cache TTL 测试完善（9 个 TTL 专项测试，滑动过期/过期清理）
 - [x] adapter.js 死代码清理
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复
 - [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
 - [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
-- [x] 深度分析 CLIProxyAPI wsrelay/session.go 和 manager.go 设计
+- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 设计
 - [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
+- [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
+- [x] CLAUDE.md 更新至 2026-04-15 版本
 
 ---
 
@@ -167,7 +170,8 @@ tests/unit/
     ├── constants.test.js
     ├── logger.test.js
     ├── provider-strategies.test.js
-    └── provider-utils.test.js
+    ├── provider-utils.test.js
+    └── proxy-utils.test.js
 ```
 
 ### 集成测试
@@ -183,11 +187,11 @@ tests/
 
 | 提交 | 描述 |
 |------|------|
-| 4c723ac | chore: remove .agent/ from gitignore - will track in git |
-| 405095a | fix: 修复 Codex PR 审查发现的多项问题 |
-| 3e99f36 | fix(auth): 恢复 iflow-oauth.js 的 refreshIFlowTokens 导出 |
-| ba9865a | fix(auth): 修复 oauth-handlers.js 导出路径错误 |
-| 5e2dde2 | perf(adapter): 优化 LRU Cache 实现 - 添加 TTL 滑动过期 |
+| d159f7b | test(utils): 新增 proxy-utils.js 单元测试 (33 测试用例) |
+| 2bdf170 | test(adapter): 完善 LRUCache TTL 单元测试 |
+| 0c08d1b | perf(adapter): 提升 LRU Cache TTL 至 3 小时 |
+| 432393b | docs: 更新 Design.md 日期为 2026-04-14 |
+| dcc57b1 | docs: 更新 Task.md 测试状态 |
 
 ---
 
@@ -201,14 +205,15 @@ tests/
 - [x] Store 模块对比：多后端 vs JSON文件
 - [x] Translator 模块对比：blank import vs 显式注册
 - [x] Usage 模块对比：聚合统计 vs Provider查询
-- [x] Cache 模块对比：sync.Map分组 vs LRU Cache
-- [x] WSRelay 模块对比：Manager-Session vs 无独立模块
-- [x] WSRelay Session 优化：参考 Go 版本 pending request 处理（带缓冲 channel）
+- [x] Cache 模块对比：sync.Map分组 vs LRU Cache ✅ 已对齐
+- [x] WSRelay 模块对比：Manager-Session vs 无独立模块 ✅ 已对齐
+- [x] WSRelay Session 优化：参考 Go 版本 pending request 处理（带缓冲 channel）✅ 已实现
 
 ### Go 实现对标（2026-04-14，2026-04-15 持续）
 - [x] 对比 Go `internal/cache/signature_cache.go` 设计，优化 Node.js LRU Cache TTL
 - [x] 分析 Go 的分组 Cache + sync.Map + 滑动 TTL 架构，Node.js 已实现相似设计
 - [x] 优化 WSRelay Session pending request 处理，参考 Go 版本使用带缓冲 channel
+- [x] LRU Cache TTL 提升至 3 小时，与 Go 版本一致
 - [ ] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
 
 ### Worker 进程异步句柄分析
@@ -231,6 +236,7 @@ tests/
 ### 正在进行
 - [ ] 提升 Provider 核心模块测试覆盖率（openai, gemini, grok, forward 等 0% 模块）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
+- [ ] 更新 .agent/ 文件至 2026-04-15
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
@@ -250,11 +256,12 @@ tests/
 - [x] Codex PR 审查问题修复
 - [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
 - [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
-- [x] 深度分析 CLIProxyAPI wsrelay/session.go 和 manager.go 设计
+- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 和 session.go 设计
 - [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
 - [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
+- [x] CLAUDE.md 更新至 2026-04-15 版本
 
 ---
 
@@ -263,7 +270,7 @@ tests/
 ### 短期（1-3天）
 1. [ ] 完善缺失测试的模块（Provider 核心模块优先）
 2. [ ] 修复测试中的异步句柄警告
-3. [ ] 更新 CLAUDE.md 文档
+3. [ ] 更新 .agent/ Requirement.md 和 Design.md 文档
 
 ### 中期（1周）
 1. [ ] 提升测试覆盖率至 90%+

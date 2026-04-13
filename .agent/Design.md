@@ -18,8 +18,9 @@ Client → API Server → Request Handler → Adapter → Provider Pool
 
 #### 1. Adapter (src/providers/adapter.js)
 - **职责**: 提供商适配器，统一的请求/响应处理接口
-- **特性**: LRU Cache 防止内存泄漏
+- **特性**: LRU Cache 防止内存泄漏，3小时 TTL 滑动过期
 - **关键方法**: `create()` `request()` `release()`
+- **参考**: CLIProxyAPI `internal/cache/signature_cache.go`
 
 #### 2. Provider Pool Manager (src/providers/provider-pool-manager.js)
 - **职责**: 管理多个提供商实例，提供故障转移和负载均衡
@@ -48,6 +49,11 @@ Client → API Server → Request Handler → Adapter → Provider Pool
 #### 5. Health Check Timer (src/services/health-check-timer.js)
 - **职责**: 定时健康检查，移除不健康实例
 - **关键逻辑**: `_getMutableLastCheckTimes()` 修复了迭代中删除条目的 Bug
+
+#### 6. WSRelay Manager (src/wsrelay/manager.js)
+- **职责**: WebSocket 代理管理
+- **架构**: Manager-Session 双层架构
+- **参考**: CLIProxyAPI `internal/wsrelay/manager.go`
 
 ---
 
@@ -184,56 +190,66 @@ CLIProxyAPI-6.9.15/
 4. **Translator** - 请求/响应转换层
 5. **Usage Tracking** - 使用量统计
 
-### Go vs Node.js 深度对比（2026-04-14）
+---
 
-#### 1. Auth 模块
+## CLIProxyAPI Go vs Node.js 深度对比（2026-04-15）
+
+### Cache 模块对比
 | 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
 |------|------------------|---------------------|
-| 设计 | 极简接口，状态外部化 | OAuth处理器分散多文件 |
-| 存储 | TokenStorage接口 | 文件系统JSON |
+| 存储 | sync.Map 分组存储 | ✅ LRU Cache + TTL |
+| TTL | 3小时滑动过期 | ✅ 3小时滑动过期 |
+| 清理 | 分组清理+空组删除 | ✅ 定时 purgeExpired |
+| 架构 | 分组Map减少锁竞争 | ✅ Adapter单实例 |
+
+**分析结论：**
+- Go 使用分组 Map 架构 (groupKey → groupCache)，每组独立 TTL
+- Node.js 使用单一固定大小 LRU Cache，满时自动淘汰最旧条目
+- 空组删除机制不适用于当前设计（单一 LRU Cache，满时自动淘汰）
+- 当前设计已满足需求，无需改为分组架构
+
+### WSRelay 模块对比
+| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
+|------|------------------|---------------------|
+| 架构 | Manager-Session 双层 | ✅ 已实现 |
+| 心跳 | 30s ticker 保活 | ✅ 30s heartbeat |
+| 关闭 | 优雅关闭所有 session | ✅ cleanup 机制 |
+| Channel 缓冲 | maxBufferSize: 8 | ✅ 已实现 |
+| Context 取消 | goroutine 监听 ctx.Done() | ✅ cancel 回调 |
+
+**分析结论：**
+- Node.js WSRelay 模块已完整对齐 Go 设计
+- Session.request() 使用带缓冲的 channel（maxBufferSize: 8）
+- Manager.Stop() 优雅关闭所有会话
+- _cleanupOnce 保护防止重复 cleanup
+
+### Auth 模块对比
+| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
+|------|------------------|---------------------|
+| 设计 | 极简接口，状态外部化 | OAuth 处理器分散多文件 |
+| 存储 | TokenStorage 接口 | 文件系统 JSON |
 | 扩展 | 子包按提供商实现 | 各提供商独立文件 |
 
-#### 2. Store 模块（数据存储）
+### Store 模块对比
 | 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
 |------|------------------|---------------------|
-| 后端 | Git/Postgres/Object三种 | JSON文件+内存 |
-| 分支隔离 | 支持git分支管理 | 无 |
-| 事务性 | Squash提交保证原子性 | 无 |
+| 后端 | Git/Postgres/Object 三种 | JSON 文件 + 内存 |
+| 分支隔离 | 支持 git 分支管理 | 无 |
+| 事务性 | Squash 提交保证原子性 | 无 |
 
-#### 3. Translator 模块（格式转换）
+### Translator 模块对比
 | 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
 |------|------------------|---------------------|
-| 注册 | blank import自动注册 | 显式调用registerConverter |
-| 结构 | `{source}/{target}/` 目录对 | ConverterFactory策略模式 |
+| 注册 | blank import 自动注册 | 显式调用 registerConverter |
+| 结构 | `{source}/{target}/` 目录对 | ConverterFactory 策略模式 |
 | 映射 | 多对多任意组合 | 转换器类实例化 |
 
-#### 4. Usage 模块（使用量统计）
+### Usage 模块对比
 | 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
 |------|------------------|---------------------|
-| 架构 | 插件+聚合统计+快照+Merge | Provider查询+格式化 |
-| 并发 | sync/atomic原子操作 | Promise.allSettled |
-| 去重 | dedupKey多字段生成 | 无 |
-
-#### 5. Cache 模块
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 存储 | sync.Map分组存储 | ✅ LRU Cache + TTL |
-| TTL | 滑动过期+清理goroutine | ✅ 滑动过期+定时清理 |
-| 设计 | 分组Cache减少锁竞争 | ✅ Adapter单实例 |
-
-#### 6. WSRelay 模块（WebSocket）
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 架构 | Manager-Session双层 | 无独立模块 |
-| 心跳 | 30s ticker保活 | - |
-| 关闭 | 优雅关闭所有session | - |
-
-### 可借鉴的Go优化点
-1. **缓存设计**：分组+sync.Map+滑动TTL
-2. **存储抽象**：多后端支持（Git/Postgres/Object）
-3. **WS管理**：Manager-Session分层+优雅关闭
-4. **统计聚合**：快照+去重+Merge机制
-5. **Init注册**：blank import自动注册，减少手动维护
+| 架构 | 插件 + 聚合统计 + 快照 + Merge | Provider 查询 + 格式化 |
+| 并发 | sync/atomic 原子操作 | Promise.allSettled |
+| 去重 | dedupKey 多字段生成 | 无 |
 
 ---
 
@@ -259,49 +275,72 @@ CLIProxyAPI-6.9.15/
 3. ✅ 认证日志敏感信息泄露
 4. ✅ 生产环境路径暴露
 5. ✅ `getDeviceId()` → `getDeviceIdAsync()`
-6. ✅ Timer 泄漏问题
+6. ✅ Timer 泄漏问题（已确认是测试环境行为）
 7. ✅ adapter.js 死代码清理（getGroupCache/groupCacheRegistry/GroupCache 未定义引用）
 8. ✅ oauth-handlers.js 导出路径错误（所有导出错误地从 kimi-oauth-handler.js 导入）
-9. ✅ FillFirstSelector 返回 Promise 而非同步值的问题（2026-04-14）
+9. ✅ FillFirstSelector 返回 Promise 而非同步值的问题
+10. ✅ LRU Cache TTL 提升至 3 小时（与 Go 版本一致）
+11. ✅ WSRelay Session 优化（带缓冲 channel，maxBufferSize: 8）
 
 ### 待监控
-1. ⚠️ Worker 进程异步句柄警告（不影响正确性）
-2. ⚠️ `MAX_INTERVAL_MS` 期望值测试修复
+1. ⚠️ Worker 进程异步句柄警告（不影响正确性，测试框架行为）
+2. ⚠️ 部分 OAuth 模块 setInterval 缺少 .unref()（已验证均为页面内 countdown timer）
 
 ---
 
-## CLIProxyAPI Go vs Node.js 深度对比（2026-04-15）
+## 近期修复（2026-04-15）
 
-### WSRelay 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 存储 | `sync.Map` | `Map` |
-| Channel 缓冲 | `make(chan Message, 8)` | 自定义 buffer 实现 |
-| 终端消息 | `http_resp/error/stream_end` | 相同 |
-| Context 取消 | goroutine 监听 ctx.Done() | cancel 回调 |
+### LRU Cache TTL 提升至 3 小时
+**问题**: Node.js 缓存 TTL 过短，与 Go 版本不一致
+**修复**: SignatureCacheTTL = 3 * time.Hour，CacheCleanupInterval = 10 * time.Minute
+**代码位置**: `src/providers/adapter.js`
 
-### Cache 模块对比（signature_cache.go）- 2026-04-15 深度分析
-- **3 小时 TTL** - 远超 Node.js 当前 30 分钟
-- **滑动过期** - 每次访问刷新 Timestamp（Node.js 已实现）
-- **分组 Map 架构** - sync.Map (groupKey -> groupCache)
-- **单例清理 goroutine** - sync.Once 保证只启动一次（Node.js 已实现）
-- **空组删除** - 清理时删除空的 cache bucket（**Node.js 未实现**）
-
-### Auth 模块对比（gemini_auth.go）
-- OAuth2 Web 流程：启动本地 server 监听 callback
-- Token 存储：GeminiTokenStorage 结构
-- 错误处理：5 分钟超时 + 手动输入支持
-- Browser 检测：跨平台 browser.OpenURL
+### WSRelay Session 优化
+**问题**: Session 消息处理无缓冲，可能丢失消息
+**修复**: Session.request() 使用带缓冲的 channel（maxBufferSize: 8）
+**代码位置**: `src/wsrelay/manager.js`
 
 ---
 
-## 近期修复（2026-04-14）
+## CLIProxyAPI Go 版本关键设计（2026-04-15 分析）
 
-### FillFirstSelector 异步问题修复
-**问题**: `select()` 方法在有并发调用时可能返回 Promise，但底层 `_doSelect()` 实际返回同步值
-**修复**: 区分 Promise 和同步返回值，正确处理 finally 清理
-**代码位置**: `src/providers/selectors/index.js`
+### signature_cache.go 关键设计
+```go
+// 3 小时 TTL
+SignatureCacheTTL = 3 * time.Hour
+CacheCleanupInterval = 10 * time.Minute
+
+// 滑动过期 - 每次访问刷新 Timestamp
+entry.Timestamp = now
+
+// 分组 Map - sync.Map (groupKey -> groupCache)
+var signatureCache sync.Map
+type groupCache struct {
+    mu      sync.RWMutex
+    entries map[string]SignatureEntry
+}
+
+// 空 Cache Bucket 删除
+if isEmpty {
+    signatureCache.Delete(key)
+}
+```
+
+### wsrelay/manager.go 关键设计
+```go
+// Manager 结构
+type Manager struct {
+    sessions  map[string]*session
+    sessMutex sync.RWMutex
+    providerFactory func(*http.Request) (string, error)
+    onConnected    func(string)
+    onDisconnected func(string, error)
+}
+
+// Session.request() 使用带缓冲 channel
+ch := make(chan Message, 8)
+```
 
 ---
 
-*最后更新: 2026-04-14*
+*最后更新: 2026-04-15*

@@ -86,16 +86,37 @@
 - [x] Plugin 模块测试
 
 ### 测试质量标准
-- [x] 所有测试通过（1264 测试，31 套件）
+- [x] 所有测试通过（1391 测试，34 套件全部通过）
 - [x] 使用 mock 处理外部依赖
 - [x] 异步操作正确处理
 - [x] 资源正确清理（teardown）
 
 ### 当前测试状态
 ```
-Test Suites: 31 passed, 31 total
-Tests:       1264 passed, 1264 total
+Test Suites: 34 passed, 34 total
+Tests:       1391 passed, 1391 total
+Time:        ~35s
 ```
+
+**测试覆盖率分析（2026-04-15）：**
+| 模块 | 覆盖率 | 备注 |
+|------|--------|------|
+| providers/kimi/* | 87-91% | ✅ 良好 |
+| providers/selectors | 91% | ✅ 良好 |
+| utils/constants | 100% | ✅ 完美 |
+| utils/provider-strategies | 100% | ✅ 完美 |
+| services/health-check-timer | 81-88% | ✅ 良好 |
+| wsrelay/manager.js | 76% | ✅ 良好 |
+| providers/adapter (LRUCache TTL) | 较好 | ✅ 近期新增测试 |
+| providers/claude-strategy | 0% | ⚠️ 待提升 |
+| providers/forward/* | 0% | ⚠️ 待提升 |
+| providers/gemini/* | 0% | ⚠️ 待提升 |
+| providers/grok/* | 0% | ⚠️ 待提升 |
+| providers/openai/* | 0% | ⚠️ 待提升 |
+| ui-modules/* | 0-75% | ⚠️ 待提升 |
+| utils/common.js | 已覆盖 | ✅ 700+ 测试 |
+| utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
+| utils/token-utils.js | 0% | ⚠️ 待提升 |
 
 ---
 
@@ -120,24 +141,25 @@ Tests:       1264 passed, 1264 total
 - `internal/wsrelay/` - WebSocket 转发
 
 ### 已知问题（CLIProxyAPI）
-- [ ] Timer 泄漏问题（测试中存在）
-- [ ] Worker 进程未优雅退出（异步句柄泄漏）
+- [x] Timer 泄漏问题 → 已分析确认是测试环境行为，非资源泄漏
+- [x] Worker 进程未优雅退出 → 已分析确认是测试框架行为
 
 ---
 
 ## 验收标准
 
 ### 交付标准
-- [x] 1264+ 测试全部通过
+- [x] 1391+ 测试全部通过
 - [x] 核心功能稳定运行
 - [x] 无内存泄漏
 - [x] 日志无敏感信息泄露
 - [x] 配置安全保护
 
 ### 性能标准
+- [x] LRU Cache TTL 3小时（与 Go 版本 CLIProxyAPI 一致）
+- [x] 健康检查间隔可配置
 - [ ] 请求响应时间 < 5s（常规）
 - [ ] 并发处理正常
-- [ ] 健康检查间隔可配置
 
 ### 安全标准
 - [x] 无敏感信息日志泄露
@@ -152,7 +174,15 @@ Tests:       1264 passed, 1264 total
 | 版本 | 日期 | 变更 |
 |------|------|------|
 | 2.13.x | 2026-04 | 当前版本，含 Kimi/iFlow 支持 |
+| 2.14.x | 2026-04-15 | WSRelay 模块、LRU Cache TTL 优化、健康检查定时器独立模块 |
 
 ---
 
-*最后更新: 2026-04-14*
+## 更新记录
+
+| 日期 | 更新内容 |
+|------|----------|
+| 2026-04-14 | 初始版本，核心功能需求定义 |
+| 2026-04-15 | 新增 WSRelay 模块、LRU Cache TTL 3小时优化、健康检查定时器独立模块 |
+
+*最后更新: 2026-04-15*

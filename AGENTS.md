@@ -1,7 +1,7 @@
 # AGENTS.md - 项目记忆与开发思路
 
 > 记录项目状态、开发思路和决策历史
-> 最后更新: 2026-04-14
+> 最后更新: 2026-04-15
 
 ---
 
@@ -60,25 +60,35 @@ origin/pro → 深度定制分支（所有开发在此分支进行）
 
 ## 项目状态快照
 
-### 测试状态（2026-04-14）
+### 测试状态（2026-04-15）
 ```
-Test Suites: 31 passed, 31 total
-Tests:       1264 passed, 1264 total
-Time:        36.265s (normal)
-Time:        53.609s (with --detectOpenHandles)
+Test Suites: 34 passed, 34 total
+Tests:       1391 passed, 1391 total
+Time:        ~35s
 ```
 
-### 已完成优化
-1. **LRU Cache TTL 优化** - 30分钟 TTL + 10分钟清理
-2. **adapter.js 死代码清理** - 删除未定义引用
-3. **oauth-handlers.js 导出修复** - 按提供商拆分导入
-4. **405095a Codex PR 审查修复** - 多项问题修复
-5. **健康检查定时器** - _getMutableLastCheckTimes Bug 修复
-6. **安全修复** - 日志脱敏、路径保护
+### 已完成优化（2026-04-15）
+1. **LRU Cache TTL 提升至 3 小时** - 与 Go 版本 CLIProxyAPI 一致
+2. **WSRelay 模块实现** - Manager-Session 架构，64 测试
+3. **health-check-timer.js 独立模块** - 30 测试
+4. **adapter.js 死代码清理** - 删除未定义引用
+5. **oauth-handlers.js 导出修复** - 按提供商拆分导入
+6. **proxy-utils.js 测试覆盖** - 33 测试用例
 
-### 待优化项
-1. ⚠️ Worker 进程异步句柄警告（已确认非资源泄漏）
-2. ⚠️ 测试覆盖率待提升
+### 测试覆盖率（2026-04-15）
+| 模块 | 覆盖率 | 状态 |
+|------|--------|------|
+| providers/kimi/* | 87-91% | ✅ 良好 |
+| providers/selectors | 91% | ✅ 良好 |
+| utils/constants | 100% | ✅ 完美 |
+| utils/provider-strategies | 100% | ✅ 完美 |
+| services/health-check-timer | 81-88% | ✅ 良好 |
+| wsrelay/manager.js | 76% | ✅ 良好 |
+| providers/adapter | 较好 | ✅ |
+| providers/openai/* | 0% | ⚠️ 待提升 |
+| providers/gemini/* | 0% | ⚠️ 待提升 |
+| providers/grok/* | 0% | ⚠️ 待提升 |
+| providers/forward/* | 0% | ⚠️ 待提升 |
 
 ---
 
@@ -86,19 +96,19 @@ Time:        53.609s (with --detectOpenHandles)
 
 参考路径: `E:\newCC\stick\AlClient-2-APIAlClient-2-API\CLIProxyAPI-6.9.15`
 
-### Go vs Node.js 对比总结
+### Go vs Node.js 对比总结（2026-04-15）
 
 | 模块 | Go (CLIProxyAPI) | Node.js (AIClient) | 状态 |
 |------|------------------|---------------------|------|
-| Cache | sync.Map + 滑动 TTL | ✅ LRU Cache + TTL | 已优化 |
+| Cache | sync.Map + 滑动 TTL + 3小时 | ✅ LRU Cache + TTL (3小时) | 已完成 |
+| WSRelay | Manager-Session 分层 | ✅ 已实现 | 已完成 |
 | Auth | 极简接口 | OAuth 处理器分散 | 观察中 |
 | Store | Git/Postgres/Object | JSON 文件 | 不适用 |
 | Usage | 聚合统计 + 快照 | Provider 查询 | 观察中 |
-| WSRelay | Manager-Session 分层 | 无独立模块 | 待实现 |
 
 ### 可借鉴的 Go 设计
-1. **缓存设计** - 分组 + sync.Map + 滑动 TTL → Node.js LRU Cache 已实现
-2. **WS管理** - Manager-Session 分层 + 优雅关闭 → 待实现
+1. **缓存设计** - 分组 + sync.Map + 滑动 TTL + 3小时 → ✅ Node.js LRU Cache 已对齐
+2. **WS管理** - Manager-Session 分层 + 优雅关闭 + 带缓冲 channel → ✅ 已实现
 3. **Store 抽象** - 多后端支持 → 不适用当前场景
 4. **统计聚合** - 快照 + 去重 + Merge → 观察中
 
@@ -106,27 +116,41 @@ Time:        53.609s (with --detectOpenHandles)
 
 ## 决策记录
 
-### 2026-04-14 决策
+### 2026-04-15 决策
 
-#### 1. LRU Cache TTL 设计
-**决策**: 为 Adapter LRU Cache 添加 TTL 支持
-**原因**: 防止适配器实例长期驻留内存导致资源浪费
+#### 1. LRU Cache TTL 提升至 3 小时
+**决策**: Adapter LRU Cache TTL 从 30 分钟提升至 3 小时
+**原因**: 与 Go 版本 CLIProxyAPI `signature_cache.go` 保持一致
 **实现**:
-- 30 分钟 TTL 滑动过期
-- 10 分钟定时清理间隔
-- `.unref()` 防止阻止进程退出
+- SignatureCacheTTL = 3 * time.Hour
+- CacheCleanupInterval = 10 * time.Minute
+- 滑动过期每次访问刷新 Timestamp
+- 空组删除机制不适用于单一 LRU Cache 设计（已分析）
 
-#### 2. OAuth 导出路径修复
-**决策**: oauth-handlers.js 从重新导出改为直接从源模块导入
-**原因**: 之前所有导出都错误地从 kimi-oauth-handler.js 导入
-**影响**: 修复 batchImportCodexTokensStream 等函数找不到的问题
+#### 2. WSRelay 模块完整实现
+**决策**: 参考 Go 版本完整实现 WSRelay Manager-Session 架构
+**原因**: 提供更好的 WebSocket 连接管理和优雅关闭
+**实现**:
+- WSRelayManager 管理所有 WebSocket 会话
+- WSSession 管理单个会话生命周期
+- 30s 心跳间隔，`.unref()` 防止阻止进程退出
+- 带缓冲的 channel（maxBufferSize: 8）防止消息丢失
+- `_cleanupOnce` 保护防止重复 cleanup
 
-#### 3. Worker 进程警告分析
+#### 3. 空 Cache Bucket 清理分析
+**决策**: 不实现空 Cache Bucket 删除机制
+**原因**: Node.js 单一 LRU Cache设计与 Go 分组 Map 架构不同
+- Go 使用 `sync.Map (groupKey -> groupCache)` 分组架构
+- Node.js 使用单一固定大小 LRU Cache，满时自动淘汰最旧条目
+- 空组删除只适用于分组 Map 架构，不适用于当前设计
+
+#### 4. Worker 进程警告分析
 **决策**: 确认警告非资源泄漏，不需要修复
 **原因**:
 - OAuth 异步流程在测试环境中触发
 - 所有 timer 都正确使用 clearInterval 清理
-- 生产环境所有 timer 都使用 `.unref()`
+- HTML countdown timer 由浏览器管理，不影响 Node.js
+- Provider Core 模块的 checkInterval 通过 clearInterval + setTimeout 超时机制清理
 
 ---
 
@@ -143,7 +167,7 @@ Time:        53.609s (with --detectOpenHandles)
 ```
 
 ### 测试文件组织
-- `tests/unit/` - 单元测试
+- `tests/unit/` - 单元测试（34 套件）
 - `tests/setup/` - Jest 全局设置/清理
 - `tests/factories/` - 测试工厂
 - `tests/mocks/` - Mock 辅助
@@ -151,7 +175,7 @@ Time:        53.609s (with --detectOpenHandles)
 
 ### 运行测试
 ```bash
-npm test              # 运行全部测试
+npm test              # 运行全部测试（1391 测试）
 npm run test:watch    # 监听模式
 npm run test:coverage # 覆盖率报告
 npm test -- --detectOpenHandles  # 检测异步句柄泄漏
@@ -176,6 +200,7 @@ npm test -- --detectOpenHandles  # 检测异步句柄泄漏
 - 运行 `npm test -- --detectOpenHandles`
 - 检查 setInterval 是否都有 clearInterval
 - 确认 timer 使用 `.unref()`
+- **注意**: OAuth 页面内 countdown timer 由浏览器管理，不影响 Node.js
 
 #### 3. 测试失败
 **症状**: Tests failed
@@ -200,12 +225,22 @@ npm test -- --detectOpenHandles  # 检测异步句柄泄漏
 ### 核心源码
 | 路径 | 职责 |
 |------|------|
-| `src/providers/adapter.js` | 提供商适配器 + LRU Cache |
+| `src/providers/adapter.js` | 提供商适配器 + LRU Cache (3小时 TTL) |
 | `src/providers/provider-pool-manager.js` | 提供商池管理 |
-| `src/services/health-check-timer.js` | 健康检查定时器 |
+| `src/services/health-check-timer.js` | 健康检查定时器（独立模块） |
+| `src/wsrelay/manager.js` | WebSocket 代理管理（Manager-Session 架构） |
 | `src/auth/oauth-handlers.js` | OAuth 处理器入口 |
 | `src/converters/` | 请求/响应格式转换器 |
 
 ---
 
-*最后更新: 2026-04-14*
+## 更新记录
+
+| 日期 | 更新内容 |
+|------|----------|
+| 2026-04-14 | 初始版本，核心功能需求定义 |
+| 2026-04-15 | WSRelay 模块、LRU Cache TTL 3小时优化、健康检查定时器独立模块、文档更新 |
+
+---
+
+*最后更新: 2026-04-15*

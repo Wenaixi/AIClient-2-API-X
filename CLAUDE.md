@@ -9,7 +9,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` (定制分支，始终使用此分支开发) |
-| 最后更新 | 2026-04-14 |
+| 最后更新 | 2026-04-15 |
 
 ## Git 分支策略
 
@@ -92,179 +92,13 @@ git merge main      # 合并上游到当前分支
 4. **不推云端**：所有更改仅本地，不推送到远程
 5. **保持main纯净**：不修改main分支，仅在pro分支工作
 
-## 最近优化（2026-04-14）
+---
 
-### 已完成优化
-
-1. **health-check-timer.js 健康检查定时器模块（2026-04-14）**
-   - 新增独立 `src/services/health-check-timer.js` 模块
-   - 支持按供应商自定义间隔和健康检查间隔
-   - 实现 lastCheckTimes Map 防止内存泄漏
-   - 添加 jitter 防止时序攻击
-   - 所有 timer 使用 `.unref()` 防止阻止进程退出
-   - 提供 start/stop/reload/update/status/runStartupHealthCheck 等操作
-   - 30 个单元测试全部通过
-
-2. **LRU Cache TTL 优化**
-   - 为 `LRUCache` 添加可选 TTL 支持
-   - 实现 `purgeExpired()` 方法清理过期条目
-   - 30 分钟 TTL + 10 分钟清理间隔
-   - 缓存清理 timer 使用 `.unref()` 防止阻止进程退出
-   - 参考 CLIProxyAPI `signature_cache.go` 设计
-
-2. **adapter.js 死代码清理（2026-04-14）**
-   - 删除未定义的 `getGroupCache()` 函数
-   - 删除未定义的 `groupCacheRegistry` 和 `GroupCache` 引用
-   - 消除运行时 ReferenceError 隐患
-
-3. **oauth-handlers.js 导出路径修复（2026-04-14）**
-   - 错误：所有导出都从 `kimi-oauth-handler.js` 导入
-   - 正确：按提供商拆分，从各自模块导入
-   - 修复 `batchImportCodexTokensStream` 等函数找不到的问题
-   - 恢复 `refreshIFlowTokens` 导出
-
-4. **405095a - Codex PR 审查修复（2026-04-14）**
-   - oauth-handlers.js 从 ./index.js 重新导出改为直接从源模块导出
-   - provider-pool-manager.js validateConfig() 移至构造函数开头
-   - provider-pool-manager.js _acquireGlobalSemaphore 超时正确清理 UUID
-   - health-check-timer.js 使用 ?? 代替 || 支持 0 值禁用
-   - Docker 配置移除 ENV HTTP_PROXY/HTTPS_PROXY 持久化
-   - docker-compose.dev.yml 修复 volume 挂载避免覆盖 node_modules
-
-### 测试状态（2026-04-14）
+## 当前测试状态（2026-04-15）
 
 ```
-Test Suites: 33 passed, 33 total
-Tests:       1350 passed, 1350 total
-Time:        ~34s
-```
-
-**测试覆盖率分析（2026-04-14）：**
-| 模块 | 覆盖率 | 备注 |
-|------|--------|------|
-| providers/kimi/* | 87-91% | ✅ 良好 |
-| providers/selectors | 91% | ✅ 良好 |
-| utils/constants | 100% | ✅ 完美 |
-| utils/provider-strategies | 100% | ✅ 完美 |
-| src/providers/adapter | 较好 | ✅ |
-| services/health-check-timer | 81-88% | ✅ 良好 |
-| wsrelay/manager.js | 76% | ✅ 良好 |
-| wsrelay/index.js | 0% | ⚠️ 仅重导出，无独立逻辑 |
-| providers/claude-strategy | 0% | ⚠️ 待提升 |
-| providers/forward/* | 0% | ⚠️ 待提升 |
-| providers/gemini/* | 0% | ⚠️ 待提升 |
-| providers/grok/* | 0% | ⚠️ 待提升 |
-| providers/openai/* | 0% | ⚠️ 待提升 |
-| providers/openai/qwen-core | 0% | ⚠️ 待提升 |
-| providers/openai/codex-core | 0% | ⚠️ 待提升 |
-| scripts/* | 0% | ⚠️ 待提升 |
-| ui-modules/* | 0-75% | ⚠️ 待提升 |
-| utils/common.js | 0.96% | ⚠️ 待提升 |
-| utils/proxy-utils.js | 0% | ⚠️ 待提升 |
-| utils/tls-sidecar.js | 6.94% | ⚠️ 待提升 |
-| utils/token-utils.js | 0% | ⚠️ 待提升 |
-
-**测试改进计划（2026-04-14）：**
-1. ✅ 优先提升 utils/common.js 覆盖率（基础设施）
-2. ✅ 为核心 Provider 模块添加测试（openai, gemini, grok, forward）
-3. ✅ 为 ui-modules 添加测试
-4. ✅ 分析 Worker 进程警告根因
-5. ✅ 修复 wsrelay/index.test.js 动态 import 问题
-
-**近期测试改进：**
-- 修复 health-check-timer 测试中 "should skip providers when interval not exceeded" 测试用例
-- 新增 WSRelayManager 私有方法测试（485 个新测试）
-- 修复 getSession 大小写不敏感查找
-- 修复 _dispatch 消息类型处理
-
-### 待优化项
-
-1. ⚠️ 测试环境中 Worker 进程异步句柄警告（已确认非资源泄漏）
-2. ⚠️ 部分 OAuth 模块 setInterval 缺少 .unref()（已验证均为页面内 countdown timer）
-
-### Worker 进程异步句柄分析
-
-测试使用 `--detectOpenHandles` 分析异步句柄泄漏：
-
-**OAuth 模块 setInterval timer：**
-- `gemini-oauth.js:71` - HTML 页面内的 countdown setInterval，由浏览器管理
-- `gemini-oauth.js:309` - OAuth 轮询 pollTimer，通过 clearPollTimer() 正确清理
-- `kiro-oauth.js:135` - HTML 页面内的 countdown setInterval
-- `codex-oauth.js:319` - HTML 页面内的 countdown setInterval
-- `codex-oauth.js:864` - OAuth 轮询 pollTimer，通过 clearInterval 正确清理
-
-**Provider Core 模块 setInterval timer：**
-- `codex-core.js:715` - cleanupInterval 已使用 `.unref()` 防止阻止进程退出
-- `gemini-core.js:470` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
-- `antigravity-core.js:880` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
-- `qwen-core.js:515` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
-
-**结论：** Worker 进程警告是测试环境中 OAuth 异步流程导致的，不是资源泄漏。生产环境所有 timer 都正确管理。
-
-### 待优化项
-
-1. ⚠️ 测试环境中 Worker 进程异步句柄警告（已确认非资源泄漏）
-2. ⚠️ 部分 OAuth 模块 setInterval 缺少 .unref()（已验证均为页面内 countdown timer）
-
-### CLIProxyAPI 参考架构（关键设计）
-
-| 模块 | Go 设计 | Node.js 当前实现 | 优化方向 |
-|------|---------|-----------------|----------|
-| Cache | sync.Map 分组 + 滑动 TTL + 3小时 | ✅ LRU Cache + TTL (30分钟) | 可提升至3小时 |
-| WSRelay | Manager-Session 分层 | ✅ 已实现 | - |
-| Auth | 极简接口 | OAuth 处理器分散 | 观察中 |
-| Store | Git/Postgres/Object | JSON 文件 | 不适用 |
-| Usage | 聚合统计 + 快照 | Provider 查询 | 观察中 |
-
-### WSRelay 模块（2026-04-14 新增，2026-04-15 优化）
-
-**参考 CLIProxyAPI `internal/wsrelay/` 架构实现**
-
-- `src/wsrelay/manager.js` - WSRelayManager 和 WSSession 类
-  - Manager: 管理所有 WebSocket 会话，提供连接/断开回调
-  - Session: 单个会话生命周期管理，心跳保活
-  - 心跳间隔: 30s，通过 `unref()` 防止阻止进程退出
-  - 优雅关闭: 关闭所有会话后清理资源
-  - Session.request(): 使用带缓冲的 channel（maxBufferSize: 8）
-  - 添加 `_cleanupOnce` 保护防止重复 cleanup 调用
-- `src/wsrelay/index.js` - 模块入口
-- `tests/unit/wsrelay/manager.test.js` - 单元测试 (64 tests)
-
-**消息类型:**
-- `ping/pong` - 心跳
-- `http_req/http_resp` - HTTP 请求响应
-- `stream_data/stream_end` - 流式数据
-- `error` - 错误消息
-
-### CLIProxyAPI Cache 设计深度分析（2026-04-15）
-
-**Go `signature_cache.go` 关键设计：**
-1. **3 小时 TTL** - 远超 Node.js 当前 30 分钟
-2. **滑动过期** - 每次访问刷新 Timestamp
-3. **分组 Map** - `sync.Map (groupKey -> groupCache)` 架构
-4. **单例清理 goroutine** - `sync.Once` 保证只启动一次
-5. **空 Cache 删除** - 清理时删除空的 cache bucket
-
-**Node.js 当前实现 vs Go 设计：**
-| 特性 | Go | Node.js | 状态 |
-|------|-----|---------|------|
-| TTL | 3小时 | ✅ 3小时 | 已完成 |
-| 滑动过期 | ✅ | ✅ | 已实现 |
-| 分组存储 | sync.Map | 单一Map | 架构差异 |
-| 单例清理 | sync.Once | module singleton | 已实现 |
-| 空组删除 | ✅ | N/A | **不适用**（单一LRU Map，满时自动淘汰） |
-
-**架构差异说明：**
-- Go 使用分组 Map 架构 (groupKey → groupCache)，每组独立 TTL
-- Node.js 使用单一固定大小 LRU Cache，满时自动淘汰最旧条目
-- 空组删除只适用于分组 Map 架构，不适用于单一 LRU Cache 设计
-- Node.js 当前设计已满足需求，无需改为分组架构
-
-### 当前测试状态（2026-04-14 晚）
-
-```
-Test Suites: 33 passed, 33 total
-Tests:       1358 passed, 1358 total
+Test Suites: 34 passed, 34 total
+Tests:       1391 passed, 1391 total
 Time:        ~35s
 ```
 
@@ -288,15 +122,11 @@ Time:        ~35s
 | utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
 | utils/token-utils.js | 0% | ⚠️ 待提升 |
 
-### 当前测试状态（2026-04-15）
+---
 
-```
-Test Suites: 34 passed, 34 total (新增 proxy-utils.test.js)
-Tests:       1391 passed, 1391 total (新增 33 测试)
-Time:        ~35s
-```
+## 已完成优化
 
-### 已完成优化（2026-04-15）
+### 2026-04-15 最新
 
 1. **LRU Cache TTL 提升至 3 小时**
    - 30 分钟 → 3 小时，与 Go 版本 CLIProxyAPI `signature_cache.go` 一致
@@ -317,3 +147,107 @@ Time:        ~35s
    - 新增 `tests/unit/utils/proxy-utils.test.js`
    - 33 个测试用例，覆盖核心函数逻辑
    - 测试：parseProxyUrl、isProxyEnabledForProvider、isTLSSidecarEnabledForProvider 等
+
+### 2026-04-14 完成
+
+1. **health-check-timer.js 健康检查定时器模块（2026-04-14）**
+   - 新增独立 `src/services/health-check-timer.js` 模块
+   - 支持按供应商自定义间隔和健康检查间隔
+   - 实现 lastCheckTimes Map 防止内存泄漏
+   - 添加 jitter 防止时序攻击
+   - 所有 timer 使用 `.unref()` 防止阻止进程退出
+   - 提供 start/stop/reload/update/status/runStartupHealthCheck 等操作
+   - 30 个单元测试全部通过
+
+2. **adapter.js 死代码清理（2026-04-14）**
+   - 删除未定义的 `getGroupCache()` 函数
+   - 删除未定义的 `groupCacheRegistry` 和 `GroupCache` 引用
+   - 消除运行时 ReferenceError 隐患
+
+3. **oauth-handlers.js 导出路径修复（2026-04-14）**
+   - 错误：所有导出都从 `kimi-oauth-handler.js` 导入
+   - 正确：按提供商拆分，从各自模块导入
+   - 修复 `batchImportCodexTokensStream` 等函数找不到的问题
+   - 恢复 `refreshIFlowTokens` 导出
+
+4. **405095a - Codex PR 审查修复（2026-04-14）**
+   - oauth-handlers.js 从 ./index.js 重新导出改为直接从源模块导出
+   - provider-pool-manager.js validateConfig() 移至构造函数开头
+   - provider-pool-manager.js _acquireGlobalSemaphore 超时正确清理 UUID
+   - health-check-timer.js 使用 ?? 代替 || 支持 0 值禁用
+   - Docker 配置移除 ENV HTTP_PROXY/HTTPS_PROXY 持久化
+   - docker-compose.dev.yml 修复 volume 挂载避免覆盖 node_modules
+
+---
+
+## Worker 进程异步句柄分析
+
+测试使用 `--detectOpenHandles` 分析异步句柄泄漏：
+
+**OAuth 模块 setInterval timer：**
+- `gemini-oauth.js:71` - HTML 页面内的 countdown setInterval，由浏览器管理
+- `gemini-oauth.js:309` - OAuth 轮询 pollTimer，通过 clearPollTimer() 正确清理
+- `kiro-oauth.js:135` - HTML 页面内的 countdown setInterval
+- `codex-oauth.js:319` - HTML 页面内的 countdown setInterval
+- `codex-oauth.js:864` - OAuth 轮询 pollTimer，通过 clearInterval 正确清理
+
+**Provider Core 模块 setInterval timer：**
+- `codex-core.js:715` - cleanupInterval 已使用 `.unref()` 防止阻止进程退出
+- `gemini-core.js:470` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
+- `antigravity-core.js:880` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
+- `qwen-core.js:515` - OAuth 等待 checkInterval，通过 clearInterval + setTimeout 超时机制清理
+
+**结论：** Worker 进程警告是测试环境中 OAuth 异步流程导致的，不是资源泄漏。生产环境所有 timer 都正确管理。
+
+---
+
+## CLIProxyAPI 参考架构（关键设计）
+
+### Go `signature_cache.go` 关键设计
+1. **3 小时 TTL** - 远超 Node.js 当前 30 分钟 ✅ 已提升
+2. **滑动过期** - 每次访问刷新 Timestamp ✅ 已实现
+3. **分组 Map** - `sync.Map (groupKey -> groupCache)` 架构
+4. **单例清理 goroutine** - `sync.Once` 保证只启动一次 ✅ 已实现
+5. **空 Cache 删除** - 清理时删除空的 cache bucket
+
+### Go `wsrelay/manager.go` 关键设计
+- Manager-Session 双层架构 ✅ 已实现（Node.js）
+- 30s 心跳间隔 ✅ 已实现
+- 优雅关闭机制 ✅ 已实现
+- 带缓冲的 channel（maxBufferSize: 8）✅ 已实现
+
+### Go vs Node.js 深度对比
+
+| 模块 | Go 设计 | Node.js 当前实现 | 状态 |
+|------|---------|-----------------|------|
+| Cache | sync.Map 分组 + 滑动 TTL + 3小时 | ✅ LRU Cache + TTL (3小时) | 已完成 |
+| WSRelay | Manager-Session 分层 | ✅ 已实现 | - |
+| Auth | 极简接口 | OAuth 处理器分散 | 观察中 |
+| Store | Git/Postgres/Object | JSON 文件 | 不适用 |
+| Usage | 聚合统计 + 快照 | Provider 查询 | 观察中 |
+
+---
+
+## WSRelay 模块（2026-04-14 新增，2026-04-15 优化）
+
+**参考 CLIProxyAPI `internal/wsrelay/` 架构实现**
+
+- `src/wsrelay/manager.js` - WSRelayManager 和 WSSession 类
+  - Manager: 管理所有 WebSocket 会话，提供连接/断开回调
+  - Session: 单个会话生命周期管理，心跳保活
+  - 心跳间隔: 30s，通过 `unref()` 防止阻止进程退出
+  - 优雅关闭: 关闭所有会话后清理资源
+  - Session.request(): 使用带缓冲的 channel（maxBufferSize: 8）
+  - 添加 `_cleanupOnce` 保护防止重复 cleanup 调用
+- `src/wsrelay/index.js` - 模块入口
+- `tests/unit/wsrelay/manager.test.js` - 单元测试 (64 tests)
+
+**消息类型:**
+- `ping/pong` - 心跳
+- `http_req/http_resp` - HTTP 请求响应
+- `stream_data/stream_end` - 流式数据
+- `error` - 错误消息
+
+---
+
+*最后更新: 2026-04-15*
