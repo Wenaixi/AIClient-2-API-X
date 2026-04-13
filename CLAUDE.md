@@ -183,7 +183,7 @@ Time:        34.603s
 | Store | Git/Postgres/Object | JSON 文件 | 不适用 |
 | Usage | 聚合统计 + 快照 | Provider 查询 | 观察中 |
 
-### WSRelay 模块（2026-04-14 新增）
+### WSRelay 模块（2026-04-14 新增，2026-04-15 优化）
 
 **参考 CLIProxyAPI `internal/wsrelay/` 架构实现**
 
@@ -192,8 +192,10 @@ Time:        34.603s
   - Session: 单个会话生命周期管理，心跳保活
   - 心跳间隔: 30s，通过 `unref()` 防止阻止进程退出
   - 优雅关闭: 关闭所有会话后清理资源
+  - Session.request(): 使用带缓冲的 channel（maxBufferSize: 8）
+  - 添加 `_cleanupOnce` 保护防止重复 cleanup 调用
 - `src/wsrelay/index.js` - 模块入口
-- `tests/unit/wsrelay/manager.test.js` - 单元测试 (30 tests)
+- `tests/unit/wsrelay/manager.test.js` - 单元测试 (64 tests)
 
 **消息类型:**
 - `ping/pong` - 心跳

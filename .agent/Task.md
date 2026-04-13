@@ -189,7 +189,7 @@ tests/
 
 参考路径: `E:\newCC\stick\AlClient-2-APIAlClient-2-API\CLIProxyAPI-6.9.15`
 
-### Go vs Node.js 深度对比分析（2026-04-14）
+### Go vs Node.js 深度对比分析（2026-04-14，2026-04-15 持续）
 - [x] 深度分析 CLIProxyAPI Go 实现 vs Node.js 实现
 - [x] Auth 模块对比：Go接口 vs Node.js OAuth处理器
 - [x] Store 模块对比：多后端 vs JSON文件
@@ -197,10 +197,12 @@ tests/
 - [x] Usage 模块对比：聚合统计 vs Provider查询
 - [x] Cache 模块对比：sync.Map分组 vs LRU Cache
 - [x] WSRelay 模块对比：Manager-Session vs 无独立模块
+- [x] WSRelay Session 优化：参考 Go 版本 pending request 处理（带缓冲 channel）
 
-### Go 实现对标（2026-04-14）
+### Go 实现对标（2026-04-14，2026-04-15 持续）
 - [x] 对比 Go `internal/cache/signature_cache.go` 设计，优化 Node.js LRU Cache TTL
 - [x] 分析 Go 的分组 Cache + sync.Map + 滑动 TTL 架构，Node.js 已实现相似设计
+- [x] 优化 WSRelay Session pending request 处理，参考 Go 版本使用带缓冲 channel
 - [ ] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
 
 ### Worker 进程异步句柄分析
