@@ -7,7 +7,15 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { getProviderPoolManager } from './service-manager.js';
 import { HEALTH_CHECK } from '../utils/constants.js';
-import { CONFIG } from '../core/config-manager.js';
+
+// 获取 CONFIG 的辅助函数
+// 生产环境: config-manager.js 设置到 module 级别，然后 api-server.js 设置到 globalThis.CONFIG
+// 测试环境: 通过 setup 设置到 globalThis.CONFIG
+function getConfig() {
+    // 优先使用 globalThis.CONFIG（运行时由 api-server.js 设置）
+    // 回退到直接导入的 CONFIG（测试环境由 jest.setup.js 设置）
+    return globalThis.CONFIG ?? null;
+}
 
 // 使用模块级私有变量存储状态，避免全局污染
 let timerState = {
@@ -39,7 +47,7 @@ async function executeHealthCheck() {
         return;
     }
 
-    const config = CONFIG?.SCHEDULED_HEALTH_CHECK;
+    const config = getConfig()?.SCHEDULED_HEALTH_CHECK;
     if (!config?.enabled) return;
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
@@ -237,7 +245,7 @@ export function stopHealthCheckTimer() {
  * @returns {number} 实际使用的间隔时间
  */
 export function reloadHealthCheckTimer(newInterval) {
-    const config = CONFIG?.SCHEDULED_HEALTH_CHECK;
+    const config = getConfig()?.SCHEDULED_HEALTH_CHECK;
     if (!config?.enabled) {
         stopHealthCheckTimer();
         return 0;
