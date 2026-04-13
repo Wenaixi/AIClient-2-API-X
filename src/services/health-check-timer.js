@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { getProviderPoolManager } from './service-manager.js';
 import { HEALTH_CHECK } from '../utils/constants.js';
+import { CONFIG } from '../core/config-manager.js';
 
 // 使用模块级私有变量存储状态，避免全局污染
 let timerState = {
@@ -38,7 +39,7 @@ async function executeHealthCheck() {
         return;
     }
 
-    const config = globalThis.CONFIG?.SCHEDULED_HEALTH_CHECK;
+    const config = CONFIG?.SCHEDULED_HEALTH_CHECK;
     if (!config?.enabled) return;
 
     const globalInterval = config.interval || HEALTH_CHECK.DEFAULT_INTERVAL_MS;
@@ -236,7 +237,7 @@ export function stopHealthCheckTimer() {
  * @returns {number} 实际使用的间隔时间
  */
 export function reloadHealthCheckTimer(newInterval) {
-    const config = globalThis.CONFIG?.SCHEDULED_HEALTH_CHECK;
+    const config = CONFIG?.SCHEDULED_HEALTH_CHECK;
     if (!config?.enabled) {
         stopHealthCheckTimer();
         return 0;

@@ -24,6 +24,7 @@
 - [x] adapter.js 死代码清理
 - [x] oauth-handlers.js 导出路径修复
 - [x] Codex PR 审查问题修复
+- [x] WSRelay 模块实现（Manager-Session 架构，30 测试）
 
 ---
 
