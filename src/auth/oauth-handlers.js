@@ -4,7 +4,7 @@
 // 重新导出所有 OAuth 处理函数以保持向后兼容
 
 // iFlow OAuth
-export { handleIFlowOAuth } from './iflow-oauth.js';
+export { handleIFlowOAuth, refreshIFlowTokens } from './iflow-oauth.js';
 
 // Codex OAuth
 export {
