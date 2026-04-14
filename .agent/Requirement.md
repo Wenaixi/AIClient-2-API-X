@@ -86,37 +86,37 @@
 - [x] Plugin 模块测试
 
 ### 测试质量标准
-- [x] 所有测试通过（1391 测试，34 套件全部通过）
+- [x] 所有测试通过（1935 测试，49 套件全部通过）
 - [x] 使用 mock 处理外部依赖
 - [x] 异步操作正确处理
 - [x] 资源正确清理（teardown）
 
-### 当前测试状态（2026-04-17）
+### 当前测试状态（2026-04-18）
 ```
-Test Suites: 45 passed, 45 total
-Tests:       1682 passed, 1682 total
-Time:        ~35s
-```        ~34s
+Test Suites: 49 passed, 49 total
+Tests:       1935 passed, 1935 total
+Time:        ~34s
 ```
 
-**测试覆盖率分析（2026-04-16）：**
+**测试覆盖率分析（2026-04-18）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/forward | 79-88% | ✅ 良好 |
-| providers/gemini/* | 100% | ✅ gemini-strategy |
-| providers/openai/* | 100% | ✅ openai-strategy |
-| providers/claude/* | 100% | ✅ claude-strategy |
-| providers/grok/* | 100% | ✅ grok-strategy |
+| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
+| providers/openai/* | 100% | ✅ openai-strategy + openai-core |
+| providers/claude/* | 100% | ✅ claude-strategy + claude-core |
+| providers/grok/* | 100% | ✅ grok-strategy + grok-core |
+| providers/*-core | ✅ | ✅ claude/grok/openai/gemini-core 测试 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/provider-utils | 87% | ✅ 良好 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter | ✅ | ✅ LRU TTL 3小时 |
-| utils/logger.js | 49% | ⚠️ 需提升 |
-| ui-modules/* | 0-75% | ⚠️ 待提升 |
+| utils/logger.js | ✅ 79 测试 | ✅ 已增强 |
+| ui-modules/* | ✅ | ✅ system-api/system-monitor/config-scanner/upload-config-api |
 
 ---
 
@@ -140,6 +140,22 @@ Time:        ~35s
 - `internal/watcher/` - 监控
 - `internal/wsrelay/` - WebSocket 转发
 
+### Go 关键设计参考（CLIProxyAPI 6.9.15）
+
+#### Cache 模块 (internal/cache/signature_cache.go)
+- 3 小时 TTL，与 Node.js LRU Cache TTL 对齐 ✅
+- 滑动过期（每次访问刷新 Timestamp）✅
+- 分组 Map 架构 (sync.Map groupKey → groupCache)
+- 空 Cache Bucket 删除机制
+
+#### WSRelay 模块 (internal/wsrelay/manager.go + session.go)
+- Manager-Session 双层架构 ✅
+- 30s 心跳间隔 ✅
+- 带缓冲的 channel (maxBufferSize: 8) ✅
+- Session.request() 使用 chan Message(8) ✅
+- 优雅关闭机制 ✅
+- Context 取消监听 ✅
+
 ### 已知问题（CLIProxyAPI）
 - [x] Timer 泄漏问题 → 已分析确认是测试环境行为，非资源泄漏
 - [x] Worker 进程未优雅退出 → 已分析确认是测试框架行为
@@ -149,7 +165,7 @@ Time:        ~35s
 ## 验收标准
 
 ### 交付标准
-- [x] 1391+ 测试全部通过
+- [x] 1935+ 测试全部通过
 - [x] 核心功能稳定运行
 - [x] 无内存泄漏
 - [x] 日志无敏感信息泄露
@@ -175,6 +191,7 @@ Time:        ~35s
 |------|------|------|
 | 2.13.x | 2026-04 | 当前版本，含 Kimi/iFlow 支持 |
 | 2.14.x | 2026-04-15 | WSRelay 模块、LRU Cache TTL 优化、健康检查定时器独立模块 |
+| 2.15.x | 2026-04-18 | Provider *-core 测试覆盖（claude/grok/openai/gemini），1935 测试全部通过 |
 
 ---
 
@@ -184,5 +201,8 @@ Time:        ~35s
 |------|----------|
 | 2026-04-14 | 初始版本，核心功能需求定义 |
 | 2026-04-15 | 新增 WSRelay 模块、LRU Cache TTL 3小时优化、健康检查定时器独立模块 |
+| 2026-04-16 | Provider Strategy 测试覆盖（openai/claude/grok-strategy） |
+| 2026-04-17 | UI Modules 测试覆盖率提升（system-api/system-monitor/config-scanner/upload-config-api） |
+| 2026-04-18 | Provider *-core 测试覆盖（claude/grok/openai/gemini-core），1935 测试全部通过 |
 
-*最后更新: 2026-04-17*
+*最后更新: 2026-04-18*

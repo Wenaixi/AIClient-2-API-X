@@ -157,6 +157,13 @@ tests/
 └── security-fixes.unit.test.js
 ```
 
+### 测试覆盖率状态（2026-04-18）
+```
+Test Suites: 49 passed, 49 total
+Tests:       1935 passed, 1935 total
+Time:        ~34s
+```
+
 ---
 
 ## CLIProxyAPI 参考架构（Go）
@@ -192,7 +199,7 @@ CLIProxyAPI-6.9.15/
 
 ---
 
-## CLIProxyAPI Go vs Node.js 深度对比（2026-04-15）
+## CLIProxyAPI Go vs Node.js 深度对比（2026-04-18 更新）
 
 ### Cache 模块对比
 | 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
@@ -288,17 +295,24 @@ CLIProxyAPI-6.9.15/
 
 ---
 
-## 近期修复（2026-04-15）
+## 近期修复（2026-04-18）
 
-### LRU Cache TTL 提升至 3 小时
-**问题**: Node.js 缓存 TTL 过短，与 Go 版本不一致
-**修复**: SignatureCacheTTL = 3 * time.Hour，CacheCleanupInterval = 10 * time.Minute
-**代码位置**: `src/providers/adapter.js`
+### Provider *-core 测试覆盖率提升
+**新增测试文件：**
+- `claude-core.test.js` - ClaudeApiService 核心测试
+- `grok-core.test.js` - GrokApiService 核心测试
+- `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
+- `gemini-core.test.js` - GeminiApiService 核心测试
 
-### WSRelay Session 优化
-**问题**: Session 消息处理无缓冲，可能丢失消息
-**修复**: Session.request() 使用带缓冲的 channel（maxBufferSize: 8）
-**代码位置**: `src/wsrelay/manager.js`
+**修复问题：**
+- `gemini-core.test.js` OAuth2Client mock 缺少 `new` 操作符
+
+**测试结果：**
+- 49 套件 1935 测试全部通过
+- providers/gemini/* 100%
+- providers/openai/* 100%
+- providers/claude/* 100%
+- providers/grok/* 100%
 
 ---
 
@@ -341,6 +355,57 @@ type Manager struct {
 ch := make(chan Message, 8)
 ```
 
+### wsrelay/session.go 关键设计
+```go
+// pendingRequest 结构
+type pendingRequest struct {
+    ch        chan Message
+    closeOnce sync.Once
+}
+
+// session.request() 使用 chan(8) 缓冲
+if _, loaded := s.pending.LoadOrStore(msg.ID, &pendingRequest{ch: make(chan Message, 8)}); loaded {
+    return nil, fmt.Errorf("wsrelay: duplicate message id %s", msg.ID)
+}
+
+// dispatch 处理终端消息后 close channel
+if msg.Type == MessageTypeHTTPResp || msg.Type == MessageTypeError || msg.Type == MessageTypeStreamEnd {
+    if actual, loaded := s.pending.LoadAndDelete(msg.ID); loaded {
+        actual.(*pendingRequest).close()
+    }
+}
+```
+
 ---
 
-*最后更新: 2026-04-17*
+## CLIProxyAPI 6.9.15 新增模块分析
+
+### browser 模块 (internal/browser/browser.go)
+- 浏览器自动化相关功能
+- 与 Node.js 项目无关，不适用
+
+### registry 模块 (internal/registry/)
+- `model_registry.go` - 模型注册表
+- `model_definitions.go` - 模型定义
+- `model_updater.go` - 模型更新器
+- **参考价值**: 模型定义和管理机制
+
+### runtime 模块 (internal/runtime/)
+- `executor/` - 各提供商执行器
+  - `claude_executor.go` - Claude 执行器
+  - `gemini_executor.go` - Gemini 执行器
+  - `kimi_executor.go` - Kimi 执行器
+  - `codex_executor.go` - Codex 执行器
+  - `openai_compat_executor.go` - OpenAI 兼容执行器
+  - `antigravity_executor.go` - Antigravity 执行器
+  - 等等
+- `geminicli/state.go` - Gemini CLI 状态管理
+- **参考价值**: 请求执行和状态管理机制
+
+### tui 模块 (internal/tui/)
+- 终端用户界面
+- 与 Node.js 项目无关，不适用
+
+---
+
+*最后更新: 2026-04-18*

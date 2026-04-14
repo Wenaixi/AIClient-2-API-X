@@ -7,14 +7,14 @@
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 提升核心模块测试覆盖率（gemini, grok, openai 等 0% 模块）
+- [ ] 持续提升测试覆盖率（优先低覆盖率模块）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1587 测试，38 套件全部通过）
-- [x] forward.test.js 新增（33 测试，覆盖 forward-core 和 forward-strategy）
-- [x] 修复 wsrelay/index.test.js 动态 import 问题
+- [x] 测试基础设施搭建（1935 测试，49 套件全部通过）
+- [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
+- [x] Provider *-core 测试覆盖（claude/grok/openai/gemini-core）✅ 1935 测试
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
 - [x] LRU Adapter Cache 实现
@@ -29,16 +29,30 @@
 - [x] Codex PR 审查问题修复
 - [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
 - [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
-- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 设计
+- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 和 session.go 设计
 - [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
 - [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
-- [x] utils/token-utils.js 测试覆盖（47 测试，2026-04-15）
-- [x] CLAUDE.md 更新至 2026-04-14 版本
-- [x] 测试覆盖率分析（2026-04-14）：38 套件 1587 测试全部通过
-- [x] forward 模块测试覆盖率提升至 79-88%
-- [x] common-import.test.js 修复（92 测试，2026-04-14）
+- [x] CLAUDE.md 更新至 2026-04-18 版本
+- [x] UI Modules 测试覆盖率提升（2026-04-17）
+  - 新增 `system-monitor.test.js` - 12 测试用例
+  - 新增 `system-api.test.js` - 8 测试用例
+  - 新增 `config-scanner.test.js` - 6 测试用例
+  - 新增 `upload-config-api.test.js` - 6 测试用例
+- [x] logger.test.js 测试修复与增强（2026-04-17 夜）
+  - 修复 `sanitizeLog` 不存在导致的 2 个测试失败
+  - 移除有问题的异步上下文隔离测试
+  - 修复 `formatMessage` 参数验证和 file stream 测试
+  - 新增 30+ 全面测试用例，79 测试全部通过
+  - 整体测试：45 套件 1731 测试全部通过
+- [x] Provider *-core 测试覆盖率提升（2026-04-18）
+  - 新增 `claude-core.test.js` - ClaudeApiService 核心测试
+  - 新增 `grok-core.test.js` - GrokApiService 核心测试
+  - 新增 `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
+  - 新增 `gemini-core.test.js` - GeminiApiService 核心测试
+  - 修复 `gemini-core.test.js` OAuth2Client mock 缺少 `new` 操作符问题
+  - 整体测试：49 套件 1935 测试全部通过
 
 ---
 
@@ -158,24 +172,42 @@ tests/unit/
 │   ├── kimi-strategy.test.js
 │   ├── provider-pool-manager.test.js
 │   ├── provider-pool-manager-deep.test.js
-│   └── selectors.test.js
+│   ├── selectors.test.js
+│   ├── forward.test.js
+│   ├── claude-strategy.test.js
+│   ├── claude-core.test.js
+│   ├── gemini-strategy.test.js
+│   ├── gemini-core.test.js
+│   ├── grok-strategy.test.js
+│   ├── grok-core.test.js
+│   ├── openai-strategy.test.js
+│   └── openai-core.test.js
 ├── services/
 │   ├── health-check-timer.test.js
 │   └── usage-service.test.js
 ├── ui-modules/
 │   ├── config-api.test.js
 │   ├── config-manager.test.js
+│   ├── config-scanner.test.js
 │   ├── event-broadcast.test.js
 │   ├── oauth-api.test.js
 │   ├── provider-data-sanitization.test.js
+│   ├── system-api.test.js
+│   ├── system-monitor.test.js
+│   ├── upload-config-api.test.js
 │   └── usage-cache.test.js
-└── utils/
-    ├── common.test.js
-    ├── constants.test.js
-    ├── logger.test.js
-    ├── provider-strategies.test.js
-    ├── provider-utils.test.js
-    └── proxy-utils.test.js
+├── utils/
+│   ├── common.test.js
+│   ├── common-import.test.js
+│   ├── constants.test.js
+│   ├── logger.test.js
+│   ├── provider-strategies.test.js
+│   ├── provider-utils.test.js
+│   ├── proxy-utils.test.js
+│   └── token-utils.test.js
+└── wsrelay/
+    ├── index.test.js
+    └── manager.test.js
 ```
 
 ### 集成测试
@@ -191,11 +223,11 @@ tests/
 
 | 提交 | 描述 |
 |------|------|
-| d159f7b | test(utils): 新增 proxy-utils.js 单元测试 (33 测试用例) |
-| 2bdf170 | test(adapter): 完善 LRUCache TTL 单元测试 |
-| 0c08d1b | perf(adapter): 提升 LRU Cache TTL 至 3 小时 |
-| 432393b | docs: 更新 Design.md 日期为 2026-04-14 |
-| dcc57b1 | docs: 更新 Task.md 测试状态 |
+| e71422c | fix(tests): 修复 logger.test.js 并增强测试覆盖 |
+| 177ff56 | test(ui-modules): 新增 system-api/system-monitor/config-scanner/upload-config-api 单元测试 (32 测试) |
+| 04b0622 | test(providers): 新增 openai/claude/grok-strategy 单元测试 (63 测试) |
+| 6c97f68 | fix(tests): 修复 common-import.test.js 断言与实际实现不符 |
+| 27ba22a | fix(gemini): 修复 gemini-strategy 测试失败和 providerName 缺失 |
 
 ---
 
@@ -218,7 +250,7 @@ tests/
 - [x] 分析 Go 的分组 Cache + sync.Map + 滑动 TTL 架构，Node.js 已实现相似设计
 - [x] 优化 WSRelay Session pending request 处理，参考 Go 版本使用带缓冲 channel
 - [x] LRU Cache TTL 提升至 3 小时，与 Go 版本一致
-- [ ] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
+- [x] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
 
 ### Worker 进程异步句柄分析
 **OAuth setInterval timer 分析：**
@@ -232,52 +264,6 @@ tests/
   - 33 个测试用例，覆盖核心函数逻辑
 
 **结论：** 测试中出现的 Worker 进程警告是测试框架行为，非资源泄漏。
-
----
-
-## 当前任务状态
-
-### 正在进行
-- [ ] 提升 Provider 核心模块测试覆盖率（openai-core, gemini-core, grok-core 等 0% 模块）
-- [ ] 维护 CLAUDE.md 和 .agent/ 文档
-- [ ] 更新 .agent/ 文件至 2026-04-16
-
-### 已完成
-- [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1650 测试，41 套件全部通过）
-- [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
-- [x] 修复 wsrelay/index.test.js 动态 import 问题
-- [x] Kimi OAuth 集成
-- [x] iFlow 提供商支持恢复
-- [x] LRU Adapter Cache 实现
-- [x] Provider Pool Manager 重构
-- [x] 健康检查定时器修复
-- [x] 安全漏洞修复（日志脱敏、路径保护）
-- [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
-- [x] LRU Cache TTL 优化（3小时，参考 CLIProxyAPI 设计）
-- [x] LRU Cache TTL 测试完善（9 个 TTL 专项测试，滑动过期/过期清理）
-- [x] adapter.js 死代码清理
-- [x] oauth-handlers.js 导出路径修复
-- [x] Codex PR 审查问题修复
-- [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
-- [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
-- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 和 session.go 设计
-- [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
-- [x] FillFirstSelector 异步问题修复
-- [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
-- [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
-- [x] CLAUDE.md 更新至 2026-04-17 版本
-- [x] UI Modules 测试覆盖率提升（2026-04-17）
-  - 新增 `system-monitor.test.js` - 12 测试用例
-  - 新增 `system-api.test.js` - 8 测试用例
-  - 新增 `config-scanner.test.js` - 6 测试用例
-  - 新增 `upload-config-api.test.js` - 6 测试用例
-- [x] logger.test.js 测试修复与增强（2026-04-17 夜）
-  - 修复 `sanitizeLog` 不存在导致的 2 个测试失败
-  - 移除有问题的异步上下文隔离测试
-  - 修复 `formatMessage` 参数验证和 file stream 测试
-  - 新增 30+ 全面测试用例，79 测试全部通过
-  - 整体测试：45 套件 1731 测试全部通过
 
 ---
 
@@ -308,7 +294,7 @@ npm run start        # 启动服务
 npm run start:dev    # 开发模式
 
 # 测试
-npm test             # 运行全部测试（1391 测试通过）
+npm test             # 运行全部测试（1935 测试通过）
 npm run test:watch   # 监听模式
 npm run test:coverage # 覆盖率报告
 
@@ -319,4 +305,4 @@ git log --oneline -10 # 最近提交
 
 ---
 
-*最后更新: 2026-04-17*
+*最后更新: 2026-04-18*
