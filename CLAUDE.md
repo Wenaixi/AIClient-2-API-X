@@ -9,7 +9,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` (定制分支，始终使用此分支开发) |
-| 最后更新 | 2026-04-14 |
+| 最后更新 | 2026-04-18 晚间 |
 
 ## Git 分支策略
 
