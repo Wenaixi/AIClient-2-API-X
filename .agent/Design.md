@@ -129,6 +129,8 @@ REFRESH_LEAD_CONFIG = {
 | 17 | Timer 泄漏 - auth.js tokenCleanupTimer | ✅ 已修复 | 2026-04-15 |
 | 18 | Timer 泄漏 - api-server.js 等 6处 | ✅ 已修复 | 2026-04-15 |
 | 19 | Timer 泄漏 - gemini-core.js / qwen-core.js | ✅ 已修复 | 2026-04-15 |
+| 20 | Timer 泄漏 - codex-core.js cleanupInterval | ✅ 已修复 | 2026-04-15 |
+| 21 | Timer 泄漏 - tls-sidecar.js healthCheckTimer | ✅ 已修复 | 2026-04-15 |
 
 ---
 

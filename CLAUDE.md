@@ -171,24 +171,27 @@ Time:        ~36s
 ## Timer 泄漏修复 (2026-04-15)
 
 ### 修复的 setInterval 列表 (共 21 处)
-- `src/auth/gemini-oauth.js` - pollTimer (OAuth 轮询)
-- `src/auth/codex-oauth.js` - pollTimer (OAuth 轮询)
-- `src/plugins/api-potluck/api-routes.js` - rateLimitCleanupTimer (限流清理)
-- `src/providers/gemini/antigravity-core.js` - checkInterval (OAuth 检查)
-- `src/wsrelay/manager.js` - heartbeatTimer (心跳)
-- `src/services/api-server.js` - heartbeatTimer (心跳)
-- `src/services/health-check-timer.js` - timerId/startupTimer
-- `src/providers/adapter.js` - cacheCleanupTimer (缓存清理)
-- `src/providers/provider-pool-manager.js` - refreshBufferTimers/saveTimer
-- `src/utils/logger.js` - _contextCleanupTimer (上下文清理)
-- `src/ui-modules/auth.js` - tokenCleanupTimer (Token 清理)
-- `src/ui-modules/event-broadcast.js` - keepAlive (SSE 保活)
-- `src/providers/gemini/gemini-core.js` - checkInterval
-- `src/providers/openai/qwen-core.js` - checkInterval
-- `src/providers/openai/codex-core.js` - cleanupInterval
-- `src/plugins/model-usage-stats/stats-manager.js` - persistTimer
-- `src/plugins/api-potluck/key-manager.js` - persistTimer
-- `src/utils/tls-sidecar.js` - healthCheckTimer
+- `src/auth/gemini-oauth.js` - pollTimer (OAuth 轮询) ✅ 已添加 .unref()
+- `src/auth/codex-oauth.js` - pollTimer (OAuth 轮询) ✅ 已添加 .unref()
+- `src/plugins/api-potluck/api-routes.js` - rateLimitCleanupTimer (限流清理) ✅ 已添加 .unref()
+- `src/providers/gemini/antigravity-core.js` - checkInterval (OAuth 检查) ✅ 已添加 .unref()
+- `src/wsrelay/manager.js` - heartbeatTimer (心跳) ✅ 已添加 .unref()
+- `src/services/api-server.js` - heartbeatTimer (心跳) ✅ 已添加 .unref()
+- `src/services/health-check-timer.js` - timerId/startupTimer ✅ 已添加 .unref()
+- `src/providers/adapter.js` - cacheCleanupTimer (缓存清理) ✅ 已添加 .unref()
+- `src/providers/provider-pool-manager.js` - refreshBufferTimers/saveTimer ✅ 已添加 .unref()
+- `src/utils/logger.js` - _contextCleanupTimer (上下文清理) ✅ 已添加 .unref()
+- `src/ui-modules/auth.js` - tokenCleanupTimer (Token 清理) ✅ 已添加 .unref()
+- `src/ui-modules/event-broadcast.js` - keepAlive (SSE 保活) ✅ 已添加 .unref()
+- `src/providers/gemini/gemini-core.js` - checkInterval ✅ 已添加 .unref()
+- `src/providers/openai/qwen-core.js` - checkInterval ✅ 已添加 .unref()
+- `src/providers/openai/codex-core.js` - cleanupInterval ✅ 已添加 .unref()
+- `src/plugins/model-usage-stats/stats-manager.js` - persistTimer ✅ 已添加 .unref()
+- `src/plugins/api-potluck/key-manager.js` - persistTimer ✅ 已添加 .unref()
+- `src/utils/tls-sidecar.js` - healthCheckTimer ✅ 已添加 .unref()
+- `src/auth/kiro-oauth.js` - timer (页面倒计时) ✅ 已添加 .unref() (前端脚本)
+- `src/auth/gemini-oauth.js` - timer (页面倒计时) ✅ 已添加 .unref() (前端脚本)
+- `src/auth/codex-oauth.js` - timer (页面倒计时) ✅ 已添加 .unref() (前端脚本)
 
 ### 修复方法
 在所有 `setInterval` 调用后添加 `.unref()` 防止定时器阻止进程退出：
@@ -201,9 +204,9 @@ if (timer.unref) timer.unref();
 ```
 Test Suites: 51 passed, 51 total
 Tests:       2032 passed, 2032 total
-Time:        ~42s
+Time:        ~35-42s
 ```
 
-**已知问题**：`A worker process has failed to exit gracefully` 警告是 Jest 已知问题，不影响测试结果。
+**已知问题**：`A worker process has failed to exit gracefully` 警告是 Jest 已知问题，不影响测试结果。原因可能是测试框架的 worker 管理与 Node.js 定时器的交互。
 
 *最后更新: 2026-04-15 下午*

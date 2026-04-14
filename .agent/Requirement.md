@@ -62,7 +62,7 @@ Time:        ~36s
 | LRU Cache TTL 3小时 | ✅ 与 Go 版本对齐 |
 | Provider Pool 信号量模式 | ✅ 重构完成 |
 | 配置快照恢复功能 | ✅ 已实现 |
-| Timer 泄漏修复 | ✅ 10处 .unref() |
+| Timer 泄漏修复 | ✅ 21处 .unref() |
 
 ---
 
