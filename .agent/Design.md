@@ -18,7 +18,7 @@ Client → API Server → Request Handler → Adapter → Provider Pool
 | Adapter | src/providers/adapter.js | LRU Cache，3小时 TTL 滑动过期 |
 | Provider Pool Manager | src/providers/provider-pool-manager.js | 故障转移、负载均衡、信号量模式 |
 | Selectors | src/providers/selectors/index.js | Score/RoundRobin/FillFirst |
-| Health Check Timer | src/services/health-check-timer.js | 定时健康检查 |
+| Health Check Timer | src/services/health-check-timer.js | 定时健康检查（5分钟间隔） |
 | WSRelay Manager | src/wsrelay/manager.js | Manager-Session 双层架构 |
 
 ### Converters (src/converters/)
@@ -48,17 +48,18 @@ kimi-oauth.js / kiro-oauth.js / gemini-oauth.js / codex-oauth.js / qwen-oauth.js
 
 ### 日志脱敏
 - 脱敏字段: `token`, `api_key`, `authorization`, `password`, `secret`
-- 实现: `src/utils/logger.js` → `sanitizeLog()`
+- 实现: `src/utils/logger.js` → `sanitizeLog()` ✅
 
-### OAuth 错误处理
-- 所有 error.message 返回前经 `escapeHtml()` 处理 ✅
+### XSS 防护
+- `escapeHtml()` 统一处理所有错误消息输出 ✅
+- OAuth handlers 全部使用 ✅
 
 ### 时序安全比较
-- `safeCompare()` 替代直接字符串比较，防止时序攻击
+- `safeCompare()` 使用 `crypto.timingSafeEqual()` 防止时序攻击 ✅
 - 实现: `src/utils/common.js`
 
 ### 请求体大小限制
-- MAX_BODY_SIZE = 10MB，防止内存耗尽
+- `MAX_BODY_SIZE = 10MB` 防止内存耗尽 ✅
 
 ---
 
@@ -122,15 +123,33 @@ REFRESH_LEAD_CONFIG = {
 | 10 | safeCompare 时序安全比较 | ✅ 已实现 | - |
 | 11 | getClientIp 测试空对象访问错误 | ✅ 已修复 | 2026-04-15 |
 | 12 | findByPrefix/hasByPrefix 前缀匹配测试 | ✅ 已修复 | 2026-04-15 |
-| 13 | Timer 泄漏 - gemini-oauth pollTimer | ✅ 已修复 | 2026-04-15 |
-| 14 | Timer 泄漏 - codex-oauth pollTimer | ✅ 已修复 | 2026-04-15 |
-| 15 | Timer 泄漏 - api-potluck rateLimitCleanupTimer | ✅ 已修复 | 2026-04-15 |
-| 16 | Timer 泄漏 - antigravity-core checkInterval | ✅ 已修复 | 2026-04-15 |
-| 17 | Timer 泄漏 - auth.js tokenCleanupTimer | ✅ 已修复 | 2026-04-15 |
-| 18 | Timer 泄漏 - api-server.js 等 6处 | ✅ 已修复 | 2026-04-15 |
-| 19 | Timer 泄漏 - gemini-core.js / qwen-core.js | ✅ 已修复 | 2026-04-15 |
-| 20 | Timer 泄漏 - codex-core.js cleanupInterval | ✅ 已修复 | 2026-04-15 |
-| 21 | Timer 泄漏 - tls-sidecar.js healthCheckTimer | ✅ 已修复 | 2026-04-15 |
+| 13-33 | Timer 泄漏 - 21处 setInterval 未调用 .unref() | ✅ 已全部修复 | 2026-04-15 |
+
+### Timer 泄漏修复 (21处)
+
+| 文件 | 定时器 | 状态 |
+|------|--------|------|
+| src/auth/gemini-oauth.js | pollTimer | ✅ .unref() |
+| src/auth/codex-oauth.js | pollTimer | ✅ .unref() |
+| src/plugins/api-potluck/api-routes.js | rateLimitCleanupTimer | ✅ .unref() |
+| src/providers/gemini/antigravity-core.js | checkInterval | ✅ .unref() |
+| src/wsrelay/manager.js | heartbeatTimer | ✅ .unref() |
+| src/services/api-server.js | heartbeatTimer | ✅ .unref() |
+| src/services/health-check-timer.js | timerId/startupTimer | ✅ .unref() |
+| src/providers/adapter.js | cacheCleanupTimer | ✅ .unref() |
+| src/providers/provider-pool-manager.js | refreshBufferTimers/saveTimer | ✅ .unref() |
+| src/utils/logger.js | _contextCleanupTimer | ✅ .unref() |
+| src/ui-modules/auth.js | tokenCleanupTimer | ✅ .unref() |
+| src/ui-modules/event-broadcast.js | keepAlive | ✅ .unref() |
+| src/providers/gemini/gemini-core.js | checkInterval | ✅ .unref() |
+| src/providers/openai/qwen-core.js | checkInterval | ✅ .unref() |
+| src/providers/openai/codex-core.js | cleanupInterval | ✅ .unref() |
+| src/plugins/model-usage-stats/stats-manager.js | persistTimer | ✅ .unref() |
+| src/plugins/api-potluck/key-manager.js | persistTimer | ✅ .unref() |
+| src/utils/tls-sidecar.js | healthCheckTimer | ✅ .unref() |
+| src/auth/kiro-oauth.js | timer (前端) | ✅ .unref() |
+| src/auth/gemini-oauth.js | timer (前端) | ✅ .unref() |
+| src/auth/codex-oauth.js | timer (前端) | ✅ .unref() |
 
 ---
 
@@ -155,15 +174,36 @@ REFRESH_LEAD_CONFIG = {
 - 确保测试与源码逻辑完全一致，避免因实现差异导致的测试失败
 - 适用场景：函数依赖复杂模块链，难以直接 mock
 
+### 已覆盖的函数 (20+ 个)
+
+| 函数 | 文件 | 说明 |
+|------|------|------|
+| RETRYABLE_NETWORK_ERRORS | common.js | 可重试网络错误常量 |
+| isRetryableNetworkError | common.js | 检查是否为可重试网络错误 |
+| getProtocolPrefix | common.js | 获取协议前缀 |
+| formatExpiryTime | common.js | 格式化过期时间 |
+| formatExpiryLog | common.js | 格式化过期日志 |
+| formatLog | common.js | 统一日志格式 |
+| getClientIp | common.js | 获取客户端 IP |
+| getMD5Hash | common.js | MD5 哈希 |
+| formatToLocal | common.js | 格式化本地时间 |
+| findByPrefix | common.js | 前缀匹配查找 |
+| hasByPrefix | common.js | 前缀匹配检查 |
+| getBaseType | common.js | 获取基础类型 |
+| extractSystemPromptFromRequestBody | common.js | 提取 System Prompt |
+| escapeHtml | common.js | HTML 转义防 XSS |
+| safeCompare | common.js | 时序安全比较 |
+| isAuthorized | common.js | 授权检查 |
+| createErrorResponse | common.js | 创建错误响应 |
+| createStreamErrorResponse | common.js | 创建流式错误响应 |
+| MAX_BODY_SIZE | common.js | 请求体大小限制常量 |
+| getRequestBody | common.js | 获取请求体 |
+| logConversation | common.js | 对话日志 |
+
 ### 边界条件处理
 - `getClientIp({})` → 需提供 `headers: {}` 和 `socket: {}`
 - `socket: null` → 需提供 `socket: { remoteAddress: null }`
 - 前缀匹配：`findByPrefix(registry, 'openai-model')` 需使用完整键名
-
-### auth.test.js 编写策略
-- **注意**：ESM 模块动态 import 与 Jest CJS 转换冲突
-- 推荐使用 copy-function 策略或重写为 CJS 兼容模式
-- 或者通过集成测试覆盖 auth.js 功能
 
 ---
 
