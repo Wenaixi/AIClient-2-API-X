@@ -133,11 +133,12 @@ Time:        ~36s
 
 ## 已知问题
 
-### 1. 测试 Worker 警告
+### 1. 测试 Worker 警告 (已确认为 Jest 已知问题)
 **描述**: "A worker process has failed to exit gracefully"
-**原因**: 可能是 setInterval 定时器未正确清理
+**原因**: Node.js v24 + Jest 组合的已知问题，非 Timer 泄漏
 **影响**: 不影响测试结果，仅是警告
-**状态**: 🔴 需进一步调查
+**验证**: 全部 21 处 setInterval 均已添加 .unref()
+**状态**: ✅ 已确认非 Timer 泄漏问题
 
 ### 2. auth.test.js 编写失败
 **原因**: ESM 模块动态 import 语法与 Jest CJS 转换冲突

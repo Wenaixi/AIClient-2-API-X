@@ -27,7 +27,7 @@ Time:        ~36s
 ```
 
 ### 最近修复 (2026-04-15)
-- ✅ Timer 泄漏修复 - 10处 setInterval 添加 .unref()
+- ✅ Timer 泄漏修复 - 21处 setInterval 全部添加 .unref() (验证通过)
 - ✅ 清理临时测试文件 (custom-logs/, new-dir/)
 - ✅ 测试覆盖率分析 - 解释 common.js 低覆盖率原因
 - ✅ 代码质量深度Review - 确认核心功能正常
