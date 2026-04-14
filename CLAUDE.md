@@ -44,17 +44,17 @@ git merge main      # 合并上游到当前分支
 ## Docker 容器管理
 
 ```bash
-# 构建并启动（使用 docker-compose.yml）
-docker compose -f docker/docker-compose.yml up -d --build
+# 构建并启动（使用预构建镜像，跳过构建）
+docker compose -f docker/docker-compose.build.yml up -d --build
 
-# 仅重启容器（代码已构建时）
-docker compose -f docker/docker-compose.yml up -d
+# 仅启动容器（代码未修改时）
+docker compose -f docker/docker-compose.build.yml up -d
 
 # 查看日志
 docker logs -f aiclient2api
 
 # 停止容器
-docker compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.build.yml down
 ```
 
 ---
@@ -68,11 +68,11 @@ docker compose -f docker/docker-compose.yml down
 
 ---
 
-## 测试状态 (2026-04-15 晨间)
+## 测试状态 (2026-04-15 上午)
 
 ```
 Test Suites: 51 passed, 51 total
-Tests:       2003 passed, 2003 total
+Tests:       2032 passed, 2032 total
 Time:        ~37s
 ```
 
@@ -136,9 +136,10 @@ Time:        ~37s
 
 | 提交 | 说明 |
 |------|------|
+| 03ff308 | fix(tests): 修复 common.test.js 测试用例与源码逻辑对齐 |
+| f943d74 | refactor(tests): 重构 common.test.js 与源码逻辑完全对齐 |
 | e0560dd | feat: 添加配置快照恢复和分区配置管理 |
 | 91f38a6 | docs: 更新项目文档至 2026-04-15 版本 |
-| 1da0c85 | fix(kimi-oauth): 优化日志、配置目录和代码质量 |
 
 ---
 
