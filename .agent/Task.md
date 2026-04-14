@@ -24,8 +24,8 @@
 
 ```
 Test Suites: 51 passed, 51 total
-Tests:       2032 passed, 2032 total
-Time:        ~36s
+Tests:       2052 passed, 2052 total
+Time:        ~37s
 ```
 
 ### 测试结果说明
@@ -45,7 +45,7 @@ Time:        ~36s
 | utils/logger.js | 67% | 🟡 中 |
 | utils/common.js | 20% | 🟡 已覆盖 20 个工具函数 |
 | wsrelay/manager.js | 75% | 🟡 中 |
-| ui-modules/event-broadcast | 4% | 🔴 需提升 |
+| ui-modules/event-broadcast | 47% | 🟡 ✅ (4% → 47%) |
 | ui-modules/auth.js | 0% | 🔴 需提升 |
 | ui-modules/oauth-api.js | 0% | 🔴 需提升 |
 
