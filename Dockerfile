@@ -27,8 +27,6 @@ LABEL description="Docker image for AIClient2API server"
 # 代理参数仅用于构建时，构建完成后清除
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
-ENV HTTP_PROXY=$HTTP_PROXY
-ENV HTTPS_PROXY=$HTTPS_PROXY
 
 # 安装必要的系统工具（tar 用于更新功能，git 用于版本检查，procps 用于系统监控）
 RUN apk add --no-cache tar git procps
