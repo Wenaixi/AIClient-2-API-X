@@ -9,9 +9,10 @@
 ### 🟡 中优先级
 - [ ] utils/logger.js 覆盖率 67% → 85%+
 - [ ] wsrelay/manager.js 覆盖率 75% → 85%+
-- [ ] ui-modules/* 整体覆盖率提升（event-broadcast 4% 最低）
+- [ ] ui-modules/auth.js 覆盖率 0% → 60%+
+- [ ] ui-modules/oauth-api.js 覆盖率 0% → 60%+
 
-### 已完成
+### ✅ 已完成
 - [x] event-broadcast.js 覆盖率提升 4% → 47% ✅ 2026-04-15
 - [x] Timer 泄漏修复 - 21处 setInterval 添加 .unref() ✅ 2026-04-15
 - [x] 测试覆盖率分析 - 解释 common.js 低覆盖率原因 ✅ 2026-04-15
@@ -111,9 +112,9 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ### 3. event-broadcast.js 覆盖率提升
 **文件**: `src/ui-modules/event-broadcast.js`
-**当前覆盖**: 4.23%
+**当前覆盖**: 47.32% ✅ (4% → 47%)
 **目标覆盖**: 60%+
-**说明**: 覆盖率极低，需要补充基础功能测试
+**状态**: ✅ 已完成 - 新增 multer 配置测试、handleUploadOAuthCredentials 完整测试
 
 ---
 
