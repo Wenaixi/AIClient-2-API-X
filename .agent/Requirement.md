@@ -93,9 +93,9 @@
 
 ### 当前测试状态（2026-04-16）
 ```
-Test Suites: 36 passed, 36 total
-Tests:       1471 passed, 1471 total
-Time:        ~35s
+Test Suites: 37 passed, 37 total
+Tests:       1495 passed, 1495 total
+Time:        ~34s
 ```
 
 **测试覆盖率分析（2026-04-16）：**
@@ -104,6 +104,7 @@ Time:        ~35s
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/forward | 79-88% | ✅ 良好 |
+| providers/gemini/* | 24 测试 | ✅ 新增 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/provider-utils | 87% | ✅ 良好 |

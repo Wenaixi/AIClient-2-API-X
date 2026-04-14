@@ -7,6 +7,11 @@ import { applySystemPromptReplacements } from '../../converters/utils.js';
  * Gemini provider strategy implementation.
  */
 class GeminiStrategy extends ProviderStrategy {
+    constructor() {
+        super();
+        this.providerName = 'gemini';
+    }
+
     extractModelAndStreamInfo(req, requestBody) {
         const requestUrl = new URL(req.url, `http://${req.headers.host}`);
         const urlPattern = new RegExp(`/v1beta/models/(.+?):(${API_ACTIONS.GENERATE_CONTENT}|${API_ACTIONS.STREAM_GENERATE_CONTENT})`);
