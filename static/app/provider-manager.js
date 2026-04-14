@@ -633,16 +633,6 @@ function updateProviderStatsDisplay(activeProviders, healthyProviders, totalAcco
     if (healthyProvidersEl) healthyProvidersEl.textContent = healthyProviders;
     if (activeConnectionsEl) activeConnectionsEl.textContent = activeConnections;
     
-    // 打印调试信息到控制台
-    console.log('Provider Stats Updated:', {
-        activeProviders,
-        activeProvidersByUsage,
-        healthyProviders,
-        totalAccounts,
-        totalUsage,
-        totalErrors,
-        providerTypeStats: providerStats.providerTypeStats
-    });
 }
 
 /**

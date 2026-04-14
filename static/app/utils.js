@@ -49,13 +49,19 @@ function getBaseProviderConfigs() {
             defaultPath: 'configs/qwen/'
         },
         {
-            id: 'grok-custom', 
-            name: t('dashboard.routing.nodeName.grok'), 
+            id: 'grok-custom',
+            name: t('dashboard.routing.nodeName.grok'),
             icon: 'fa-user-secret'
         },
-        { 
-            id: 'openai-custom', 
-            name: t('dashboard.routing.nodeName.openai'), 
+        {
+            id: 'kimi-oauth',
+            name: t('dashboard.routing.nodeName.kimi'),
+            icon: 'fa-moon',
+            defaultPath: 'configs/kimi/'
+        },
+        {
+            id: 'openai-custom',
+            name: t('dashboard.routing.nodeName.openai'),
             icon: 'fa-microchip'
         },
         { 
@@ -401,6 +407,14 @@ function getProviderTypeFields(providerType) {
                 label: `${t('modal.provider.field.grokBaseUrl')} <span class="optional-tag">${t('config.optional')}</span>`,
                 type: 'text',
                 placeholder: 'https://grok.com'
+            }
+        ],
+        'kimi-oauth': [
+            {
+                id: 'KIMI_OAUTH_CREDS_FILE_PATH',
+                label: t('modal.provider.field.oauthPath'),
+                type: 'text',
+                placeholder: t('modal.provider.field.oauthPath.kimi.placeholder')
             }
         ],
         'forward-api': [

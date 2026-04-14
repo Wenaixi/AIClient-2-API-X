@@ -19,6 +19,9 @@
                         <button type="button" class="btn btn-sm btn-secondary generate-key-btn" id="generateApiKey" data-i18n-title="config.apiKey.generateTitle" title="自动生成API密钥">
                             <i class="fas fa-magic"></i> <span data-i18n="config.apiKey.generate">生成</span>
                         </button>
+                        <button type="button" class="btn btn-sm btn-secondary copy-api-key-btn" data-target="apiKey" title="复制密钥">
+                            <i class="fas fa-copy"></i>
+                        </button>
                     </div>
                 </div>
                 <div class="form-row">
@@ -76,9 +79,20 @@
                 </div>
             </div>
 
-            <!-- 代理与网络 -->
-            <div class="config-group-section">
-                <h3 data-i18n="config.proxy.title"><i class="fas fa-globe"></i> 代理设置</h3>
+            <!-- 基础设置 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="basic">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="basic">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 代理与网络 -->
+        <div class="config-group-section">
+            <h3 data-i18n="config.proxy.title"><i class="fas fa-globe"></i> 代理设置</h3>
                 <div class="form-group">
                     <label for="proxyUrl" data-i18n="config.proxy.url">代理地址</label>
                     <input type="text" id="proxyUrl" class="form-control" data-i18n-placeholder="config.proxy.urlPlaceholder" placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
@@ -156,8 +170,19 @@
                 <small class="form-text" data-i18n="config.proxy.tlsSidecarNote">启用后选中的提供商请求将通过 Go uTLS sidecar 转发，完美模拟 Chrome TLS/H2 指纹绕过 Cloudflare（需重启服务）</small>
             </div>
 
-            <!-- 服务治理与高可用 -->
-            <div class="config-group-section">
+            <!-- 代理与网络 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="proxy">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="proxy">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 服务治理与高可用 -->
+        <div class="config-group-section">
                 <h3 data-i18n="config.governance.title"><i class="fas fa-shield-alt"></i> 服务治理</h3>
                 <div class="config-row">
                     <div class="form-group">
@@ -212,8 +237,19 @@
                 </div>
             </div>
 
-            <!-- OAuth 与令牌 -->
-            <div class="config-group-section">
+            <!-- 服务治理与高可用 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="governance">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="governance">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- OAuth 与令牌 -->
+        <div class="config-group-section">
                 <h3 data-i18n="config.oauth.title"><i class="fas fa-key"></i> OAuth & 令牌</h3>
                 <div class="config-row">
                     <div class="form-group">
@@ -248,8 +284,19 @@
                 </div>
             </div>
 
-            <!-- 定时健康检查 -->
-            <div class="config-group-section">
+            <!-- OAuth 与令牌 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="oauth">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="oauth">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 定时健康检查 -->
+        <div class="config-group-section">
                 <h3 data-i18n="config.healthCheck.title"><i class="fas fa-heartbeat"></i> 定时健康检查</h3>
                 <div class="config-row">
                     <div class="form-group">
@@ -333,8 +380,19 @@
                 </div>
             </div>
 
-            <!-- 日志管理 -->
-            <div class="config-group-section">
+            <!-- 定时健康检查 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="healthcheck">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="healthcheck">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 日志管理 -->
+        <div class="config-group-section">
                 <h3 data-i18n="config.log.title"><i class="fas fa-file-alt"></i> 日志设置</h3>
                 <div class="config-row">
                     <div class="form-group">
@@ -412,8 +470,19 @@
                 </div>
             </div>
 
-            <!-- 系统与高级 -->
-            <div class="config-group-section">
+            <!-- 日志设置 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="log">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="log">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 系统与高级 -->
+        <div class="config-group-section">
                 <h3 data-i18n="config.advanced.title"><i class="fas fa-cogs"></i> 系统与高级</h3>
                 <div class="form-group">
                     <label for="providerPoolsFilePath" data-i18n="config.advanced.poolFilePath">提供商池配置文件路径</label>
@@ -459,6 +528,16 @@
                     </div>
                     <small class="form-text" data-i18n="config.advanced.adminPasswordNote">修改后需要重新登录</small>
                 </div>
+            </div>
+
+            <!-- 系统与高级 - 保存/重置按钮 -->
+            <div class="form-actions section-actions">
+                <button class="btn btn-success btn-sm save-section" data-section="advanced">
+                    <i class="fas fa-save"></i> <span>保存</span>
+                </button>
+                <button class="btn btn-secondary btn-sm reset-section" data-section="advanced">
+                    <i class="fas fa-undo"></i> <span>重置</span>
+                </button>
             </div>
 
             <div class="form-actions">

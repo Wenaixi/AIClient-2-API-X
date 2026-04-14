@@ -49,7 +49,9 @@ import {
 import {
     loadConfiguration,
     saveConfiguration,
-    generateApiKey
+    generateApiKey,
+    saveSectionConfig,
+    resetSectionConfig
 } from './config-manager.js';
 
 import {
@@ -263,6 +265,8 @@ window.closeConfigModal = closeConfigModal;
 window.copyConfigContent = copyConfigContent;
 window.reloadConfig = reloadConfig;
 window.generateApiKey = generateApiKey;
+window.saveSectionConfig = saveSectionConfig;
+window.resetSectionConfig = resetSectionConfig;
 
 // 用量管理相关全局函数
 window.refreshUsage = refreshUsage;

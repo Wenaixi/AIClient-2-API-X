@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import logger from '../utils/logger.js';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -10,6 +10,23 @@ import { getRequestBody } from '../utils/common.js';
 import { broadcastEvent } from '../ui-modules/event-broadcast.js';
 import { HEALTH_CHECK, PASSWORD, NETWORK, RETRY } from '../utils/constants.js';
 import { reloadHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus } from '../services/health-check-timer.js';
+
+/**
+ * 原子写入配置文件（先写临时文件再 rename，防止进程被杀死导致文件损坏）
+ * @param {string} targetPath - 目标文件路径
+ * @param {string} data - 要写入的数据
+ */
+function atomicWriteConfig(targetPath, data) {
+    const tempPath = targetPath + '.tmp.' + Date.now() + '.' + crypto.randomBytes(4).toString('hex');
+    try {
+        writeFileSync(tempPath, data, 'utf-8');
+        renameSync(tempPath, targetPath);  // POSIX 原子操作
+    } catch (error) {
+        // 清理临时文件（如果存在）
+        try { unlinkSync(tempPath); } catch (_) {}
+        throw error;
+    }
+}
 
 /**
  * 重载配置文件
@@ -97,8 +114,7 @@ export async function handleGetConfig(req, res, currentConfig) {
         LOG_MAX_FILE_SIZE: currentConfig.LOG_MAX_FILE_SIZE,
         LOG_MAX_FILES: currentConfig.LOG_MAX_FILES,
         SCHEDULED_HEALTH_CHECK: currentConfig.SCHEDULED_HEALTH_CHECK,
-        // 脱敏：只返回是否设置了 API Key，不返回原文
-        REQUIRED_API_KEY: currentConfig.REQUIRED_API_KEY ? '******' : '',
+        REQUIRED_API_KEY: currentConfig.REQUIRED_API_KEY || '',
         systemPrompt,
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -117,10 +133,7 @@ export async function handleUpdateConfig(req, res, currentConfig) {
         // Update config values in memory（含类型校验）
         if (newConfig.REQUIRED_API_KEY !== undefined) {
             if (typeof newConfig.REQUIRED_API_KEY === 'string') {
-                // 如果是脱敏后的字符串，则忽略更新，保留原值
-                if (newConfig.REQUIRED_API_KEY !== '******') {
-                    currentConfig.REQUIRED_API_KEY = newConfig.REQUIRED_API_KEY;
-                }
+                currentConfig.REQUIRED_API_KEY = newConfig.REQUIRED_API_KEY;
             }
         }
         if (newConfig.HOST !== undefined) {
@@ -312,7 +325,8 @@ export async function handleUpdateConfig(req, res, currentConfig) {
         // Update config.json file
         try {
             const configPath = 'configs/config.json';
-            
+            const snapshotPath = 'configs/config.json.snapshot';
+
             // Create a clean config object for saving (exclude runtime-only properties)
             const configToSave = {
                 REQUIRED_API_KEY: currentConfig.REQUIRED_API_KEY,
@@ -353,7 +367,17 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 SCHEDULED_HEALTH_CHECK: currentConfig.SCHEDULED_HEALTH_CHECK
             };
 
-            writeFileSync(configPath, JSON.stringify(configToSave, null, 2), 'utf-8');
+            // 1. 原子写入主配置文件
+            atomicWriteConfig(configPath, JSON.stringify(configToSave, null, 2));
+
+            // 2. 保存完整快照（用于恢复）
+            const fullSnapshot = { ...configToSave, _snapshotTime: Date.now() };
+            try {
+                atomicWriteConfig(snapshotPath, JSON.stringify(fullSnapshot, null, 2));
+            } catch (snapshotError) {
+                logger.warn('[UI API] Failed to save config snapshot:', snapshotError.message);
+            }
+
             logger.info('[UI API] Configuration saved to configs/config.json');
             
             // 广播更新事件

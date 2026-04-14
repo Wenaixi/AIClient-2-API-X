@@ -153,6 +153,28 @@ function initEventListeners() {
         elements.resetConfigBtn.addEventListener('click', loadInitialData);
     }
 
+    // 分区保存按钮
+    document.querySelectorAll('.save-section').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const section = btn.getAttribute('data-section');
+            if (window.saveSectionConfig) {
+                await window.saveSectionConfig(section);
+            }
+        });
+    });
+
+    // 分区重置按钮
+    document.querySelectorAll('.reset-section').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const section = btn.getAttribute('data-section');
+            const confirmed = confirm(`确定要重置 "${section}" 区块的配置吗？`);
+            if (!confirmed) return;
+            if (window.resetSectionConfig) {
+                await window.resetSectionConfig(section);
+            }
+        });
+    });
+
     // 模型提供商切换
     if (elements.modelProvider) {
         elements.modelProvider.addEventListener('change', handleProviderChange);
@@ -184,6 +206,20 @@ function initEventListeners() {
             }
         });
     }
+
+    // 复制 API 密钥按钮
+    document.querySelectorAll('.copy-api-key-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            const text = input.type === 'password' ? input.getAttribute('data-config-value') || input.value : input.value;
+            const success = await copyToClipboard(text);
+            if (success) {
+                showToast(t('common.success'), t('common.copied') || '已复制到剪贴板', 'success');
+            }
+        });
+    });
 
     // 生成凭据按钮监听
     document.querySelectorAll('.generate-creds-btn').forEach(button => {
@@ -469,13 +505,19 @@ function handleProviderPasswordToggle(button) {
     const targetKey = button.getAttribute('data-target');
     const input = button.parentNode.querySelector(`input[data-config-key="${targetKey}"]`);
     const icon = button.querySelector('i');
-    
+    const realValue = input.getAttribute('data-config-value');
+    const isPassword = input.type === 'password';
+
     if (!input || !icon) return;
-    
-    if (input.type === 'password') {
+
+    if (isPassword) {
+        // 显示密码：使用真实值，切换为 text 类型
+        input.value = realValue || '';
         input.type = 'text';
         icon.className = 'fas fa-eye-slash';
     } else {
+        // 隐藏密码：恢复掩码，切换为 password 类型
+        input.value = '••••••••';
         input.type = 'password';
         icon.className = 'fas fa-eye';
     }

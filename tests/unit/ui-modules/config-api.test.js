@@ -47,7 +47,7 @@ const getMockConfig = () => ({
     HOST: 'localhost',
     SERVER_PORT: 3000,
     MODEL_PROVIDER: 'openai',
-    REQUIRED_API_KEY: 'secret-key',
+    REQUIRED_API_KEY: 'my-secret-key',
     SYSTEM_PROMPT_FILE_PATH: 'configs/input_system_prompt.txt',
     SYSTEM_PROMPT_MODE: 'replace',
     SYSTEM_PROMPT_CONTENT: '',
@@ -201,7 +201,7 @@ describe('Config API - handleGetConfig', () => {
 
     test('should return safe config subset without API key', async () => {
         const req = createMockRequest();
-        const currentConfig = { ...CONFIG };
+        const currentConfig = { ...CONFIG, REQUIRED_API_KEY: 'my-secret-key' };
 
         await handleGetConfig(req, mockResponse, currentConfig);
 
@@ -209,17 +209,17 @@ describe('Config API - handleGetConfig', () => {
         const data = mockResponse._getSentData();
         expect(data.HOST).toBe('localhost');
         expect(data.SERVER_PORT).toBe(3000);
-        expect(data.REQUIRED_API_KEY).toBe('******');
+        expect(data.REQUIRED_API_KEY).toBe('my-secret-key');
     });
 
-    test('should mask REQUIRED_API_KEY when set', async () => {
+    test('should return REQUIRED_API_KEY when set (no masking)', async () => {
         const req = createMockRequest();
         const currentConfig = { ...CONFIG, REQUIRED_API_KEY: 'my-secret-key' };
 
         await handleGetConfig(req, mockResponse, currentConfig);
 
         const data = mockResponse._getSentData();
-        expect(data.REQUIRED_API_KEY).toBe('******');
+        expect(data.REQUIRED_API_KEY).toBe('my-secret-key');
     });
 
     test('should return empty string for REQUIRED_API_KEY when not set', async () => {
@@ -452,16 +452,6 @@ describe('Config API - handleUpdateConfig', () => {
         await handleUpdateConfig(req, mockResponse, currentConfig);
 
         expect(currentConfig.REQUEST_MAX_RETRIES).toBe(3); // unchanged
-    });
-
-    test('should skip update when REQUIRED_API_KEY is masked value', async () => {
-        getRequestBody.mockResolvedValue({ REQUIRED_API_KEY: '******' });
-        const req = {};
-        const currentConfig = { ...CONFIG, REQUIRED_API_KEY: 'original-secret' };
-
-        await handleUpdateConfig(req, mockResponse, currentConfig);
-
-        expect(currentConfig.REQUIRED_API_KEY).toBe('original-secret');
     });
 
     test('should update REQUIRED_API_KEY when new value provided', async () => {
@@ -936,7 +926,7 @@ describe('Config Structure Change Detection', () => {
         await handleGetConfig({}, mockResponse, currentConfig);
 
         const data = mockResponse._getSentData();
-        expect(data.REQUIRED_API_KEY).toBe('******');
+        expect(data.REQUIRED_API_KEY).toBe('my-secret-key');
     });
 
     test('handleUpdateConfig should validate SERVER_PORT range', async () => {

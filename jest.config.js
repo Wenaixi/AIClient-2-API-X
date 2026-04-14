@@ -24,7 +24,9 @@ export default {
     // 集成测试 - 需要真实服务器
     'api-integration.test.js$',
     // 并发测试 - 需要多个服务器实例
-    'concurrent-test.js$'
+    'concurrent-test.js$',
+    // 前端测试 - 使用 Vitest 运行
+    'tests/frontend/'
   ],
   collectCoverageFrom: [
     'src/**/*.js',

@@ -29,7 +29,7 @@ describe('HEALTH_CHECK Constants', () => {
   });
 
   test('should have correct default interval', () => {
-    expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBe(600000);
+    expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBe(300000);
     expect(HEALTH_CHECK.DEFAULT_INTERVAL_MS).toBeGreaterThan(HEALTH_CHECK.MIN_INTERVAL_MS);
   });
 
@@ -220,7 +220,7 @@ describe('PROVIDER_POOL Constants', () => {
   });
 
   test('should have correct health check intervals', () => {
-    expect(PROVIDER_POOL.DEFAULT_HEALTH_CHECK_INTERVAL_MS).toBe(600000);
+    expect(PROVIDER_POOL.DEFAULT_HEALTH_CHECK_INTERVAL_MS).toBe(300000);
     expect(PROVIDER_POOL.HEALTH_CHECK_TIMEOUT_MS).toBe(15000);
   });
 

@@ -212,7 +212,5 @@ export {
     addLogEntry,
     updateServerStatus,
     updateProviderStatus,
-    handleProviderUpdate,
-    setProviderLoaders,
-    setConfigLoaders
+    handleProviderUpdate
 };

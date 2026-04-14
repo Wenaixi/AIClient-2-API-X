@@ -355,16 +355,25 @@ async function loadConfiguration() {
         // 定时健康检查配置
         const scheduledHealthCheckEnabledEl = document.getElementById('scheduledHealthCheckEnabled');
         const scheduledHealthCheckStartupRunEl = document.getElementById('scheduledHealthCheckStartupRun');
-        const scheduledHealthCheckIntervalEl = document.getElementById('scheduledHealthCheckInterval');
-        
+
         if (data.SCHEDULED_HEALTH_CHECK) {
+            const interval = data.SCHEDULED_HEALTH_CHECK.interval || 600000;
             if (scheduledHealthCheckEnabledEl) scheduledHealthCheckEnabledEl.checked = data.SCHEDULED_HEALTH_CHECK.enabled === true;
             if (scheduledHealthCheckStartupRunEl) scheduledHealthCheckStartupRunEl.checked = data.SCHEDULED_HEALTH_CHECK.startupRun !== false;
-            if (scheduledHealthCheckIntervalEl) scheduledHealthCheckIntervalEl.value = data.SCHEDULED_HEALTH_CHECK.interval || 600000;
+            // 将毫秒 interval 分解为时分秒
+            const totalSeconds = Math.round(interval / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            const healthCheckHoursEl = document.getElementById('healthCheckHours');
+            const healthCheckMinutesEl = document.getElementById('healthCheckMinutes');
+            const healthCheckSecondsEl = document.getElementById('healthCheckSeconds');
+            if (healthCheckHoursEl) healthCheckHoursEl.value = hours;
+            if (healthCheckMinutesEl) healthCheckMinutesEl.value = minutes;
+            if (healthCheckSecondsEl) healthCheckSecondsEl.value = seconds;
         } else {
             if (scheduledHealthCheckEnabledEl) scheduledHealthCheckEnabledEl.checked = true;
             if (scheduledHealthCheckStartupRunEl) scheduledHealthCheckStartupRunEl.checked = true;
-            if (scheduledHealthCheckIntervalEl) scheduledHealthCheckIntervalEl.value = 600000;
         }
         
         // 加载定时健康检查的供应商选择
@@ -383,16 +392,23 @@ async function loadConfiguration() {
         }
         
         // 定时健康检查间隔快捷按钮（防止重复绑定）
-        const intervalQuickBtns = document.querySelectorAll('#scheduledHealthCheckInterval + .quick-select-btns button');
+        const intervalQuickBtns = document.querySelectorAll('#healthCheckIntervalGroup .quick-select-btns button');
         intervalQuickBtns.forEach(btn => {
             if (btn.dataset.listenerAttached) return; // 防止重复绑定
             btn.dataset.listenerAttached = 'true';
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const value = parseInt(btn.getAttribute('data-value'));
-                if (scheduledHealthCheckIntervalEl) {
-                    scheduledHealthCheckIntervalEl.value = value;
-                }
+                const ms = parseInt(btn.getAttribute('data-ms'));
+                const totalSeconds = Math.round(ms / 1000);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                const healthCheckHoursEl = document.getElementById('healthCheckHours');
+                const healthCheckMinutesEl = document.getElementById('healthCheckMinutes');
+                const healthCheckSecondsEl = document.getElementById('healthCheckSeconds');
+                if (healthCheckHoursEl) healthCheckHoursEl.value = hours;
+                if (healthCheckMinutesEl) healthCheckMinutesEl.value = minutes;
+                if (healthCheckSecondsEl) healthCheckSecondsEl.value = seconds;
             });
         });
         
@@ -527,10 +543,13 @@ async function saveConfiguration() {
             .map(tag => tag.getAttribute('data-value'))
         : [];
     
-    // 验证并规范化 interval 值
-    const rawInterval = parseInt(document.getElementById('scheduledHealthCheckInterval')?.value);
-    const validatedInterval = isNaN(rawInterval) ? 600000 : Math.max(60000, Math.min(3600000, rawInterval));
-    
+    // 验证并规范化 interval 值（从时分秒输入框合并）
+    const healthCheckHours = parseInt(document.getElementById('healthCheckHours')?.value) || 0;
+    const healthCheckMinutes = parseInt(document.getElementById('healthCheckMinutes')?.value) || 0;
+    const healthCheckSeconds = parseInt(document.getElementById('healthCheckSeconds')?.value) || 0;
+    const rawInterval = (healthCheckHours * 3600 + healthCheckMinutes * 60 + healthCheckSeconds) * 1000;
+    const validatedInterval = rawInterval > 0 ? Math.max(60000, Math.min(3600000, rawInterval)) : 600000;
+
     config.SCHEDULED_HEALTH_CHECK = {
         enabled: document.getElementById('scheduledHealthCheckEnabled')?.checked !== false,
         startupRun: document.getElementById('scheduledHealthCheckStartupRun')?.checked !== false,
@@ -599,9 +618,247 @@ function generateApiKey() {
     apiKeyEl.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+// 分区保存配置
+async function saveSectionConfig(section) {
+    // 收集各区块的配置数据
+    const sectionConfigs = {
+        basic: () => ({
+            REQUIRED_API_KEY: document.getElementById('apiKey')?.value || '',
+            HOST: document.getElementById('host')?.value || '127.0.0.1',
+            SERVER_PORT: parseInt(document.getElementById('port')?.value || 3000),
+            MODEL_PROVIDER: (() => {
+                const el = document.getElementById('modelProvider');
+                if (!el) return 'gemini-cli-oauth';
+                const selected = Array.from(el.querySelectorAll('.provider-tag.selected'))
+                    .map(tag => tag.getAttribute('data-value'));
+                return selected.length > 0 ? selected.join(',') : 'gemini-cli-oauth';
+            })(),
+            systemPrompt: document.getElementById('systemPrompt')?.value || '',
+        }),
+        proxy: () => ({
+            PROXY_URL: document.getElementById('proxyUrl')?.value?.trim() || null,
+            PROXY_ENABLED_PROVIDERS: (() => {
+                const el = document.getElementById('proxyProviders');
+                return el ? Array.from(el.querySelectorAll('.provider-tag.selected'))
+                    .map(tag => tag.getAttribute('data-value')) : [];
+            })(),
+        }),
+        governance: () => ({}), // governance 相关字段待确认
+        oauth: () => ({}), // oauth 相关字段待确认
+        healthcheck: () => {
+            const healthCheckHours = parseInt(document.getElementById('healthCheckHours')?.value) || 0;
+            const healthCheckMinutes = parseInt(document.getElementById('healthCheckMinutes')?.value) || 0;
+            const healthCheckSeconds = parseInt(document.getElementById('healthCheckSeconds')?.value) || 0;
+            const rawInterval = (healthCheckHours * 3600 + healthCheckMinutes * 60 + healthCheckSeconds) * 1000;
+            const validatedInterval = rawInterval > 0 ? Math.max(60000, Math.min(3600000, rawInterval)) : 300000;
+            return {
+                SCHEDULED_HEALTH_CHECK: {
+                    enabled: document.getElementById('scheduledHealthCheckEnabled')?.checked !== false,
+                    startupRun: document.getElementById('scheduledHealthCheckStartupRun')?.checked !== false,
+                    interval: validatedInterval,
+                    providerTypes: (() => {
+                        const el = document.getElementById('scheduledHealthCheckProviders');
+                        return el ? Array.from(el.querySelectorAll('.provider-tag.selected'))
+                            .map(tag => tag.getAttribute('data-value')) : [];
+                    })(),
+                }
+            };
+        },
+        log: () => ({
+            LOG_ENABLED: document.getElementById('logEnabled')?.checked !== false,
+            LOG_OUTPUT_MODE: document.getElementById('logOutputMode')?.value || 'all',
+            LOG_LEVEL: document.getElementById('logLevel')?.value || 'info',
+            LOG_DIR: document.getElementById('logDir')?.value || 'logs',
+            LOG_INCLUDE_REQUEST_ID: document.getElementById('logIncludeRequestId')?.checked !== false,
+            LOG_INCLUDE_TIMESTAMP: document.getElementById('logIncludeTimestamp')?.checked !== false,
+            LOG_MAX_FILE_SIZE: parseInt(document.getElementById('logMaxFileSize')?.value || 10485760),
+            LOG_MAX_FILES: parseInt(document.getElementById('logMaxFiles')?.value || 10),
+        }),
+        advanced: () => {
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: document.getElementById('systemPromptFilePath')?.value || 'configs/input_system_prompt.txt',
+                SYSTEM_PROMPT_MODE: document.getElementById('systemPromptMode')?.value || 'append',
+                PROMPT_LOG_BASE_NAME: document.getElementById('promptLogBaseName')?.value || '',
+                PROMPT_LOG_MODE: document.getElementById('promptLogMode')?.value || '',
+                REQUEST_MAX_RETRIES: parseInt(document.getElementById('requestMaxRetries')?.value || 3),
+                REQUEST_BASE_DELAY: parseInt(document.getElementById('requestBaseDelay')?.value || 1000),
+                CREDENTIAL_SWITCH_MAX_RETRIES: parseInt(document.getElementById('credentialSwitchMaxRetries')?.value || 5),
+                CRON_NEAR_MINUTES: parseInt(document.getElementById('cronNearMinutes')?.value || 1),
+                CRON_REFRESH_TOKEN: document.getElementById('cronRefreshToken')?.checked || false,
+                LOGIN_EXPIRY: parseInt(document.getElementById('loginExpiry')?.value || 3600),
+                PROVIDER_POOLS_FILE_PATH: document.getElementById('providerPoolsFilePath')?.value || '',
+                MAX_ERROR_COUNT: parseInt(document.getElementById('maxErrorCount')?.value || 10),
+                WARMUP_TARGET: parseInt(document.getElementById('warmupTarget')?.value || 0),
+                REFRESH_CONCURRENCY_PER_PROVIDER: parseInt(document.getElementById('refreshConcurrencyPerProvider')?.value || 1),
+                TLS_SIDECAR_ENABLED: document.getElementById('tlsSidecarEnabled')?.checked || false,
+                TLS_SIDECAR_PORT: parseInt(document.getElementById('tlsSidecarPort')?.value || 9090),
+                TLS_SIDECAR_PROXY_URL: document.getElementById('tlsSidecarProxyUrl')?.value?.trim() || null,
+                TLS_SIDECAR_ENABLED_PROVIDERS: (() => {
+                    const el = document.getElementById('tlsSidecarProviders');
+                    return el ? Array.from(el.querySelectorAll('.provider-tag.selected'))
+                        .map(tag => tag.getAttribute('data-value')) : [];
+                })(),
+            };
+
+            // Fallback 链配置
+            const fallbackChainValue = document.getElementById('providerFallbackChain')?.value?.trim() || '';
+            if (fallbackChainValue) {
+                try {
+                    config.providerFallbackChain = JSON.parse(fallbackChainValue);
+                } catch (e) {
+                    showToast(t('common.error'), t('config.advanced.fallbackChainInvalid') || 'Fallback 链配置格式无效', 'error');
+                    return null;
+                }
+            } else {
+                config.providerFallbackChain = {};
+            }
+
+            // Model Fallback 映射配置
+            const modelFallbackMappingValue = document.getElementById('modelFallbackMapping')?.value?.trim() || '';
+            if (modelFallbackMappingValue) {
+                try {
+                    config.modelFallbackMapping = JSON.parse(modelFallbackMappingValue);
+                } catch (e) {
+                    showToast(t('common.error'), t('config.advanced.modelFallbackMappingInvalid') || 'Model Fallback 映射配置格式无效', 'error');
+                    return null;
+                }
+            } else {
+                config.modelFallbackMapping = {};
+            }
+
+            return config;
+        }
+    };
+
+    const collector = sectionConfigs[section];
+    if (!collector) {
+        showToast(t('common.error'), `未知分区: ${section}`, 'error');
+        return;
+    }
+
+    const configData = collector();
+    if (configData === null) return; // 验证失败
+
+    try {
+        await window.apiClient.post('/config', configData);
+        await window.apiClient.post('/reload-config');
+        showToast(t('common.success'), `${section} 配置已保存`, 'success');
+    } catch (error) {
+        console.error(`Failed to save ${section} configuration:`, error);
+        showToast(t('common.error'), `保存失败: ${error.message}`, 'error');
+    }
+}
+
+// 分区重置配置
+async function resetSectionConfig(section) {
+    try {
+        const data = await window.apiClient.get('/config');
+        const sectionResetters = {
+            basic: () => {
+                const el = document.getElementById('modelProvider');
+                if (el) {
+                    const providers = Array.isArray(data.DEFAULT_MODEL_PROVIDERS)
+                        ? data.DEFAULT_MODEL_PROVIDERS
+                        : (typeof data.MODEL_PROVIDER === 'string' ? data.MODEL_PROVIDER.split(',') : []);
+                    const tags = Array.from(el.querySelectorAll('.provider-tag'));
+                    tags.forEach(tag => {
+                        const value = tag.getAttribute('data-value');
+                        if (providers.includes(value)) {
+                            tag.classList.add('selected');
+                        } else {
+                            tag.classList.remove('selected');
+                        }
+                    });
+                }
+                document.getElementById('apiKey').value = data.REQUIRED_API_KEY || '';
+                document.getElementById('host').value = data.HOST || '127.0.0.1';
+                document.getElementById('port').value = data.SERVER_PORT || 3000;
+                document.getElementById('systemPrompt').value = data.systemPrompt || '';
+            },
+            proxy: () => {
+                document.getElementById('proxyUrl').value = data.PROXY_URL || '';
+                const el = document.getElementById('proxyProviders');
+                if (el) {
+                    const enabled = data.PROXY_ENABLED_PROVIDERS || [];
+                    el.querySelectorAll('.provider-tag').forEach(tag => {
+                        tag.classList.toggle('selected', enabled.includes(tag.getAttribute('data-value')));
+                    });
+                }
+            },
+            healthcheck: () => {
+                const interval = data.SCHEDULED_HEALTH_CHECK?.interval || 300000;
+                const totalSeconds = Math.round(interval / 1000);
+                document.getElementById('healthCheckHours').value = Math.floor(totalSeconds / 3600);
+                document.getElementById('healthCheckMinutes').value = Math.floor((totalSeconds % 3600) / 60);
+                document.getElementById('healthCheckSeconds').value = totalSeconds % 60;
+                document.getElementById('scheduledHealthCheckEnabled').checked = data.SCHEDULED_HEALTH_CHECK?.enabled !== false;
+                document.getElementById('scheduledHealthCheckStartupRun').checked = data.SCHEDULED_HEALTH_CHECK?.startupRun !== false;
+                const el = document.getElementById('scheduledHealthCheckProviders');
+                if (el) {
+                    const enabled = data.SCHEDULED_HEALTH_CHECK?.providerTypes || [];
+                    el.querySelectorAll('.provider-tag').forEach(tag => {
+                        tag.classList.toggle('selected', enabled.includes(tag.getAttribute('data-value')));
+                    });
+                }
+            },
+            log: () => {
+                document.getElementById('logEnabled').checked = data.LOG_ENABLED !== false;
+                document.getElementById('logOutputMode').value = data.LOG_OUTPUT_MODE || 'all';
+                document.getElementById('logLevel').value = data.LOG_LEVEL || 'info';
+                document.getElementById('logDir').value = data.LOG_DIR || 'logs';
+                document.getElementById('logIncludeRequestId').checked = data.LOG_INCLUDE_REQUEST_ID !== false;
+                document.getElementById('logIncludeTimestamp').checked = data.LOG_INCLUDE_TIMESTAMP !== false;
+                document.getElementById('logMaxFileSize').value = data.LOG_MAX_FILE_SIZE || 10485760;
+                document.getElementById('logMaxFiles').value = data.LOG_MAX_FILES || 10;
+            },
+            advanced: () => {
+                document.getElementById('systemPromptFilePath').value = data.SYSTEM_PROMPT_FILE_PATH || 'configs/input_system_prompt.txt';
+                document.getElementById('systemPromptMode').value = data.SYSTEM_PROMPT_MODE || 'append';
+                document.getElementById('promptLogBaseName').value = data.PROMPT_LOG_BASE_NAME || '';
+                document.getElementById('promptLogMode').value = data.PROMPT_LOG_MODE || '';
+                document.getElementById('requestMaxRetries').value = data.REQUEST_MAX_RETRIES || 3;
+                document.getElementById('requestBaseDelay').value = data.REQUEST_BASE_DELAY || 1000;
+                document.getElementById('credentialSwitchMaxRetries').value = data.CREDENTIAL_SWITCH_MAX_RETRIES || 5;
+                document.getElementById('cronNearMinutes').value = data.CRON_NEAR_MINUTES || 1;
+                document.getElementById('cronRefreshToken').checked = data.CRON_REFRESH_TOKEN || false;
+                document.getElementById('loginExpiry').value = data.LOGIN_EXPIRY || 3600;
+                document.getElementById('providerPoolsFilePath').value = data.PROVIDER_POOLS_FILE_PATH || '';
+                document.getElementById('maxErrorCount').value = data.MAX_ERROR_COUNT || 10;
+                document.getElementById('warmupTarget').value = data.WARMUP_TARGET || 0;
+                document.getElementById('refreshConcurrencyPerProvider').value = data.REFRESH_CONCURRENCY_PER_PROVIDER || 1;
+                document.getElementById('tlsSidecarEnabled').checked = data.TLS_SIDECAR_ENABLED || false;
+                document.getElementById('tlsSidecarPort').value = data.TLS_SIDECAR_PORT || 9090;
+                document.getElementById('tlsSidecarProxyUrl').value = data.TLS_SIDECAR_PROXY_URL || '';
+                const tlsEl = document.getElementById('tlsSidecarProviders');
+                if (tlsEl) {
+                    const enabled = data.TLS_SIDECAR_ENABLED_PROVIDERS || [];
+                    tlsEl.querySelectorAll('.provider-tag').forEach(tag => {
+                        tag.classList.toggle('selected', enabled.includes(tag.getAttribute('data-value')));
+                    });
+                }
+                document.getElementById('providerFallbackChain').value = data.providerFallbackChain ? JSON.stringify(data.providerFallbackChain, null, 2) : '';
+                document.getElementById('modelFallbackMapping').value = data.modelFallbackMapping ? JSON.stringify(data.modelFallbackMapping, null, 2) : '';
+            }
+        };
+
+        const resetter = sectionResetters[section];
+        if (!resetter) {
+            showToast(t('common.error'), `未知分区: ${section}`, 'error');
+            return;
+        }
+        resetter();
+        showToast(t('common.success'), `${section} 配置已重置`, 'success');
+    } catch (error) {
+        console.error(`Failed to reset ${section} configuration:`, error);
+        showToast(t('common.error'), `重置失败: ${error.message}`, 'error');
+    }
+}
+
 export {
     loadConfiguration,
     saveConfiguration,
     updateConfigProviderConfigs,
-    generateApiKey
+    generateApiKey,
+    saveSectionConfig,
+    resetSectionConfig
 };

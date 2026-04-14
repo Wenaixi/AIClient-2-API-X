@@ -5,6 +5,7 @@ import { INPUT_SYSTEM_PROMPT_FILE } from '../utils/common.js';
 import { MODEL_PROVIDER } from '../utils/constants.js';
 import logger from '../utils/logger.js';
 import { HEALTH_CHECK } from '../utils/constants.js';
+import { existsSync } from 'fs';
 
 export let CONFIG = {}; // Make CONFIG exportable
 export let PROMPT_LOG_FILENAME = ''; // Make PROMPT_LOG_FILENAME exportable
@@ -82,7 +83,7 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
         SYSTEM_PROMPT_REPLACEMENTS: [], // 系统提示词内容替换规则，例如: [{"old": "AI", "new": "Bot"}, {"old": "OpenAI", "new": "Gemini"}]
         SCHEDULED_HEALTH_CHECK: {
             enabled: false,
-            interval: 600000,
+            interval: 300000,
             startupRun: false
         },
         providerFallbackChain: {}, // 跨类型 Fallback 链配置
@@ -103,16 +104,42 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
 
     let currentConfig = { ...defaultConfig };
 
+    /**
+     * 从快照恢复配置（用于主配置文件损坏时）
+     */
+    const recoverFromSnapshot = (snapshotPath) => {
+        try {
+            const snapshotData = fs.readFileSync(snapshotPath, 'utf8');
+            const snapshot = JSON.parse(snapshotData);
+            // 删除快照元数据字段
+            delete snapshot._snapshotTime;
+            Object.assign(currentConfig, snapshot);
+            logger.info('[Config] Recovered configuration from snapshot');
+            return true;
+        } catch (error) {
+            logger.warn('[Config] Failed to recover from snapshot:', error.message);
+            return false;
+        }
+    };
+
     try {
         const configData = fs.readFileSync(configFilePath, 'utf8');
         const loadedConfig = JSON.parse(configData);
         Object.assign(currentConfig, loadedConfig);
         logger.info('[Config] Loaded configuration from configs/config.json');
     } catch (error) {
-        if (error.code !== 'ENOENT') {
-            logger.error('[Config Error] Failed to load configs/config.json:', error.message);
-        } else {
+        if (error.code === 'ENOENT') {
             logger.info('[Config] configs/config.json not found, using default configuration.');
+        } else {
+            // JSON 解析失败（文件损坏），尝试从快照恢复
+            logger.error('[Config Error] Failed to parse configs/config.json:', error.message);
+            const snapshotPath = configFilePath + '.snapshot';
+            if (existsSync(snapshotPath)) {
+                logger.info('[Config] Attempting to recover from snapshot...');
+                recoverFromSnapshot(snapshotPath);
+            } else {
+                logger.error('[Config Error] No snapshot available for recovery. Using default configuration.');
+            }
         }
     }
 

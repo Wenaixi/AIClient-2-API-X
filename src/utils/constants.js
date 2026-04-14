@@ -7,8 +7,8 @@
 export const HEALTH_CHECK = {
     // 最小检查间隔：60秒（60000毫秒）
     MIN_INTERVAL_MS: 60000,
-    // 默认检查间隔：10分钟（600000毫秒）
-    DEFAULT_INTERVAL_MS: 600000,
+    // 默认检查间隔：5分钟（300000毫秒）
+    DEFAULT_INTERVAL_MS: 300000,
     // 最大检查间隔：108小时（388800000毫秒）
     MAX_INTERVAL_MS: 388800000,
     // 最大并发健康检查数量
@@ -67,8 +67,8 @@ export const RETRY = {
 export const PROVIDER_POOL = {
     // 默认最大错误次数（超过后标记为不健康）
     DEFAULT_MAX_ERROR_COUNT: 3,
-    // 默认健康检查间隔（10分钟）
-    DEFAULT_HEALTH_CHECK_INTERVAL_MS: 600000,
+    // 默认健康检查间隔（5分钟）
+    DEFAULT_HEALTH_CHECK_INTERVAL_MS: 300000,
     // 默认保存防抖时间（1秒）
     DEFAULT_SAVE_DEBOUNCE_MS: 1000,
     // 默认刷新缓冲延迟（5秒）
