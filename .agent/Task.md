@@ -15,8 +15,12 @@
 - [ ] ui-modules/* 整体覆盖率提升
 
 ### 🟢 已完成
-- [x] Timer 泄漏修复 - 4处 setInterval 添加 .unref() ✅ 2026-04-15
-- [x] 清理临时测试文件 (custom-logs/, test-logs/, new-dir/) ✅ 2026-04-15
+- [x] Timer 泄漏修复 - 8处 setInterval 添加 .unref() ✅ 2026-04-15
+  - codex-oauth.js / gemini-oauth.js / api-routes.js / antigravity-core.js
+  - api-server.js / key-manager.js / auth.js / tls-sidecar.js
+  - gemini-core.js / qwen-core.js
+- [x] 清理临时测试文件 (custom-logs/, new-dir/) ✅ 2026-04-15
+- [x] 测试覆盖率分析 - 解释 common.js 低覆盖率原因 ✅ 2026-04-15
 
 ---
 

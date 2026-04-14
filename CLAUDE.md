@@ -158,10 +158,11 @@ Time:        ~37s
 
 | 提交 | 说明 |
 |------|------|
-| xxxxx | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
+| b7f0f8f | fix(timer): 修复 gemini-core 和 qwen-core 中 setInterval 未调用 .unref() |
+| 747e597 | docs: 更新 .agent 文档 - Timer 泄漏修复记录 |
+| 3827fea | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
+| 4eb5da0 | docs: 更新测试覆盖率分析 - 解释 common.js 低覆盖率原因 |
 | 00d2135 | docs: 更新 .agent 文档 (Requirement.md/Design.md/Task.md) |
-| 4aad3fb | docs: 更新 Task.md - 添加测试完成记录和临时文件清理状态 |
-| 03ff308 | fix(tests): 修复 common.test.js 测试用例与源码逻辑对齐 |
 
 ---
 
