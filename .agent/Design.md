@@ -108,18 +108,20 @@ REFRESH_LEAD_CONFIG = {
 
 ## 已知问题与修复记录
 
-| # | 问题 | 状态 |
-|---|------|------|
-| 1 | _getMutableLastCheckTimes 未定义 | ✅ 已修复 |
-| 2 | 迭代中删除 Map 条目 | ✅ 已修复 |
-| 3 | adapter.js 死代码清理 | ✅ 已修复 |
-| 4 | oauth-handlers.js 导出路径错误 | ✅ 已修复 |
-| 5 | FillFirstSelector 返回 Promise | ✅ 已修复 |
-| 6 | LRU Cache TTL 提升至 3 小时 | ✅ 已修复 |
-| 7 | WSRelay Session channel 缓冲优化 | ✅ 已修复 |
-| 8 | codex-oauth 错误处理 escapeHtml | ✅ 已修复 |
-| 9 | iFlow Provider 移除 | ✅ 已移除 |
-| 10 | safeCompare 时序安全比较 | ✅ 已实现 |
+| # | 问题 | 状态 | 日期 |
+|---|------|------|------|
+| 1 | _getMutableLastCheckTimes 未定义 | ✅ 已修复 | - |
+| 2 | 迭代中删除 Map 条目 | ✅ 已修复 | - |
+| 3 | adapter.js 死代码清理 | ✅ 已修复 | - |
+| 4 | oauth-handlers.js 导出路径错误 | ✅ 已修复 | - |
+| 5 | FillFirstSelector 返回 Promise | ✅ 已修复 | - |
+| 6 | LRU Cache TTL 提升至 3 小时 | ✅ 已修复 | - |
+| 7 | WSRelay Session channel 缓冲优化 | ✅ 已修复 | - |
+| 8 | codex-oauth 错误处理 escapeHtml | ✅ 已修复 | - |
+| 9 | iFlow Provider 移除 | ✅ 已移除 | - |
+| 10 | safeCompare 时序安全比较 | ✅ 已实现 | - |
+| 11 | getClientIp 测试空对象访问错误 | ✅ 已修复 | 2026-04-15 |
+| 12 | findByPrefix/hasByPrefix 前缀匹配测试 | ✅ 已修复 | 2026-04-15 |
 
 ---
 
@@ -137,4 +139,18 @@ REFRESH_LEAD_CONFIG = {
 
 ---
 
-*最后更新: 2026-04-15 晨间*
+## 测试用例设计原则
+
+### common.js 测试策略
+- **复制函数实现测试**：直接复制源码中的函数逻辑到测试文件
+- 确保测试与源码逻辑完全一致，避免因实现差异导致的测试失败
+- 适用场景：函数依赖复杂模块链，难以直接 mock
+
+### 边界条件处理
+- `getClientIp({})` → 需提供 `headers: {}` 和 `socket: {}`
+- `socket: null` → 需提供 `socket: { remoteAddress: null }`
+- 前缀匹配：`findByPrefix(registry, 'openai-model')` 需使用完整键名
+
+---
+
+*最后更新: 2026-04-15 上午*
