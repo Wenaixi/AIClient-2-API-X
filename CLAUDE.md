@@ -72,8 +72,8 @@ docker compose -f docker/docker-compose.build.yml down
 
 ```
 Test Suites: 51 passed, 51 total
-Tests:       2032 passed, 2032 total
-Time:        ~36s
+Tests:       2052 passed, 2052 total
+Time:        ~37s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
@@ -88,7 +88,7 @@ Time:        ~36s
 | wsrelay/* | 75-76% | manager.js 75% |
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 28-67% | common.js 20% / logger.js 67% |
-| ui-modules/* | 13-73% | config-api 73% / event-broadcast 4% |
+| ui-modules/* | 13-73% | 47% | event-broadcast 47% (↑43%) ✅ |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ### 低覆盖率原因说明

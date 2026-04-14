@@ -11,7 +11,8 @@
 - [ ] wsrelay/manager.js 覆盖率 75% → 85%+
 - [ ] ui-modules/* 整体覆盖率提升（event-broadcast 4% 最低）
 
-### 🟢 已完成
+### 已完成
+- [x] event-broadcast.js 覆盖率提升 4% → 47% ✅ 2026-04-15
 - [x] Timer 泄漏修复 - 21处 setInterval 添加 .unref() ✅ 2026-04-15
 - [x] 测试覆盖率分析 - 解释 common.js 低覆盖率原因 ✅ 2026-04-15
 - [x] 深度Review代码质量 - 确认核心功能正常 ✅ 2026-04-15
