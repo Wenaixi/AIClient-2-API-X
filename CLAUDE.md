@@ -9,7 +9,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` (定制分支，始终使用此分支开发) |
-| 最后更新 | 2026-04-16 |
+| 最后更新 | 2026-04-17 |
 
 ## Git 分支策略
 
@@ -94,15 +94,15 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-16）
+## 当前测试状态（2026-04-17）
 
 ```
-Test Suites: 41 passed, 41 total
-Tests:       1650 passed, 1650 total
-Time:        ~34s
+Test Suites: 45 passed, 45 total
+Tests:       1682 passed, 1682 total
+Time:        ~35s
 ```
 
-**测试覆盖率分析（2026-04-16）：**
+**测试覆盖率分析（2026-04-17）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
@@ -120,11 +120,20 @@ Time:        ~34s
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter (LRUCache TTL) | 较好 | ✅ TTL 3小时 |
 | utils/logger.js | 49% | ⚠️ 需提升 |
-| ui-modules/* | 0-75% | ⚠️ 待提升 |
+| ui-modules/* | 0-75% | ✅ system-api/system-monitor/config-scanner/upload-config-api 新增测试 |
 
 ---
 
 ## 已完成优化
+
+### 2026-04-17 最新
+
+1. **UI Modules 测试覆盖率提升（2026-04-17）**
+   - 新增 `system-monitor.test.js` - 12 测试用例，覆盖 getSystemCpuUsagePercent/getProcessCpuUsagePercent/getCpuUsagePercent
+   - 新增 `system-api.test.js` - 8 测试用例，覆盖 handleGetSystem/handleDownloadTodayLog/handleClearTodayLog/handleHealthCheck/handleGetServiceMode/handleRestartService
+   - 新增 `config-scanner.test.js` - 6 测试用例，覆盖 scanConfigFiles 核心逻辑
+   - 新增 `upload-config-api.test.js` - 6 测试用例，验证所有导出函数存在
+   - 测试通过：45 套件 1682 测试全部通过
 
 ### 2026-04-16 最新
 

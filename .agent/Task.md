@@ -266,7 +266,12 @@ tests/
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
 - [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
-- [x] CLAUDE.md 更新至 2026-04-16 版本
+- [x] CLAUDE.md 更新至 2026-04-17 版本
+- [x] UI Modules 测试覆盖率提升（2026-04-17）
+  - 新增 `system-monitor.test.js` - 12 测试用例
+  - 新增 `system-api.test.js` - 8 测试用例
+  - 新增 `config-scanner.test.js` - 6 测试用例
+  - 新增 `upload-config-api.test.js` - 6 测试用例
 
 ---
 
@@ -308,4 +313,4 @@ git log --oneline -10 # 最近提交
 
 ---
 
-*最后更新: 2026-04-15*
+*最后更新: 2026-04-17*
