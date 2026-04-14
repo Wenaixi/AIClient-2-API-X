@@ -7,15 +7,15 @@
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 提升 usage-service.js 覆盖率（当前58%）
 - [ ] 提升 logger.js 覆盖率（当前67%）
-- [ ] 提升 forward-strategy.js 覆盖率（当前54%）
-- [ ] 完善 wsrelay/index.js 测试
+- [ ] 完善 wsrelay/index.js 测试（当前0%）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1987 测试，52 套件全部通过）
+- [x] 测试基础设施搭建（2015 测试，52 套件全部通过）
+- [x] usage-service.js 覆盖率提升（58% → 91.54%）✅
+- [x] forward.test.js 修复（applySystemPromptFromFile mock）✅
 - [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
 - [x] Provider *-core 测试覆盖（claude/grok/openai/gemini/qwen/iflow/antigravity-core）
 - [x] Kimi OAuth 集成
@@ -44,43 +44,36 @@
 
 ---
 
-## 下一步优化计划（2026-04-19）
+## 下一步优化计划（2026-04-19 更新）
 
 ### 高优先级
-1. **usage-service.js 覆盖率提升（58% → 80%+）**
-   - 文件: `src/services/usage-service.js`
-   - 现状: 58% 覆盖率
-   - 目标: 80%+
-   - 待测试: `getUsageStats()`, `getGroupedUsage()`, `clearExpiredCache()` 等
-
-2. **logger.js 覆盖率提升（67% → 85%+）**
+1. **logger.js 覆盖率提升（67% → 85%+）**
    - 文件: `src/utils/logger.js`
    - 现状: 67% 覆盖率
    - 目标: 85%+
    - 待测试: `formatMessage()`, `getLogStream()`, `LogRotate` 相关
 
-3. **forward-strategy.js 覆盖率提升（54% → 80%+）**
-   - 文件: `src/providers/forward/forward-strategy.js`
-   - 现状: 54% 覆盖率
-   - 目标: 80%+
-   - 待测试: `ForwardProviderStrategy` 核心逻辑
-
 ### 中优先级
-4. **wsrelay/index.js 导出测试完善**
+2. **wsrelay/index.js 导出测试完善**
    - 文件: `src/wsrelay/index.js`
    - 现状: 103 行代码，0% 覆盖率
    - 目标: 80%+
    - 待测试: 导出验证、createHandler 逻辑
 
-5. **kimi-strategy.js 覆盖率提升**
+3. **kimi-strategy.js 覆盖率提升**
    - 文件: `src/providers/kimi/kimi-strategy.js`
    - 现状: 87-91% 覆盖率
    - 目标: 95%+
 
 ### 低优先级（后续迭代）
-6. **services/api-server.js 测试覆盖（当前0%）**
-7. **scripts/*.js 测试覆盖（当前0%）**
-8. **ui-modules/usage-api.js 测试覆盖（当前0%）**
+4. **services/api-server.js 测试覆盖（当前0%）**
+5. **scripts/*.js 测试覆盖（当前0%）**
+6. **ui-modules/usage-api.js 测试覆盖（当前0%）**
+
+### 已完成 ✅
+- [x] usage-service.js 覆盖率提升（58% → 91.54%）✅
+- [x] forward-strategy.js 测试修复（54% → 79-88%）✅
+- [x] UI Modules 测试覆盖率提升（config-api 75% → 85%）✅**
 
 ---
 
