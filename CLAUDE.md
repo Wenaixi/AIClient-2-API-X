@@ -41,6 +41,24 @@ git merge main      # 合并上游到当前分支
 
 ---
 
+## Docker 容器管理
+
+```bash
+# 构建并启动（使用 docker-compose.yml）
+docker compose -f docker/docker-compose.yml up -d --build
+
+# 仅重启容器（代码已构建时）
+docker compose -f docker/docker-compose.yml up -d
+
+# 查看日志
+docker logs -f aiclient2api
+
+# 停止容器
+docker compose -f docker/docker-compose.yml down
+```
+
+---
+
 ## 自主工作模式
 
 - 代码修复、Bug修复、功能实现**直接执行**
@@ -50,12 +68,12 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 测试状态 (2026-04-15)
+## 测试状态 (2026-04-15 晨间)
 
 ```
 Test Suites: 51 passed, 51 total
 Tests:       2003 passed, 2003 total
-Time:        ~48s (with coverage)
+Time:        ~37s
 ```
 
 ### 覆盖率概况
@@ -78,6 +96,8 @@ Time:        ~48s (with coverage)
 2. **Kimi Provider** - kimi-core.js, kimi-strategy.js, kimi-message-normalizer.js
 3. **WSRelay Manager** - Manager-Session 双层架构 (参考 Go 版)
 4. **LRU Cache TTL 3小时** - 与 CLIProxyAPI 对齐
+5. **配置快照恢复** - JSON 解析失败时自动从快照恢复
+6. **分区配置管理** - saveSectionConfig/resetSectionConfig
 
 ### 架构优化
 1. **Provider Pool Manager 重构**
@@ -87,6 +107,7 @@ Time:        ~48s (with coverage)
    - REFRESH_LEAD_CONFIG per-provider 刷新提前期
 
 2. **Health Check Timer** - 完善定时健康检查
+3. **默认健康检查间隔** - 从 10 分钟优化为 5 分钟
 
 ### 安全修复
 1. XSS 防护 - escapeHtml 统一处理
@@ -96,6 +117,7 @@ Time:        ~48s (with coverage)
 
 ### 移除/废弃
 1. **iFlow Provider** - 已从 pro 分支移除 (configs/provider_pools.json.example)
+2. **AGENTS.md** - 已迁移到 .agent 目录
 
 ---
 
@@ -107,6 +129,16 @@ Time:        ~48s (with coverage)
 | utils/logger.js | 67% | 85%+ | 🟡 中 |
 | ui-modules/* | 13-73% | 60%+ | 🟡 中 |
 | wsrelay/manager.js | 75% | 85%+ | 🟡 中 |
+
+---
+
+## 最近提交 (pro 分支)
+
+| 提交 | 说明 |
+|------|------|
+| e0560dd | feat: 添加配置快照恢复和分区配置管理 |
+| 91f38a6 | docs: 更新项目文档至 2026-04-15 版本 |
+| 1da0c85 | fix(kimi-oauth): 优化日志、配置目录和代码质量 |
 
 ---
 
