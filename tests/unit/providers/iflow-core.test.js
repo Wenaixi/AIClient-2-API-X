@@ -148,15 +148,9 @@ describe('IFlowApiService', () => {
             expect(svc.baseUrl).toBe('https://apis.iflow.cn/v1');
         });
 
-        it('应使用默认 userAgent', () => {
+        it('应配置 axiosInstance', () => {
             const svc = new IFlowApiService(createConfig());
-            expect(svc.userAgent).toBe('iFlow-Cli');
-        });
-
-        it('应配置 HTTP/HTTPS agents', () => {
-            const svc = new IFlowApiService(createConfig());
-            expect(svc.httpAgent).toBeDefined();
-            expect(svc.httpsAgent).toBeDefined();
+            expect(svc.axiosInstance).toBeDefined();
         });
 
         it('应初始化 tokenStorage', () => {
