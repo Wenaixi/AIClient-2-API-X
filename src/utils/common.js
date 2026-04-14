@@ -1321,6 +1321,10 @@ function _getProviderSpecificSuggestions(statusCode, provider) {
  * @returns {string} 提取到的系统提示词字符串。
  */
 export function extractSystemPromptFromRequestBody(requestBody, provider) {
+    if (!requestBody) {
+        return '';
+    }
+
     let incomingSystemText = '';
     switch (provider) {
         case MODEL_PROTOCOL_PREFIX.OPENAI:
