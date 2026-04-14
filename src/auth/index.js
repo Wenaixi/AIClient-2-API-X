@@ -19,11 +19,6 @@ export {
     handleQwenOAuth
 } from './qwen-oauth.js';
 
-// iFlow OAuth
-export {
-    handleIFlowOAuth
-} from './iflow-oauth.js';
-
 // Kiro OAuth
 export {
     handleKiroOAuth,

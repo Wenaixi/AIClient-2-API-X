@@ -408,4 +408,18 @@ if msg.Type == MessageTypeHTTPResp || msg.Type == MessageTypeError || msg.Type =
 
 ---
 
-*最后更新: 2026-04-18*
+## review 发现问题与修复（2026-04-19）
+
+### 已修复 ✅
+1. **硬编码配置目录** → 改为 `getKimiConfigDir()` 函数，支持环境变量和配置覆盖
+2. **Kimi OAuth 日志冗余** → 移除冗余 debug 日志，保留关键 info/warn
+
+### 待修复
+1. **OAuth 错误处理一致性** - codex-oauth.js 中 `autoLinkProviderConfigs` 直接 await 无 try-catch
+2. **escapeHtml 调用一致性** - 部分返回 error.message，部分返回 escapeHtml(error.message)
+3. **logger.js 覆盖率 67%** - 待提升至 85%+
+4. **common.js 覆盖率 20%** - 待提升至 60%+
+
+---
+
+*最后更新: 2026-04-19*

@@ -31,7 +31,8 @@ import {
 import {
     initEventStream,
     setProviderLoaders,
-    setConfigLoaders
+    setConfigLoaders,
+    setConfigReloader
 } from './event-stream.js';
 
 import {
@@ -125,6 +126,9 @@ function initApp() {
     
     // 设置配置加载器
     setConfigLoaders(loadConfigList);
+
+    // 设置配置重载器（用于 config_update 事件时刷新前端配置UI）
+    setConfigReloader(loadConfiguration);
     
     // 初始化各个模块
     initNavigation();

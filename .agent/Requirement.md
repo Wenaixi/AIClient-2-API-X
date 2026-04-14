@@ -86,37 +86,67 @@
 - [x] Plugin 模块测试
 
 ### 测试质量标准
-- [x] 所有测试通过（1935 测试，49 套件全部通过）
+- [x] 所有测试通过（2004 测试，51 套件全部通过）
 - [x] 使用 mock 处理外部依赖
 - [x] 异步操作正确处理
 - [x] 资源正确清理（teardown）
 
-### 当前测试状态（2026-04-18）
+### 当前测试状态（2026-04-14 晚间）
 ```
-Test Suites: 49 passed, 49 total
-Tests:       1935 passed, 1935 total
-Time:        ~34s
+Test Suites: 51 passed, 51 total
+Tests:       2004 passed, 2004 total
+Time:        ~40s
 ```
 
-**测试覆盖率分析（2026-04-18）：**
+**测试覆盖率分析（2026-04-14 晚间）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
+| providers/claude/* | 100% | ✅ claude-strategy + claude-core |
+| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
+| providers/grok/* | 100% | ✅ grok-strategy + grok-core |
+| providers/openai/* | 100% | ✅ openai-strategy + openai-core |
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/forward | 79-88% | ✅ 良好 |
-| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
-| providers/openai/* | 100% | ✅ openai-strategy + openai-core |
-| providers/claude/* | 100% | ✅ claude-strategy + claude-core |
-| providers/grok/* | 100% | ✅ grok-strategy + grok-core |
-| providers/*-core | ✅ | ✅ claude/grok/openai/gemini-core 测试 |
-| utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
-| utils/provider-utils | 87% | ✅ 良好 |
+| utils/constants | 100% | ✅ 完美 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
-| wsrelay/manager.js | 76% | ✅ 良好 |
-| providers/adapter | ✅ | ✅ LRU TTL 3小时 |
-| utils/logger.js | ✅ 79 测试 | ✅ 已增强 |
-| ui-modules/* | ✅ | ✅ system-api/system-monitor/config-scanner/upload-config-api |
+| services/usage-service | 91% | ✅ 良好 |
+| wsrelay/* | 76-90% | ✅ 良好 |
+| ui-modules/config-api.js | 85% | ✅ 良好 |
+| ui-modules/oauth-api.js | ✅ | ✅ 已完整测试 |
+| ui-modules/system-api.js | 72% | ✅ 良好 |
+| ui-modules/system-monitor.js | 70% | ✅ 良好 |
+
+---
+
+## review 发现问题与修复状态（2026-04-14 晚间）
+
+### 高优先级（影响稳定性）
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| logger.js 覆盖率 67% | `src/utils/logger.js` | 🔄 待修复 |
+| common.js 覆盖率 20% | `src/utils/common.js` | 🔄 待修复 |
+
+### 中优先级（影响安全性）
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| OAuth 错误处理不一致 | `codex-oauth.js` | 🔄 待修复 |
+| escapeHtml 调用不一致 | `kimi-oauth-handler.js` | 🔄 待修复 |
+
+### 低优先级（代码优化）- 已修复 ✅
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| Kimi OAuth 日志冗余 | `kimi-oauth-handler.js` | ✅ 已修复 |
+| 硬编码配置目录 | `kimi-oauth-handler.js` | ✅ 已修复 |
+
+### 已修复问题
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| iFlow OAuth 已移除 | `src/auth/iflow-oauth.js` | ✅ 已移除 |
+| PROVIDER_POOLS_FILE_PATH 校验 | `config-api.js` | ✅ 已添加 |
+| SCHEDULED_HEALTH_CHECK 校验 | `config-api.js` | ✅ 已添加 |
+| autoLinkProviderConfigs 缺失 | `codex-oauth.js` | ✅ 已添加 |
 
 ---
 

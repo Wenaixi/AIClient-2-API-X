@@ -570,7 +570,6 @@ function getFilteredProviders() {
             p.KIRO_OAUTH_CREDS_FILE_PATH,
             p.QWEN_OAUTH_CREDS_FILE_PATH,
             p.ANTIGRAVITY_OAUTH_CREDS_FILE_PATH,
-            p.IFLOW_OAUTH_CREDS_FILE_PATH,
             p.CODEX_OAUTH_CREDS_FILE_PATH,
             p.GROK_COOKIE_TOKEN,
             p.FORWARD_API_KEY,

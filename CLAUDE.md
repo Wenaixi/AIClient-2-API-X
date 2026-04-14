@@ -9,7 +9,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` (定制分支，始终使用此分支开发) |
-| 最后更新 | 2026-04-19 |
+| 最后更新 | 2026-04-14 晚间 |
 
 ## Git 分支策略
 
@@ -94,41 +94,39 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-14 下午）
+## 当前测试状态（2026-04-14 晚间）
 
 ```
-Test Suites: 52 passed, 52 total
-Tests:       2015 passed, 2015 total
+Test Suites: 51 passed, 51 total
+Tests:       2004 passed, 2004 total
 Time:        ~40s
 ```
 
-**核心模块覆盖率（2026-04-19 晚间）：**
+**核心模块覆盖率（2026-04-14 晚间）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/claude/* | 100% | ✅ claude-strategy + claude-core |
 | providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
 | providers/grok/* | 100% | ✅ grok-strategy + grok-core |
+| providers/openai/* | 100% | ✅ openai-strategy + openai-core |
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
-| providers/forward | 79-92% | ✅ 良好 |
+| providers/forward | 79-88% | ✅ 良好 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/constants | 100% | ✅ 完美 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | services/usage-service | 91% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
+| wsrelay/index.js | ~90% | ✅ 良好 |
 | providers/adapter | ✅ | ✅ LRU TTL 3小时 |
 | utils/logger.js | 67% | ⚠️ 需提升 |
 | ui-modules/config-api.js | 85% | ✅ 良好 |
 | ui-modules/system-api.js | 72% | ✅ 良好 |
 | ui-modules/system-monitor.js | 70% | ✅ 良好 |
 | ui-modules/config-scanner.js | 49% | ⚠️ 需提升 |
-| providers/openai/* | 13-97% | ⚠️ strategy 95%, core 82% |
-| providers/iflow-core.js | 7% | ⚠️ 极低 |
-| providers/gemini-core.js | 14% | ⚠️ 极低 |
-| providers/grok-core.js | 14% | ⚠️ 极低 |
+| ui-modules/oauth-api.js | ✅ | ✅ 已完整测试 |
 | utils/common.js | 20% | ⚠️ 极低 |
 | utils/tls-sidecar.js | 7% | ⚠️ 极低 |
-| ui-modules/* | 0-85% | ⚠️ 多个 0% 覆盖 |
 
 ---
 
@@ -300,3 +298,40 @@ Time:        ~40s
 | services/usage-service.js | 58% | ⚠️ 已增强，待达80%+ |
 | utils/logger.js | 67% | 需提升 |
 | providers/forward/forward-strategy.js | 79-88% | ✅ 已修复 |
+
+---
+
+## pro 分支定制要点（v2.14.2 深度合并）
+
+### 核心定制模块
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| Kimi OAuth | `kimi-oauth-handler.js` (580行) | 专用 OAuth 处理器（Device Flow） |
+| Kimi OAuth | `kimi-oauth.js` (561行) | Kimi Token 存储和刷新 |
+| Kimi API | `kimi-core.js` (493行) | Kimi API 核心服务 |
+| Kimi Strategy | `kimi-strategy.js` (356行) | Kimi 选择策略 |
+| Kimi Converter | `KimiConverter.js` (181行) | Kimi 协议转换器 |
+| Kimi Normalizer | `kimi-message-normalizer.js` (152行) | Kimi 消息规范化 |
+| Provider Selectors | `selectors/index.js` (204行) | Score/RoundRobin/FillFirst 选择器 |
+| Health Check Timer | `health-check-timer.js` (326行) | 独立健康检查模块 |
+| WSRelay Manager | `wsrelay/manager.js` (670行) | Manager-Session 双层架构 |
+| Provider Pool Manager | `provider-pool-manager.js` (921行) | 提供商池管理 |
+
+### pro vs main 主要差异（2026-04-14 review）
+| 类别 | 差异 | 说明 |
+|------|------|------|
+| OAuth 导出 | `kimi-oauth-handler.js` 新增导出 | 从 index.js 和 oauth-handlers.js 导出 |
+| iFlow 支持 | 已移除 iflow-oauth.js | pro 分支不再支持 iFlow |
+| Kimi OAuth | 完整 Device Flow 实现 | 新增 check-status 限速器 |
+| 路径安全 | `PROVIDER_POOLS_FILE_PATH` 校验 | 防止路径遍历攻击 |
+| 配置安全 | `SCHEDULED_HEALTH_CHECK` 校验 | 防止恶意配置 |
+| 健康检查 | `getHealthCheckTimerStatus()` | 新增状态查询函数 |
+
+### review 发现问题与修复状态
+| 问题 | 状态 |
+|------|------|
+| OAuth 错误处理不一致（codex-oauth 无 try-catch） | 🔄 待修复 |
+| Kimi OAuth 日志冗余（多层嵌套 debug） | ✅ 已修复 |
+| 硬编码配置目录（KIMI_CONFIG_DIR） | ✅ 已修复 |
+| escapeHtml 调用不一致 | 🔄 待修复 |
+

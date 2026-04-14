@@ -4,7 +4,6 @@ import {
     handleGeminiCliOAuth,
     handleGeminiAntigravityOAuth,
     batchImportGeminiTokensStream,
-    handleIFlowOAuth,
     handleQwenOAuth,
     handleKiroOAuth,
     handleCodexOAuth,
@@ -87,11 +86,6 @@ export async function handleGenerateAuthUrl(req, res, currentConfig, providerTyp
             // Kiro OAuth 支持多种认证方式
             // options.method 可以是: 'google' | 'github' | 'builder-id'
             const result = await handleKiroOAuth(currentConfig, options);
-            authUrl = result.authUrl;
-            authInfo = result.authInfo;
-        } else if (providerType === 'openai-iflow') {
-            // iFlow OAuth 授权
-            const result = await handleIFlowOAuth(currentConfig, options);
             authUrl = result.authUrl;
             authInfo = result.authInfo;
         } else if (providerType === 'openai-codex-oauth') {

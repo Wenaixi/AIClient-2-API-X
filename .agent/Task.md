@@ -1,83 +1,161 @@
 # Task.md - 任务追踪与进度管理
 
 > 规范驱动开发第三步：分解任务并跟踪进度
+> **最后更新：2026-04-19**
 
 ---
 
-## 当前任务状态
+## 当前任务状态总览
 
-### 正在进行
-- [ ] 提升 logger.js 覆盖率（当前67%）
-- [ ] 完善 wsrelay/index.js 测试（当前0%）
-- [ ] 维护 CLAUDE.md 和 .agent/ 文档
+### 🔴 高优先级（影响稳定性）
+- [ ] logger.js 覆盖率提升（67% → 85%+）
+- [ ] utils/common.js 覆盖率提升（20% → 60%+）
 
-### 已完成
-- [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（2015 测试，52 套件全部通过）
-- [x] usage-service.js 覆盖率提升（58% → 91.54%）✅
-- [x] forward.test.js 修复（applySystemPromptFromFile mock）✅
-- [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
-- [x] Provider *-core 测试覆盖（claude/grok/openai/gemini/qwen/iflow/antigravity-core）
-- [x] Kimi OAuth 集成
-- [x] iFlow 提供商支持恢复
-- [x] LRU Adapter Cache 实现
-- [x] Provider Pool Manager 重构
-- [x] 健康检查定时器修复
-- [x] 安全漏洞修复（日志脱敏、路径保护）
-- [x] 多提供商支持（OpenAI/Claude/Gemini/Kimi/Grok/iFlow/Codex/Qwen）
-- [x] LRU Cache TTL 优化（3小时，参考 CLIProxyAPI 设计）
-- [x] LRU Cache TTL 测试完善（9 个 TTL 专项测试，滑动过期/过期清理）
-- [x] adapter.js 死代码清理
-- [x] oauth-handlers.js 导出路径修复
-- [x] Codex PR 审查问题修复
-- [x] WSRelay 模块实现（Manager-Session 架构，64 测试）
-- [x] health-check-timer.js 健康检查定时器模块（独立模块，30 测试）
-- [x] 深度分析 CLIProxyAPI wsrelay/manager.go 和 session.go 设计
-- [x] 深度分析 CLIProxyAPI cache/signature_cache.go 设计
-- [x] FillFirstSelector 异步问题修复
-- [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
-- [x] utils/proxy-utils.js 测试覆盖（33 测试）
-- [x] UI Modules 测试覆盖率提升（system-api/system-monitor/config-scanner/upload-config-api）
-- [x] logger.test.js 测试修复与增强（79 测试全部通过）
-- [x] CLIProxyAPI 6.9.15 深度分析（access/api/modules/amp/registry/runtime 模块）
-- [x] CLIProxyAPI 6.9.15 完整目录结构分析
+### 🟡 中优先级（影响安全性）
+- [ ] OAuth 错误处理一致性（codex-oauth 无 try-catch）
+- [ ] escapeHtml 调用一致性检查
+
+### 🟢 低优先级（代码优化）
+- [ ] Kimi OAuth 日志冗余（多层嵌套 debug）
+- [ ] 硬编码配置目录（KIMI_CONFIG_DIR）
 
 ---
 
-## 下一步优化计划（2026-04-19 更新）
+## 测试覆盖率提升计划
 
-### 高优先级
-1. **logger.js 覆盖率提升（67% → 85%+）**
-   - 文件: `src/utils/logger.js`
-   - 现状: 67% 覆盖率
-   - 目标: 85%+
-   - 待测试: `formatMessage()`, `getLogStream()`, `LogRotate` 相关
+### 当前测试状态（2026-04-19）
+```
+Test Suites: 51 passed, 51 total
+Tests:       2004 passed, 2004 total
+Time:        ~39s
+```
 
-### 中优先级
-2. **wsrelay/index.js 导出测试完善**
-   - 文件: `src/wsrelay/index.js`
-   - 现状: 103 行代码，0% 覆盖率
-   - 目标: 80%+
-   - 待测试: 导出验证、createHandler 逻辑
-
-3. **kimi-strategy.js 覆盖率提升**
-   - 文件: `src/providers/kimi/kimi-strategy.js`
-   - 现状: 87-91% 覆盖率
-   - 目标: 95%+
-
-### 低优先级（后续迭代）
-4. **services/api-server.js 测试覆盖（当前0%）**
-5. **scripts/*.js 测试覆盖（当前0%）**
-6. **ui-modules/usage-api.js 测试覆盖（当前0%）**
-
-### 已完成 ✅
-- [x] usage-service.js 覆盖率提升（58% → 91.54%）✅
-- [x] forward-strategy.js 测试修复（54% → 79-88%）✅
-- [x] UI Modules 测试覆盖率提升（config-api 75% → 85%）✅**
+### 目标测试状态（2026-04-25）
+```
+Test Suites: 55+ passed
+Tests:       2100+ passed
+覆盖率目标: 核心模块 90%+
+```
 
 ---
 
-## 项目结构
+## 详细任务列表
+
+### 1. logger.js 覆盖率提升（高优先级）
+**文件**: `src/utils/logger.js`
+**当前**: 67%
+**目标**: 85%+
+**待覆盖方法**:
+- [ ] `formatMessage()` - 日志格式化
+- [ ] `getLogStream()` - 日志流获取
+- [ ] `LogRotate` 类 - 日志轮转逻辑
+- [ ] `sanitizeLog()` - 脱敏逻辑边界情况
+
+**测试策略**:
+```javascript
+// 1. formatMessage 边界测试
+// - 空消息
+// - 特殊字符
+// - 超长消息
+
+// 2. getLogStream 状态测试
+// - 文件不存在
+// - 文件可写/不可写
+
+// 3. LogRotate 轮转测试
+// - maxSize 触发
+// - maxFiles 清理
+// - 异步写入竞态
+```
+
+### 2. utils/common.js 覆盖率提升（高优先级）
+**文件**: `src/utils/common.js`
+**当前**: 20%
+**目标**: 60%+
+**待覆盖方法**:
+- [ ] `escapeHtml()` - HTML转义
+- [ ] `findByPrefix()` - 前缀查找
+- [ ] `hasByPrefix()` - 前缀存在检查
+- [ ] `getDeviceIdAsync()` - 异步设备ID
+- [ ] `hashString()` - 字符串哈希
+
+**测试策略**:
+```javascript
+// 1. escapeHtml 边界测试
+// - 空字符串
+// - 包含 < > & " ' 字符
+// - 嵌套标签
+// - 多字节字符（中文/Emoji）
+
+// 2. 前缀查找测试
+// - 匹配前缀
+// - 不匹配前缀
+// - 空数组
+// - 大小写敏感
+
+// 3. hashString 测试
+// - 相同输入相同输出
+// - 不同输入不同输出
+// - 空字符串
+```
+
+### 3. OAuth 错误处理一致性（中优先级）
+**文件**: `src/auth/codex-oauth.js`
+**问题**: 直接 `await autoLinkProviderConfigs()` 无 try-catch 包装
+
+**修复方案**:
+```javascript
+// 当前代码（有问题）
+await autoLinkProviderConfigs(CONFIG, {
+    onlyCurrentCred: true,
+    credPath: credentials.relativePath
+});
+
+// 修复后（一致）
+try {
+    await autoLinkProviderConfigs(CONFIG, {
+        onlyCurrentCred: true,
+        credPath: credentials.relativePath
+    });
+} catch (err) {
+    logger.error('[Codex Auth] autoLinkProviderConfigs failed:', err.message);
+}
+```
+
+**涉及文件**:
+- [ ] `codex-oauth.js` - 第1014-1022行 `handleCodexOAuthCallback`
+- [ ] 检查其他 OAuth handlers 是否存在类似问题
+
+### 4. Kimi OAuth 日志优化（低优先级）
+**文件**: `src/auth/kimi-oauth-handler.js`
+**问题**: 多层嵌套 debug 日志影响性能
+
+**优化方案**:
+```javascript
+// 移除冗余 debug 日志，保留关键 info/warn
+// 当前（冗余）
+logger.debug('[Kimi OAuth] checkKimiAuthStatus called');
+logger.debug('[Kimi OAuth] Client created, deviceId:', await client.getDeviceIdAsync());
+logger.debug('[Kimi OAuth] exchangeDeviceCode result:', ...);
+
+// 优化后（精简）
+// 移除所有中间 debug，仅保留关键步骤
+```
+
+### 5. 硬编码配置目录（中优先级）
+**文件**: `src/auth/kimi-oauth-handler.js`
+**问题**: `const KIMI_CONFIG_DIR = 'configs/kimi';`
+
+**修复方案**:
+```javascript
+// 从 config-manager 获取配置目录
+import { CONFIG } from '../core/config-manager.js';
+const kimiConfigDir = CONFIG.get('KIMI_CONFIG_DIR') || 'configs/kimi';
+```
+
+---
+
+## 项目结构（已更新）
 
 ### 源码组织 (src/)
 ```
@@ -85,8 +163,8 @@ src/
 ├── auth/                    # 认证模块
 │   ├── index.js
 │   ├── oauth-handlers.js
-│   ├── kimi-oauth.js        # Kimi OAuth
-│   ├── kimi-oauth-handler.js
+│   ├── kimi-oauth.js        # Kimi OAuth (493行)
+│   ├── kimi-oauth-handler.js # Kimi OAuth 处理器 (580行)
 │   ├── kiro-oauth.js
 │   ├── gemini-oauth.js
 │   ├── codex-oauth.js
@@ -94,46 +172,34 @@ src/
 │   └── iflow-oauth.js
 ├── converters/             # 格式转换器
 │   ├── register-converters.js
-│   ├── BaseConverter.js
-│   ├── ConverterFactory.js
 │   └── strategies/
 │       ├── ClaudeConverter.js
 │       ├── OpenAIConverter.js
-│       ├── KimiConverter.js
+│       ├── KimiConverter.js (181行)
 │       ├── GeminiConverter.js
 │       ├── CodexConverter.js
 │       ├── GrokConverter.js
 │       └── OpenAIResponsesConverter.js
-├── core/                   # 核心模块
-│   ├── config-manager.js
-│   ├── plugin-manager.js
-│   └── master.js
-├── handlers/               # 请求处理器
-│   └── request-handler.js
-├── plugins/                # 插件
-│   ├── api-potluck/
-│   ├── ai-monitor/
-│   └── default-auth/
 ├── providers/              # 提供商
 │   ├── adapter.js         # 适配器（LRU Cache）
-│   ├── provider-pool-manager.js
+│   ├── provider-pool-manager.js (921行)
 │   ├── provider-models.js
-│   ├── selectors/index.js
+│   ├── selectors/index.js (204行) - Score/RoundRobin/FillFirst 选择器
 │   ├── openai/
 │   ├── claude/
 │   ├── gemini/
 │   ├── grok/
 │   ├── forward/
 │   └── kimi/
-│       ├── kimi-core.js
-│       ├── kimi-strategy.js
-│       └── kimi-message-normalizer.js
+│       ├── kimi-core.js (493行)
+│       ├── kimi-strategy.js (356行)
+│       └── kimi-message-normalizer.js (152行)
 ├── services/              # 服务
-│   ├── api-server.js
+│   ├── api-server.js (101行 + 定制)
 │   ├── service-manager.js
 │   ├── ui-manager.js
 │   ├── usage-service.js
-│   └── health-check-timer.js
+│   └── health-check-timer.js (326行)
 ├── ui-modules/            # UI 模块
 │   ├── auth.js
 │   ├── config-api.js
@@ -148,9 +214,9 @@ src/
 │   ├── system-api.js
 │   └── system-monitor.js
 ├── utils/                 # 工具
-│   ├── common.js
+│   ├── common.js          # ⚠️ 20% 覆盖率
 │   ├── constants.js
-│   ├── logger.js
+│   ├── logger.js          # ⚠️ 67% 覆盖率
 │   ├── provider-strategies.js
 │   ├── provider-utils.js
 │   ├── proxy-utils.js
@@ -161,7 +227,7 @@ src/
 │   └── kiro-idc-token-refresh.js
 └── wsrelay/               # WebSocket 代理
     ├── index.js           # 导出模块
-    └── manager.js         # 核心实现
+    └── manager.js         # Manager-Session 双层架构
 ```
 
 ---
@@ -221,10 +287,10 @@ tests/unit/
 │   ├── upload-config-api.test.js
 │   └── usage-cache.test.js
 ├── utils/
-│   ├── common.test.js
+│   ├── common.test.js         # ⚠️ 待增强
 │   ├── common-import.test.js
 │   ├── constants.test.js
-│   ├── logger.test.js
+│   ├── logger.test.js         # ⚠️ 待增强
 │   ├── provider-strategies.test.js
 │   ├── provider-utils.test.js
 │   ├── proxy-utils.test.js
@@ -234,19 +300,13 @@ tests/unit/
     └── manager.test.js
 ```
 
-### 集成测试
-```
-tests/
-├── provider-models.unit.test.js
-└── security-fixes.unit.test.js
-```
-
 ---
 
 ## 近期提交记录（pro 分支）
 
 | 提交 | 描述 |
 |------|------|
+| e6fc049 | Merge main into pro (v2.14.2) - 深度合并上游更新 |
 | 8fb381d | chore: 更新最后更新时间 |
 | babef25 | chore: 更新 CLAUDE.md 和 Task.md 文档 |
 | 7e6e57c | test(providers): 新增 qwen-core 测试，完善 providers 测试覆盖 |
@@ -274,17 +334,7 @@ tests/
 - [x] api/modules/amp 对比：SecretSource vs 现有 adapter
 - [x] registry 模块对比：远程模型目录 vs 现有硬编码模型列表
 - [x] runtime/executor 对比：独立 helps 工具模块 vs 现有分散 core
-- [x] CLIProxyAPI 6.9.15 完整目录结构分析（access/api/auth/cache/config/constant/interfaces/logging/registry/runtime/store/thinking/translator/usage/util/watcher/wsrelay）
-
----
-
-## 当前测试状态（2026-04-19）
-
-```
-Test Suites: 52 passed, 52 total
-Tests:       1987 passed, 1987 total
-Time:        ~41s
-```
+- [x] CLIProxyAPI 6.9.15 完整目录结构分析
 
 ---
 
@@ -296,7 +346,7 @@ npm run start        # 启动服务
 npm run start:dev    # 开发模式
 
 # 测试
-npm test             # 运行全部测试（1987 测试通过）
+npm test             # 运行全部测试（2004 测试通过）
 npm run test:watch   # 监听模式
 npm run test:coverage # 覆盖率报告
 

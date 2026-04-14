@@ -143,6 +143,7 @@ import { escapeHtml, showToast } from './utils.js';
 let loadProviders;
 let refreshProviderConfig;
 let loadConfigList;
+let loadConfiguration;
 
 export function setProviderLoaders(providerLoader, providerRefresher) {
     loadProviders = providerLoader;
@@ -153,6 +154,10 @@ export function setConfigLoaders(configLoader) {
     loadConfigList = configLoader;
 }
 
+export function setConfigReloader(configReloader) {
+    loadConfiguration = configReloader;
+}
+
 /**
  * 处理配置更新事件
  * @param {Object} data - 更新数据
@@ -160,6 +165,11 @@ export function setConfigLoaders(configLoader) {
 function handleConfigUpdate(data) {
     // [ConfigUpdate] debug disabled
     // console.log('[ConfigUpdate] 收到配置更新事件:', data);
+
+    // 首先重新加载主配置（这会同步前端UI与后端最新配置）
+    if (loadConfiguration) {
+        loadConfiguration();
+    }
 
     // 根据操作类型进行相应处理
     switch (data.action) {
@@ -180,6 +190,13 @@ function handleConfigUpdate(data) {
             }
             break;
 
+        case 'reload':
+            // 重载配置事件，刷新配置文件列表
+            if (loadConfigList) {
+                loadConfigList();
+            }
+            break;
+
         default:
             // 未知操作类型，也刷新列表以确保同步
             if (loadConfigList) {
@@ -195,5 +212,7 @@ export {
     addLogEntry,
     updateServerStatus,
     updateProviderStatus,
-    handleProviderUpdate
+    handleProviderUpdate,
+    setProviderLoaders,
+    setConfigLoaders
 };
