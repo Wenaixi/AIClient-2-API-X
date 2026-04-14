@@ -18,9 +18,12 @@ export default {
     '**/tests/**/*.test.js'
   ],
   testPathIgnorePatterns: [
-    // 需要运行服务器的集成测试 - 使用 npm test -- --testPathIgnorePatterns="..." 来运行
+    // 需要运行服务器的集成测试 - 需要真实服务器运行，使用环境变量控制
+    // 安全测试 - 特定于环境的测试
     'security-fixes.test.js$',
+    // 集成测试 - 需要真实服务器
     'api-integration.test.js$',
+    // 并发测试 - 需要多个服务器实例
     'concurrent-test.js$'
   ],
   collectCoverageFrom: [
