@@ -1,4 +1,4 @@
-# Design.md - 技术设计与架构决策
+# Design.md - 技术设计
 
 > 规范驱动开发第二步：记录技术设计和关键决策
 
@@ -6,420 +6,135 @@
 
 ## 系统架构
 
-### 整体架构
 ```
 Client → API Server → Request Handler → Adapter → Provider Pool
                                               ↓
                                          Providers
-                                         (OpenAI/Claude/Gemini/Kimi/Grok/iFlow/...)
 ```
 
 ### 核心模块
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| Adapter | src/providers/adapter.js | LRU Cache，3小时 TTL 滑动过期 |
+| Provider Pool Manager | src/providers/provider-pool-manager.js | 故障转移、负载均衡、信号量模式 |
+| Selectors | src/providers/selectors/index.js | Score/RoundRobin/FillFirst |
+| Health Check Timer | src/services/health-check-timer.js | 定时健康检查 |
+| WSRelay Manager | src/wsrelay/manager.js | Manager-Session 双层架构 |
 
-#### 1. Adapter (src/providers/adapter.js)
-- **职责**: 提供商适配器，统一的请求/响应处理接口
-- **特性**: LRU Cache 防止内存泄漏，3小时 TTL 滑动过期
-- **关键方法**: `create()` `request()` `release()`
-- **参考**: CLIProxyAPI `internal/cache/signature_cache.go`
-
-#### 2. Provider Pool Manager (src/providers/provider-pool-manager.js)
-- **职责**: 管理多个提供商实例，提供故障转移和负载均衡
-- **关键类**: `ProviderPoolManager` `FillFirstSelector`
-- **特性**: 健康检查、实例池化、动态扩容
-
-#### 3. Provider Selectors (src/providers/selectors/index.js)
-- **职责**: 提供商选择策略
-- **选择器**:
-  - `ScoreBasedSelector` - 基于评分的选择（分数越低越优先）
-  - `RoundRobinSelector` - 轮询策略
-  - `FillFirstSelector` - 优先填充单个节点策略
-- **特性**: 支持并发串行化，防止竞争条件
-
-#### 4. Converters (src/converters/)
-- **职责**: 请求/响应格式转换
-- **转换器**:
-  - `ClaudeConverter.js` - Claude 格式 ↔ OpenAI 格式
-  - `OpenAIConverter.js` - OpenAI 格式
-  - `KimiConverter.js` - Kimi/Moonshot 格式
-  - `GeminiConverter.js` - Gemini 格式
-  - `CodexConverter.js` - Codex 格式
-  - `GrokConverter.js` - Grok 格式
-  - `OpenAIResponsesConverter.js` - OpenAI Responses API
-
-#### 5. Health Check Timer (src/services/health-check-timer.js)
-- **职责**: 定时健康检查，移除不健康实例
-- **关键逻辑**: `_getMutableLastCheckTimes()` 修复了迭代中删除条目的 Bug
-
-#### 6. WSRelay Manager (src/wsrelay/manager.js)
-- **职责**: WebSocket 代理管理
-- **架构**: Manager-Session 双层架构
-- **参考**: CLIProxyAPI `internal/wsrelay/manager.go`
-
----
-
-## 认证系统
+### Converters (src/converters/)
+ClaudeConverter / OpenAIConverter / KimiConverter / GeminiConverter / CodexConverter / GrokConverter
 
 ### OAuth Handlers (src/auth/)
-```
-oauth-handlers.js → kimi-oauth.js
-                  → kiro-oauth.js
-                  → gemini-oauth.js
-                  → codex-oauth.js
-                  → qwen-oauth.js
-                  → iflow-oauth.js
-```
-
-### Kimi OAuth 特殊处理
-- `kimi-oauth-handler.js` - 专用 Kimi OAuth 处理器
-- `kimi-token-refresh.js` - Token 刷新脚本
-- 需设置 `KIMI_CLIENT_ID` 和 `KIMI_CLIENT_SECRET` 环境变量
+kimi-oauth.js / kiro-oauth.js / gemini-oauth.js / codex-oauth.js / qwen-oauth.js
 
 ---
 
-## 配置管理
+## CLIProxyAPI 参考设计（Go → Node.js 对齐）
 
-### 配置文件
-- `configs/config.json.example` - 主配置
-- `configs/plugins.json.example` - 插件配置
-- `configs/provider_pools.json.example` - 提供商池配置
+### signature_cache.go（已对齐）
+- 3 小时 TTL ✅
+- 滑动过期 ✅
+- 分组 Map → Node.js 单一 LRU Cache
 
-### Config Manager (src/core/config-manager.js)
-- **职责**: 配置加载、验证、动态更新
-- **特性**: 支持多环境配置
-
----
-
-## 插件系统
-
-### Plugin Manager (src/core/plugin-manager.js)
-- **职责**: 插件生命周期管理
-- **内置插件**:
-  - `api-potluck` - API 路由和 Key 管理
-  - `ai-monitor` - AI 监控
-  - `default-auth` - 默认认证
-
-### API Potluck 插件 (src/plugins/api-potluck/)
-- **职责**: API Key 生成、验证、使用量统计
-- **路由**: `/api/*`
-
----
-
-## 请求处理流程
-
-### 请求流程
-```
-1. Client Request → API Server
-2. → Middleware (Auth, CORS, etc.)
-3. → Request Handler
-4. → Adapter (转换请求格式)
-5. → Provider Pool Manager
-6. → FillFirstSelector (选择健康实例)
-7. → Provider (OpenAI/Claude/...)
-8. → Response (逆向流程返回)
-```
-
-### 请求转换点
-- **请求入口**: `src/handlers/request-handler.js`
-- **格式转换**: `src/converters/` 各转换器
-- **Provider 核心**: `src/providers/*/kimi-core.js` 等
-
----
-
-## 测试架构
-
-### 测试配置 (jest.config.js)
-```javascript
-{
-  testEnvironment: 'node',
-  transform: { '^.+\\.js$': 'babel-jest' },
-  plugins: ['babel-plugin-transform-import-meta'],
-  testTimeout: 30000,
-  setupFiles: ['./tests/setup.js']
-}
-```
-
-### 测试文件组织
-```
-tests/
-├── unit/
-│   ├── auth/
-│   ├── converters/
-│   ├── core/
-│   ├── handlers/
-│   ├── plugins/
-│   ├── providers/
-│   │   ├── selectors/        # 选择器测试
-│   │   └── ...
-│   ├── services/
-│   ├── ui-modules/
-│   └── utils/
-├── provider-models.unit.test.js
-└── security-fixes.unit.test.js
-```
-
-### 测试覆盖率状态（2026-04-18）
-```
-Test Suites: 49 passed, 49 total
-Tests:       1935 passed, 1935 total
-Time:        ~34s
-```
-
----
-
-## CLIProxyAPI 参考架构（Go）
-
-### 目录结构
-```
-CLIProxyAPI-6.9.15/
-├── internal/
-│   ├── access/     - 访问控制
-│   ├── api/        - API 路由
-│   ├── auth/       - 认证逻辑
-│   ├── cache/      - 缓存实现
-│   ├── config/     - 配置加载
-│   ├── constant/   - 常量定义
-│   ├── interfaces/ - 接口定义
-│   ├── logging/    - 日志系统
-│   ├── store/      - 数据存储
-│   ├── translator/ - 格式转换
-│   ├── usage/      - 使用量统计
-│   ├── util/       - 工具函数
-│   ├── watcher/    - 监控告警
-│   └── wsrelay/    - WebSocket
-├── test/           - Go 测试
-└── cmd/           - 命令行入口
-```
-
-### 关键设计模式（CLIProxyAPI）
-1. **Interface 定义** - 清晰的接口边界
-2. **Config 驱动** - YAML 配置
-3. **Store 抽象** - 数据存储解耦
-4. **Translator** - 请求/响应转换层
-5. **Usage Tracking** - 使用量统计
-
----
-
-## CLIProxyAPI Go vs Node.js 深度对比（2026-04-18 更新）
-
-### Cache 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 存储 | sync.Map 分组存储 | ✅ LRU Cache + TTL |
-| TTL | 3小时滑动过期 | ✅ 3小时滑动过期 |
-| 清理 | 分组清理+空组删除 | ✅ 定时 purgeExpired |
-| 架构 | 分组Map减少锁竞争 | ✅ Adapter单实例 |
-
-**分析结论：**
-- Go 使用分组 Map 架构 (groupKey → groupCache)，每组独立 TTL
-- Node.js 使用单一固定大小 LRU Cache，满时自动淘汰最旧条目
-- 空组删除机制不适用于当前设计（单一 LRU Cache，满时自动淘汰）
-- 当前设计已满足需求，无需改为分组架构
-
-### WSRelay 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 架构 | Manager-Session 双层 | ✅ 已实现 |
-| 心跳 | 30s ticker 保活 | ✅ 30s heartbeat |
-| 关闭 | 优雅关闭所有 session | ✅ cleanup 机制 |
-| Channel 缓冲 | maxBufferSize: 8 | ✅ 已实现 |
-| Context 取消 | goroutine 监听 ctx.Done() | ✅ cancel 回调 |
-
-**分析结论：**
-- Node.js WSRelay 模块已完整对齐 Go 设计
-- Session.request() 使用带缓冲的 channel（maxBufferSize: 8）
-- Manager.Stop() 优雅关闭所有会话
-- _cleanupOnce 保护防止重复 cleanup
-
-### Auth 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 设计 | 极简接口，状态外部化 | OAuth 处理器分散多文件 |
-| 存储 | TokenStorage 接口 | 文件系统 JSON |
-| 扩展 | 子包按提供商实现 | 各提供商独立文件 |
-
-### Store 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 后端 | Git/Postgres/Object 三种 | JSON 文件 + 内存 |
-| 分支隔离 | 支持 git 分支管理 | 无 |
-| 事务性 | Squash 提交保证原子性 | 无 |
-
-### Translator 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 注册 | blank import 自动注册 | 显式调用 registerConverter |
-| 结构 | `{source}/{target}/` 目录对 | ConverterFactory 策略模式 |
-| 映射 | 多对多任意组合 | 转换器类实例化 |
-
-### Usage 模块对比
-| 特性 | Go (CLIProxyAPI) | Node.js (AIClient) |
-|------|------------------|---------------------|
-| 架构 | 插件 + 聚合统计 + 快照 + Merge | Provider 查询 + 格式化 |
-| 并发 | sync/atomic 原子操作 | Promise.allSettled |
-| 去重 | dedupKey 多字段生成 | 无 |
+### wsrelay/manager.go + session.go（已对齐）
+- Manager-Session 双层架构 ✅
+- 30s 心跳间隔 ✅
+- 带缓冲 channel（maxBufferSize: 8）✅
+- pendingRequest.closeOnce 防止重复关闭 ✅
 
 ---
 
 ## 安全设计
 
 ### 日志脱敏
-- **实现**: `src/utils/logger.js`
-- **脱敏字段**: `token`, `api_key`, `authorization`, `password`, `secret`
-- **实现方式**: `sanitizeLog()` 方法
+- 脱敏字段: `token`, `api_key`, `authorization`, `password`, `secret`
+- 实现: `src/utils/logger.js` → `sanitizeLog()`
 
-### 生产环境保护
-- 错误信息不暴露内部路径
-- 配置信息加密存储
-- OAuth Token 不日志输出
+### OAuth 错误处理
+- 所有 error.message 返回前经 `escapeHtml()` 处理 ✅
 
----
+### 时序安全比较
+- `safeCompare()` 替代直接字符串比较，防止时序攻击
+- 实现: `src/utils/common.js`
 
-## 已知问题与修复
-
-### 已修复
-1. ✅ `_getMutableLastCheckTimes` 未定义 Bug
-2. ✅ 迭代中删除 Map 条目 Bug（使用 `Array.from()` 复制）
-3. ✅ 认证日志敏感信息泄露
-4. ✅ 生产环境路径暴露
-5. ✅ `getDeviceId()` → `getDeviceIdAsync()`
-6. ✅ Timer 泄漏问题（已确认是测试环境行为）
-7. ✅ adapter.js 死代码清理（getGroupCache/groupCacheRegistry/GroupCache 未定义引用）
-8. ✅ oauth-handlers.js 导出路径错误（所有导出错误地从 kimi-oauth-handler.js 导入）
-9. ✅ FillFirstSelector 返回 Promise 而非同步值的问题
-10. ✅ LRU Cache TTL 提升至 3 小时（与 Go 版本一致）
-11. ✅ WSRelay Session 优化（带缓冲 channel，maxBufferSize: 8）
-
-### 待监控
-1. ⚠️ Worker 进程异步句柄警告（不影响正确性，测试框架行为）
-2. ⚠️ 部分 OAuth 模块 setInterval 缺少 .unref()（已验证均为页面内 countdown timer）
+### 请求体大小限制
+- MAX_BODY_SIZE = 10MB，防止内存耗尽
 
 ---
 
-## 近期修复（2026-04-18）
+## Provider Pool Manager 架构 (v2)
 
-### Provider *-core 测试覆盖率提升
-**新增测试文件：**
-- `claude-core.test.js` - ClaudeApiService 核心测试
-- `grok-core.test.js` - GrokApiService 核心测试
-- `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
-- `gemini-core.test.js` - GeminiApiService 核心测试
-
-**修复问题：**
-- `gemini-core.test.js` OAuth2Client mock 缺少 `new` 操作符
-
-**测试结果：**
-- 49 套件 1935 测试全部通过
-- providers/gemini/* 100%
-- providers/openai/* 100%
-- providers/claude/* 100%
-- providers/grok/* 100%
-
----
-
-## CLIProxyAPI Go 版本关键设计（2026-04-15 分析）
-
-### signature_cache.go 关键设计
-```go
-// 3 小时 TTL
-SignatureCacheTTL = 3 * time.Hour
-CacheCleanupInterval = 10 * time.Minute
-
-// 滑动过期 - 每次访问刷新 Timestamp
-entry.Timestamp = now
-
-// 分组 Map - sync.Map (groupKey -> groupCache)
-var signatureCache sync.Map
-type groupCache struct {
-    mu      sync.RWMutex
-    entries map[string]SignatureEntry
-}
-
-// 空 Cache Bucket 删除
-if isEmpty {
-    signatureCache.Delete(key)
-}
+### 信号量模式
+```javascript
+this.refreshSemaphore = {
+    global: 16,           // 全局最多 16 并发刷新
+    perProvider: 4,      // 每 provider 最多 4 并发
+    globalUsed: 0,
+    perProviderUsed: {},  // { providerType: count }
+    globalWaitQueue: [],
+    perProviderWaitQueues: {}
+};
 ```
 
-### wsrelay/manager.go 关键设计
-```go
-// Manager 结构
-type Manager struct {
-    sessions  map[string]*session
-    sessMutex sync.RWMutex
-    providerFactory func(*http.Request) (string, error)
-    onConnected    func(string)
-    onDisconnected func(string, error)
-}
-
-// Session.request() 使用带缓冲 channel
-ch := make(chan Message, 8)
+### 429 指数退避
+```javascript
+this.quotaBackoff = {
+    base: 1000,        // 1s
+    max: 1800000,      // 30min
+    maxRetries: 3
+};
 ```
 
-### wsrelay/session.go 关键设计
-```go
-// pendingRequest 结构
-type pendingRequest struct {
-    ch        chan Message
-    closeOnce sync.Once
-}
+### 冷却队列
+```javascript
+this.cooldownQueue = {
+    enabled: true,
+    defaultCooldown: 60000,  // 60s
+    maxCooldown: 300000       // 5min
+};
+```
 
-// session.request() 使用 chan(8) 缓冲
-if _, loaded := s.pending.LoadOrStore(msg.ID, &pendingRequest{ch: make(chan Message, 8)}); loaded {
-    return nil, fmt.Errorf("wsrelay: duplicate message id %s", msg.ID)
-}
-
-// dispatch 处理终端消息后 close channel
-if msg.Type == MessageTypeHTTPResp || msg.Type == MessageTypeError || msg.Type == MessageTypeStreamEnd {
-    if actual, loaded := s.pending.LoadAndDelete(msg.ID); loaded {
-        actual.(*pendingRequest).close()
-    }
-}
+### Per-Provider 刷新提前期
+```javascript
+REFRESH_LEAD_CONFIG = {
+    'gemini-cli-oauth': 20 * 60 * 1000,     // 20 分钟
+    'claude-kiro-oauth': 30 * 60 * 1000,    // 30 分钟
+    'kimi-oauth': 5 * 60 * 1000,            // 5 分钟
+    'default': 10 * 60 * 1000                // 默认 10 分钟
+};
 ```
 
 ---
 
-## CLIProxyAPI 6.9.15 新增模块分析
+## 已知问题与修复记录
 
-### browser 模块 (internal/browser/browser.go)
-- 浏览器自动化相关功能
-- 与 Node.js 项目无关，不适用
-
-### registry 模块 (internal/registry/)
-- `model_registry.go` - 模型注册表
-- `model_definitions.go` - 模型定义
-- `model_updater.go` - 模型更新器
-- **参考价值**: 模型定义和管理机制
-
-### runtime 模块 (internal/runtime/)
-- `executor/` - 各提供商执行器
-  - `claude_executor.go` - Claude 执行器
-  - `gemini_executor.go` - Gemini 执行器
-  - `kimi_executor.go` - Kimi 执行器
-  - `codex_executor.go` - Codex 执行器
-  - `openai_compat_executor.go` - OpenAI 兼容执行器
-  - `antigravity_executor.go` - Antigravity 执行器
-  - 等等
-- `geminicli/state.go` - Gemini CLI 状态管理
-- **参考价值**: 请求执行和状态管理机制
-
-### tui 模块 (internal/tui/)
-- 终端用户界面
-- 与 Node.js 项目无关，不适用
+| # | 问题 | 状态 |
+|---|------|------|
+| 1 | _getMutableLastCheckTimes 未定义 | ✅ 已修复 |
+| 2 | 迭代中删除 Map 条目 | ✅ 已修复 |
+| 3 | adapter.js 死代码清理 | ✅ 已修复 |
+| 4 | oauth-handlers.js 导出路径错误 | ✅ 已修复 |
+| 5 | FillFirstSelector 返回 Promise | ✅ 已修复 |
+| 6 | LRU Cache TTL 提升至 3 小时 | ✅ 已修复 |
+| 7 | WSRelay Session channel 缓冲优化 | ✅ 已修复 |
+| 8 | codex-oauth 错误处理 escapeHtml | ✅ 已修复 |
+| 9 | iFlow Provider 移除 | ✅ 已移除 |
+| 10 | safeCompare 时序安全比较 | ✅ 已实现 |
 
 ---
 
-## review 发现问题与修复（2026-04-19）
+## Kimi OAuth 实现细节
 
-### 已修复 ✅
-1. **硬编码配置目录** → 改为 `getKimiConfigDir()` 函数，支持环境变量和配置覆盖
-2. **Kimi OAuth 日志冗余** → 移除冗余 debug 日志，保留关键 info/warn
+### 设备流认证流程
+1. `startKimiDeviceFlow()` - 获取 device_code 和 user_code
+2. 前端轮询 `checkKimiAuthStatus()` - 单次检查授权状态
+3. `completeKimiOAuth()` - 阻塞等待授权完成（不推荐 HTTP 调用）
 
-### 待修复
-1. **OAuth 错误处理一致性** - codex-oauth.js 中 `autoLinkProviderConfigs` 直接 await 无 try-catch
-2. **escapeHtml 调用一致性** - 部分返回 error.message，部分返回 escapeHtml(error.message)
-3. **logger.js 覆盖率 67%** - 待提升至 85%+
-4. **common.js 覆盖率 20%** - 待提升至 60%+
+### Token 刷新机制
+- 阈值: REFRESH_THRESHOLD_SECONDS = 300 (5分钟)
+- 设备 ID 持久化到 configs/.kimi_device_id
+- 内置 CLIENT_ID 可通过 KIMI_CLIENT_ID 环境变量覆盖
 
 ---
 
-*最后更新: 2026-04-19*
+*最后更新: 2026-04-15 晨间*
