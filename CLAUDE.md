@@ -94,12 +94,12 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-17）
+## 当前测试状态（2026-04-17 夜）
 
 ```
 Test Suites: 45 passed, 45 total
-Tests:       1682 passed, 1682 total
-Time:        ~35s
+Tests:       1731 passed, 1731 total
+Time:        ~41s
 ```
 
 **测试覆盖率分析（2026-04-17）：**
@@ -119,7 +119,7 @@ Time:        ~35s
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter (LRUCache TTL) | 较好 | ✅ TTL 3小时 |
-| utils/logger.js | 49% | ⚠️ 需提升 |
+| utils/logger.js | ✅ 79 测试 | ✅ 已修复并增强 |
 | ui-modules/* | 0-75% | ✅ system-api/system-monitor/config-scanner/upload-config-api 新增测试 |
 
 ---
