@@ -94,20 +94,20 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-18 晚间）
+## 当前测试状态（2026-04-19）
 
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2015 passed, 2015 total
-Time:        ~36s
+Time:        ~39s
 ```
 
-**核心模块覆盖率（2026-04-18 晚间）：**
+**核心模块覆盖率（2026-04-19）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/claude/* | 100% | ✅ claude-strategy + claude-core |
-| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core (14% core自身) |
-| providers/grok/* | 100% | ✅ grok-strategy + grok-core (14% core自身) |
+| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
+| providers/grok/* | 100% | ✅ grok-strategy + grok-core |
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/openai/* | 13-100% | ⚠️ strategy 95%, core 82%, responses 0% |
@@ -118,15 +118,25 @@ Time:        ~36s
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter | ✅ | ✅ LRU TTL 3小时 |
-| utils/logger.js | 67-79% | ✅ 良好 |
-| ui-modules/* | 0-75% | ⚠️ 多个 0% 覆盖 |
-| scripts/* | 0% | ⚠️ 未覆盖 |
-| services/api-server | 0% | ⚠️ 未覆盖 |
-| services/usage-service | 58% | ⚠️ 需提升 |
+| utils/logger.js | 67% | ⚠️ 需提升 |
+| ui-modules/* | 0-85% | ⚠️ 多个 0% 覆盖 |
+| services/usage-service | 58% | ⚠️ 已增强测试，待达80%+ |
 
 ---
 
 ## 已完成优化
+
+### 2026-04-19 最新
+
+1. **forward.test.js 测试修复（2026-04-19）**
+   - 修复 `extractSystemPromptFromRequestBody` mock 返回现有系统消息
+   - 修复 `applySystemPromptReplacements` mock 支持数组格式替换
+   - 测试通过：52 套件 2015 测试全部通过
+
+2. **usage-service.test.js 测试增强（2026-04-19）**
+   - 新增 `getAllUsage` 测试（查询池配置、无配置时单个实例）
+   - 新增各 provider getUsage 方法测试
+   - 新增 `formatKimiUsage` 边界情况测试
 
 ### 2026-04-18 最新
 
@@ -136,7 +146,7 @@ Time:        ~36s
    - 新增 `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
    - 新增 `gemini-core.test.js` - GeminiApiService 核心测试
    - 修复 `gemini-core.test.js` OAuth2Client 测试：缺少 `new` 操作符
-   - 测试通过：52 套件 1985 测试全部通过
+   - 测试通过：52 套件 2015 测试全部通过
 
 ### 2026-04-17 最新
 
@@ -278,7 +288,7 @@ Time:        ~36s
 | ui-modules/config-scanner.js | 49% | 中等 |
 | ui-modules/system-api.js | 72% | 良好 |
 | ui-modules/system-monitor.js | 70% | 良好 |
-| ui-modules/config-api.js | 75% | 良好 |
-| services/usage-service.js | 58% | 需提升 |
+| ui-modules/config-api.js | 85% | 良好 |
+| services/usage-service.js | 58% | ⚠️ 已增强，待达80%+ |
 | utils/logger.js | 67% | 需提升 |
-| providers/forward/forward-strategy.js | 54% | 需提升 |
+| providers/forward/forward-strategy.js | 79-88% | ✅ 已修复 |
