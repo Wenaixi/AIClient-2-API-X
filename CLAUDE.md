@@ -9,7 +9,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` (定制分支，始终使用此分支开发) |
-| 最后更新 | 2026-04-18 |
+| 最后更新 | 2026-04-14 |
 
 ## Git 分支策略
 
@@ -94,32 +94,35 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-18）
+## 当前测试状态（2026-04-18 晚间）
 
 ```
-Test Suites: 49 passed, 49 total
-Tests:       1935 passed, 1935 total
-Time:        ~34s
+Test Suites: 52 passed, 52 total
+Tests:       1985 passed, 1985 total
+Time:        ~37s
 ```
 
-**测试覆盖率分析（2026-04-18）：**
+**核心模块覆盖率（2026-04-18 晚间）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
+| providers/claude/* | 100% | ✅ claude-strategy + claude-core |
+| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core (14% core自身) |
+| providers/grok/* | 100% | ✅ grok-strategy + grok-core (14% core自身) |
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
+| providers/openai/* | 13-100% | ⚠️ strategy 95%, core 82%, responses 0% |
 | providers/forward | 79-88% | ✅ 良好 |
-| providers/gemini/* | 100% | ✅ gemini-strategy + gemini-core |
-| providers/openai/* | 100% | ✅ openai-strategy + openai-core |
-| providers/claude/* | 100% | ✅ claude-strategy + claude-core |
-| providers/grok/* | 100% | ✅ grok-strategy + grok-core |
-| utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/provider-utils | 87% | ✅ 良好 |
+| utils/constants | 100% | ✅ 完美 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter | ✅ | ✅ LRU TTL 3小时 |
-| utils/logger.js | ✅ 79 测试 | ✅ 已增强 |
-| ui-modules/* | ✅ | ✅ system-api/system-monitor/config-scanner/upload-config-api |
+| utils/logger.js | 67-79% | ✅ 良好 |
+| ui-modules/* | 0-75% | ⚠️ 多个 0% 覆盖 |
+| scripts/* | 0% | ⚠️ 未覆盖 |
+| services/api-server | 0% | ⚠️ 未覆盖 |
+| services/usage-service | 58% | ⚠️ 需提升 |
 
 ---
 
@@ -133,7 +136,7 @@ Time:        ~34s
    - 新增 `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
    - 新增 `gemini-core.test.js` - GeminiApiService 核心测试
    - 修复 `gemini-core.test.js` OAuth2Client 测试：缺少 `new` 操作符
-   - 测试通过：49 套件 1935 测试全部通过
+   - 测试通过：52 套件 1985 测试全部通过
 
 ### 2026-04-17 最新
 
@@ -199,11 +202,32 @@ Time:        ~34s
 - pendingRequest.closeOnce 防止重复关闭 ✅ 已实现
 - Context 取消监听 ✅ 已实现
 
-### CLIProxyAPI 6.9.15 新增模块分析
-- **browser 模块**: 浏览器自动化，与 Node.js 无关
-- **registry 模块**: 模型注册表，参考价值高
-- **runtime/executor 模块**: 各提供商执行器，参考价值高
-- **tui 模块**: 终端 UI，与 Node.js 无关
+### CLIProxyAPI 6.9.15 新增模块分析（2026-04-14）
+
+#### access 模块 (internal/access/)
+- `config_access/provider.go` - API Key 访问控制提供者
+- 多源凭证支持: Authorization Bearer, X-Goog-Api-Key, X-Api-Key, query key
+- `reconcile.go` - Provider 协调系统，支持热重载
+- **参考价值**: 热重载机制设计
+
+#### api/modules/amp 模块 (internal/api/modules/amp/)
+- `amp.go` - AmpModule 核心，反向代理、模型映射、热重载
+- `routes.go` - 路由注册、localhost 限制、CORS 处理、auth middleware
+- `proxy.go` - Gzip 解压、header 清理、secret 注入
+- `secret.go` - MultiSourceSecret (config > env > file) + MappedSecretSource (per-client key mapping)
+- `fallback_handlers.go` - 本地 provider 不可用时 fallback 到 ampcode.com
+- `model_mapping.go` - 模型名映射，精确匹配和正则表达式
+- **参考价值**: SecretSource 多源机制、per-client key mapping
+
+#### registry 模块 (internal/registry/)
+- `model_registry.go` - 静态模型定义，13 个 provider 渠道
+- `model_updater.go` - 远程模型目录获取，3 小时刷新间隔
+- **参考价值**: 远程模型刷新机制
+
+#### runtime/executor 模块 (internal/runtime/executor/)
+- 各 provider 独立 executor: claude, gemini, codex, qwen, kimi, iflow, antigravity
+- `helps/` - token_helpers, usage_helpers, cache_helpers, thinking_providers
+- **参考价值**: 独立 helps 工具模块设计
 
 ---
 
@@ -213,4 +237,48 @@ Time:        ~34s
 
 ---
 
-*最后更新: 2026-04-18*
+*最后更新: 2026-04-18 晚间*
+
+## 待优化模块分析（2026-04-18）
+
+### 0% 覆盖率模块
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| wsrelay/index.js | wsrelay/index.js | WSRelay 导出模块 |
+| scripts/* | scripts/*.js | Token 刷新脚本 |
+| utils/proxy-utils.js | tests/unit/utils/proxy-utils.test.js 存在但未被 jest 收集 | ⚠️ 需排查 |
+| ui-modules/oauth-api.js | OAuth API 界面 |
+| ui-modules/provider-api.js | Provider API 界面 |
+| ui-modules/update-api.js | Update API |
+| ui-modules/usage-api.js | Usage API |
+| ui-modules/usage-cache.js | Usage Cache |
+| ui-modules/plugin-api.js | Plugin API |
+| ui-modules/event-broadcast.js | 事件广播 |
+| ui-modules/auth.js | Auth 界面 |
+| services/api-server.js | API Server 主模块 |
+| services/api-manager.js | API Manager |
+| services/service-manager.js | Service Manager |
+| services/ui-manager.js | UI Manager |
+| utils/common.js | 通用工具 |
+| utils/token-utils.js | Token 工具 |
+| utils/tls-sidecar.js | TLS Sidecar |
+| utils/grok-assets-proxy.js | Grok Assets Proxy |
+| providers/codex-core.js | Codex Core |
+| providers/codex-responses-strategy.js | Codex Responses |
+| providers/openai-responses-core.js | OpenAI Responses Core |
+| providers/openai-responses-strategy.js | OpenAI Responses Strategy |
+| providers/iflow-core.js | IFlow Core (7%) |
+| providers/gemini-core.js | Gemini Core (14%) |
+| providers/grok-core.js | Grok Core (14%) |
+| providers/grok/ws-imagine.js | WS Imagine |
+
+### 低覆盖率模块
+| 模块 | 覆盖率 | 备注 |
+|------|--------|------|
+| ui-modules/config-scanner.js | 49% | 中等 |
+| ui-modules/system-api.js | 72% | 良好 |
+| ui-modules/system-monitor.js | 70% | 良好 |
+| ui-modules/config-api.js | 75% | 良好 |
+| services/usage-service.js | 58% | 需提升 |
+| utils/logger.js | 67% | 需提升 |
+| providers/forward/forward-strategy.js | 54% | 需提升 |

@@ -7,14 +7,15 @@
 ## 当前任务状态
 
 ### 正在进行
+- [ ] 深度分析 CLIProxyAPI 6.9.15 新增模块设计
 - [ ] 持续提升测试覆盖率（优先低覆盖率模块）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1935 测试，49 套件全部通过）
+- [x] 测试基础设施搭建（1985 测试，52 套件全部通过）
 - [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
-- [x] Provider *-core 测试覆盖（claude/grok/openai/gemini-core）✅ 1935 测试
+- [x] Provider *-core 测试覆盖（claude/grok/openai/gemini/qwen/iflow/antigravity-core）✅ 1985 测试
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
 - [x] LRU Adapter Cache 实现
@@ -34,7 +35,6 @@
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
 - [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
-- [x] CLAUDE.md 更新至 2026-04-18 版本
 - [x] UI Modules 测试覆盖率提升（2026-04-17）
   - 新增 `system-monitor.test.js` - 12 测试用例
   - 新增 `system-api.test.js` - 8 测试用例
@@ -45,14 +45,22 @@
   - 移除有问题的异步上下文隔离测试
   - 修复 `formatMessage` 参数验证和 file stream 测试
   - 新增 30+ 全面测试用例，79 测试全部通过
-  - 整体测试：45 套件 1731 测试全部通过
 - [x] Provider *-core 测试覆盖率提升（2026-04-18）
   - 新增 `claude-core.test.js` - ClaudeApiService 核心测试
   - 新增 `grok-core.test.js` - GrokApiService 核心测试
   - 新增 `openai-core.test.js` - OpenAIApiService/QwenApiService/CodexApiService 核心测试
   - 新增 `gemini-core.test.js` - GeminiApiService 核心测试
+  - 新增 `qwen-core.test.js` - QwenApiService 核心测试
+  - 新增 `iflow-core.test.js` - IFlowApiService 核心测试
+  - 新增 `antigravity-core.test.js` - AntigravityApiService 核心测试
   - 修复 `gemini-core.test.js` OAuth2Client mock 缺少 `new` 操作符问题
-  - 整体测试：49 套件 1935 测试全部通过
+  - 整体测试：52 套件 1985 测试全部通过
+- [x] CLIProxyAPI 6.9.15 深度分析（2026-04-14）
+  - 分析 access 模块：API Key 访问控制、多源凭证、热重载机制
+  - 分析 api/modules/amp 模块：SecretSource、per-client key mapping、model mapping
+  - 分析 registry 模块：远程模型目录获取、3 小时刷新机制
+  - 分析 runtime/executor 模块：独立 helps 工具模块
+  - 输出：Node.js 需补充的关键功能优先级列表
 
 ---
 
@@ -181,7 +189,10 @@ tests/unit/
 │   ├── grok-strategy.test.js
 │   ├── grok-core.test.js
 │   ├── openai-strategy.test.js
-│   └── openai-core.test.js
+│   ├── openai-core.test.js
+│   ├── qwen-core.test.js
+│   ├── iflow-core.test.js
+│   └── antigravity-core.test.js
 ├── services/
 │   ├── health-check-timer.test.js
 │   └── usage-service.test.js
@@ -223,11 +234,12 @@ tests/
 
 | 提交 | 描述 |
 |------|------|
+| 7e6e57c | test(providers): 新增 qwen-core 测试，完善 providers 测试覆盖 |
+| f510384 | chore: 清理临时日志目录 |
+| b5d4343 | feat(tests): 新增 antigravity/iflow-core 测试，完善 providers 测试覆盖 |
 | e71422c | fix(tests): 修复 logger.test.js 并增强测试覆盖 |
 | 177ff56 | test(ui-modules): 新增 system-api/system-monitor/config-scanner/upload-config-api 单元测试 (32 测试) |
 | 04b0622 | test(providers): 新增 openai/claude/grok-strategy 单元测试 (63 测试) |
-| 6c97f68 | fix(tests): 修复 common-import.test.js 断言与实际实现不符 |
-| 27ba22a | fix(gemini): 修复 gemini-strategy 测试失败和 providerName 缺失 |
 
 ---
 
@@ -235,7 +247,7 @@ tests/
 
 参考路径: `E:\newCC\stick\AlClient-2-APIAlClient-2-API\CLIProxyAPI-6.9.15`
 
-### Go vs Node.js 深度对比分析（2026-04-14，2026-04-15 持续）
+### Go vs Node.js 深度对比分析（2026-04-14 持续）
 - [x] 深度分析 CLIProxyAPI Go 实现 vs Node.js 实现
 - [x] Auth 模块对比：Go接口 vs Node.js OAuth处理器
 - [x] Store 模块对比：多后端 vs JSON文件
@@ -244,13 +256,20 @@ tests/
 - [x] Cache 模块对比：sync.Map分组 vs LRU Cache ✅ 已对齐
 - [x] WSRelay 模块对比：Manager-Session vs 无独立模块 ✅ 已对齐
 - [x] WSRelay Session 优化：参考 Go 版本 pending request 处理（带缓冲 channel）✅ 已实现
+- [x] access 模块对比：API Key 访问控制 vs 现有 OAuth
+- [x] api/modules/amp 对比：SecretSource vs 现有 adapter
+- [x] registry 模块对比：远程模型目录 vs 现有硬编码模型列表
+- [x] runtime/executor 对比：独立 helps 工具模块 vs 现有分散 core
 
-### Go 实现对标（2026-04-14，2026-04-15 持续）
+### Go 实现对标（2026-04-14 持续）
 - [x] 对比 Go `internal/cache/signature_cache.go` 设计，优化 Node.js LRU Cache TTL
 - [x] 分析 Go 的分组 Cache + sync.Map + 滑动 TTL 架构，Node.js 已实现相似设计
 - [x] 优化 WSRelay Session pending request 处理，参考 Go 版本使用带缓冲 channel
 - [x] LRU Cache TTL 提升至 3 小时，与 Go 版本一致
 - [x] 考虑借鉴 Go 的优雅关闭机制优化 Worker 进程退出
+- [x] 分析 Go access 模块热重载机制
+- [x] 分析 Go api/modules/amp SecretSource 多源优先级机制
+- [x] 分析 Go registry 模型远程刷新机制
 
 ### Worker 进程异步句柄分析
 **OAuth setInterval timer 分析：**
@@ -294,7 +313,7 @@ npm run start        # 启动服务
 npm run start:dev    # 开发模式
 
 # 测试
-npm test             # 运行全部测试（1935 测试通过）
+npm test             # 运行全部测试（1985 测试通过）
 npm run test:watch   # 监听模式
 npm run test:coverage # 覆盖率报告
 
@@ -305,4 +324,4 @@ git log --oneline -10 # 最近提交
 
 ---
 
-*最后更新: 2026-04-18*
+*最后更新: 2026-04-14*
