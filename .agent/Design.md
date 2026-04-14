@@ -126,6 +126,9 @@ REFRESH_LEAD_CONFIG = {
 | 14 | Timer 泄漏 - codex-oauth pollTimer | ✅ 已修复 | 2026-04-15 |
 | 15 | Timer 泄漏 - api-potluck rateLimitCleanupTimer | ✅ 已修复 | 2026-04-15 |
 | 16 | Timer 泄漏 - antigravity-core checkInterval | ✅ 已修复 | 2026-04-15 |
+| 17 | Timer 泄漏 - auth.js tokenCleanupTimer | ✅ 已修复 | 2026-04-15 |
+| 18 | Timer 泄漏 - api-server.js 等 6处 | ✅ 已修复 | 2026-04-15 |
+| 19 | Timer 泄漏 - gemini-core.js / qwen-core.js | ✅ 已修复 | 2026-04-15 |
 
 ---
 
@@ -155,6 +158,11 @@ REFRESH_LEAD_CONFIG = {
 - `socket: null` → 需提供 `socket: { remoteAddress: null }`
 - 前缀匹配：`findByPrefix(registry, 'openai-model')` 需使用完整键名
 
+### auth.test.js 编写策略
+- **注意**：ESM 模块动态 import 与 Jest CJS 转换冲突
+- 推荐使用 copy-function 策略或重写为 CJS 兼容模式
+- 或者通过集成测试覆盖 auth.js 功能
+
 ---
 
-*最后更新: 2026-04-15 上午*
+*最后更新: 2026-04-15 下午*
