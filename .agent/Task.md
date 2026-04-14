@@ -238,13 +238,14 @@ tests/
 ## 当前任务状态
 
 ### 正在进行
-- [ ] 提升 Provider 核心模块测试覆盖率（openai, gemini, grok, forward 等 0% 模块）
+- [ ] 提升 Provider 核心模块测试覆盖率（openai-core, gemini-core, grok-core 等 0% 模块）
 - [ ] 维护 CLAUDE.md 和 .agent/ 文档
-- [ ] 更新 .agent/ 文件至 2026-04-15
+- [ ] 更新 .agent/ 文件至 2026-04-16
 
 ### 已完成
 - [x] 创建 .agent/ 目录结构
-- [x] 测试基础设施搭建（1391 测试，34 套件全部通过）
+- [x] 测试基础设施搭建（1650 测试，41 套件全部通过）
+- [x] Provider Strategy 测试覆盖（openai/claude/grok-strategy）
 - [x] 修复 wsrelay/index.test.js 动态 import 问题
 - [x] Kimi OAuth 集成
 - [x] iFlow 提供商支持恢复
@@ -265,7 +266,7 @@ tests/
 - [x] FillFirstSelector 异步问题修复
 - [x] 空 Cache Bucket 清理分析 - **结论：不适用于当前单一 LRU Cache 设计**
 - [x] utils/proxy-utils.js 测试覆盖（33 测试，2026-04-15）
-- [x] CLAUDE.md 更新至 2026-04-15 版本
+- [x] CLAUDE.md 更新至 2026-04-16 版本
 
 ---
 

@@ -94,21 +94,24 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-14）
+## 当前测试状态（2026-04-16）
 
 ```
-Test Suites: 38 passed, 38 total
-Tests:       1587 passed, 1587 total
+Test Suites: 41 passed, 41 total
+Tests:       1650 passed, 1650 total
 Time:        ~34s
 ```
 
-**测试覆盖率分析（2026-04-14）：**
+**测试覆盖率分析（2026-04-16）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/forward | 79-88% | ✅ 良好 |
-| providers/gemini/* | 新增测试 | ✅ 24 测试 |
+| providers/gemini/* | ✅ gemini-strategy 100% | ✅ 良好 |
+| providers/openai/* | ✅ openai-strategy 100% | ✅ 新增测试 |
+| providers/claude/* | ✅ claude-strategy 100% | ✅ 新增测试 |
+| providers/grok/* | ✅ grok-strategy 100% | ✅ 新增测试 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/provider-utils | 87% | ✅ 良好 |
@@ -117,16 +120,21 @@ Time:        ~34s
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter (LRUCache TTL) | 较好 | ✅ TTL 3小时 |
 | utils/logger.js | 49% | ⚠️ 需提升 |
-| providers/claude-strategy | 0% | ⚠️ 待提升 |
-| providers/grok/* | 0% | ⚠️ 待提升 |
-| providers/openai/* | 0% | ⚠️ 待提升 |
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
 
 ---
 
 ## 已完成优化
 
-### 2026-04-14 最新
+### 2026-04-16 最新
+
+1. **Provider Strategy 测试覆盖率提升（2026-04-16）**
+   - 新增 `openai-strategy.test.js` - 21 测试用例，覆盖 extractModelAndStreamInfo/extractResponseText/extractPromptText/applySystemPromptFromFile/manageSystemPrompt
+   - 新增 `claude-strategy.test.js` - 21 测试用例，覆盖 Claude 响应格式和 content array 处理
+   - 新增 `grok-strategy.test.js` - 17 测试用例，覆盖 Grok 消息格式和 system prompt 应用
+   - 测试通过：41 套件 1650 测试全部通过
+
+### 2026-04-15 完成
 
 1. **common-import.test.js 测试修复**
    - 修复 92 个测试：调整断言以匹配实际实现行为

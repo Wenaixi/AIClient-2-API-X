@@ -104,16 +104,17 @@ Time:        ~34s
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
 | providers/forward | 79-88% | ✅ 良好 |
-| providers/gemini/* | 24 测试 | ✅ 新增 |
+| providers/gemini/* | 100% | ✅ gemini-strategy |
+| providers/openai/* | 100% | ✅ openai-strategy |
+| providers/claude/* | 100% | ✅ claude-strategy |
+| providers/grok/* | 100% | ✅ grok-strategy |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
 | utils/provider-utils | 87% | ✅ 良好 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
-| providers/adapter | 较好 | ✅ LRU TTL 3小时 |
-| providers/gemini/* | 0% | ⚠️ 待提升 |
-| providers/grok/* | 0% | ⚠️ 待提升 |
-| providers/openai/* | 0% | ⚠️ 待提升 |
+| providers/adapter | ✅ | ✅ LRU TTL 3小时 |
+| utils/logger.js | 49% | ⚠️ 需提升 |
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
 
 ---
