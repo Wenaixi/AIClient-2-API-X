@@ -122,6 +122,10 @@ REFRESH_LEAD_CONFIG = {
 | 10 | safeCompare 时序安全比较 | ✅ 已实现 | - |
 | 11 | getClientIp 测试空对象访问错误 | ✅ 已修复 | 2026-04-15 |
 | 12 | findByPrefix/hasByPrefix 前缀匹配测试 | ✅ 已修复 | 2026-04-15 |
+| 13 | Timer 泄漏 - gemini-oauth pollTimer | ✅ 已修复 | 2026-04-15 |
+| 14 | Timer 泄漏 - codex-oauth pollTimer | ✅ 已修复 | 2026-04-15 |
+| 15 | Timer 泄漏 - api-potluck rateLimitCleanupTimer | ✅ 已修复 | 2026-04-15 |
+| 16 | Timer 泄漏 - antigravity-core checkInterval | ✅ 已修复 | 2026-04-15 |
 
 ---
 

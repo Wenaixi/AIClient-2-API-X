@@ -14,7 +14,8 @@
 - [ ] wsrelay/manager.js 覆盖率 75% → 85%+
 - [ ] ui-modules/* 整体覆盖率提升
 
-### 🟢 低优先级
+### 🟢 已完成
+- [x] Timer 泄漏修复 - 4处 setInterval 添加 .unref() ✅ 2026-04-15
 - [x] 清理临时测试文件 (custom-logs/, test-logs/, new-dir/) ✅ 2026-04-15
 
 ---
