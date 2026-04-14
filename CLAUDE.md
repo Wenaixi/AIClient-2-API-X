@@ -89,6 +89,28 @@ Time:        ~37s
 
 ---
 
+## 测试状态分析 (2026-04-15 下午)
+
+### 覆盖率低的原因分析
+
+| 函数 | 源码行数 | 说明 |
+|------|----------|------|
+| handleStreamRequest | ~350行 | 集成级流式处理函数，涉及复杂异步流处理、外部服务调用 |
+| handleUnaryRequest | ~250行 | 集成级 unary 处理函数，涉及重试逻辑、错误处理 |
+| handleContentGenerationRequest | ~130行 | 通用请求处理，内部调用 handleStreamRequest/handleUnaryRequest |
+| handleModelListRequest | ~110行 | 模型列表处理，涉及提供商池管理 |
+
+**结论**：这些函数是集成级别的（调用外部服务、处理复杂异步流），不适合直接单元测试。正确做法是通过集成测试或端到端测试覆盖。
+
+**已覆盖的工具函数**（测试通过）：
+- RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError
+- getProtocolPrefix / formatExpiryTime / formatExpiryLog
+- formatLog / getClientIp / getMD5Hash / formatToLocal
+- findByPrefix / hasByPrefix / getBaseType
+- extractSystemPromptFromRequestBody / escapeHtml / safeCompare / isAuthorized
+
+---
+
 ## pro 分支对比 main 主要变更
 
 ### 新增功能
@@ -136,11 +158,33 @@ Time:        ~37s
 
 | 提交 | 说明 |
 |------|------|
+| xxxxx | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
+| 00d2135 | docs: 更新 .agent 文档 (Requirement.md/Design.md/Task.md) |
+| 4aad3fb | docs: 更新 Task.md - 添加测试完成记录和临时文件清理状态 |
 | 03ff308 | fix(tests): 修复 common.test.js 测试用例与源码逻辑对齐 |
-| f943d74 | refactor(tests): 重构 common.test.js 与源码逻辑完全对齐 |
-| e0560dd | feat: 添加配置快照恢复和分区配置管理 |
-| 91f38a6 | docs: 更新项目文档至 2026-04-15 版本 |
 
 ---
 
-*最后更新: 2026-04-15 晨间*
+## Timer 泄漏修复 (2026-04-15)
+
+### 修复的 setInterval 列表
+- `src/auth/gemini-oauth.js` - pollTimer (OAuth 轮询)
+- `src/auth/codex-oauth.js` - pollTimer (OAuth 轮询)
+- `src/plugins/api-potluck/api-routes.js` - rateLimitCleanupTimer (限流清理)
+- `src/providers/gemini/antigravity-core.js` - checkInterval (OAuth 检查)
+
+### 修复方法
+在所有 `setInterval` 调用后添加 `.unref()` 防止定时器阻止进程退出：
+```javascript
+const timer = setInterval(/* ... */);
+if (timer.unref) timer.unref();
+```
+
+### 测试状态
+```
+Test Suites: 51 passed, 51 total
+Tests:       2032 passed, 2032 total
+Time:        ~35s
+```
+
+*最后更新: 2026-04-15 下午*
