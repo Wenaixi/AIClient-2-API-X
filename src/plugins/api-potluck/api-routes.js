@@ -67,7 +67,8 @@ function cleanupPotluckRateLimiter() {
 }
 
 // 每5分钟清理一次过期条目
-setInterval(cleanupPotluckRateLimiter, 5 * 60 * 1000);
+const rateLimitCleanupTimer = setInterval(cleanupPotluckRateLimiter, 5 * 60 * 1000);
+if (rateLimitCleanupTimer.unref) rateLimitCleanupTimer.unref();
 
 /**
  * 解析请求体

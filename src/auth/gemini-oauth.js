@@ -326,6 +326,7 @@ async function createOAuthCallbackServer(config, redirectUri, authClient, credPa
                     }
                 }
             }, pollInterval);
+            if (pollTimer.unref) pollTimer.unref();
 
             activeServers.set(provider, { server, port, pollTimer });
             resolve(server);

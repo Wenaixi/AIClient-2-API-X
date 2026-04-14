@@ -867,18 +867,19 @@ export async function handleCodexOAuth(currentConfig, options = {}) {
             if (pollCount <= maxPollCount && !isCompleted) {
                 logger.info(`[Codex Auth] Waiting for callback... (${pollCount}/${maxPollCount})`);
             }
-            
+
             if (pollCount >= maxPollCount && !isCompleted) {
                 clearInterval(pollTimer);
                 const totalSeconds = (maxPollCount * pollInterval) / 1000;
                 logger.info(`[Codex Auth] Polling timeout (${totalSeconds}s), releasing session for next authorization`);
-                
+
                 // 清理会话
                 if (global.codexOAuthSessions.has(sessionId)) {
                     global.codexOAuthSessions.delete(sessionId);
                 }
             }
         }, pollInterval);
+        if (pollTimer.unref) pollTimer.unref();
         
         // 将 pollTimer 存储到会话中
         session.pollTimer = pollTimer;

@@ -890,6 +890,7 @@ export class AntigravityApiService {
                     // 文件尚未创建或无效，继续等待
                 }
             }, 1000);
+            if (checkInterval.unref) checkInterval.unref();
 
             // 设置超时（5分钟）
             setTimeout(() => {
