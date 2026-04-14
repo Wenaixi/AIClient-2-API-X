@@ -94,15 +94,15 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-19）
+## 当前测试状态（2026-04-14 下午）
 
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2015 passed, 2015 total
-Time:        ~39s
+Time:        ~40s
 ```
 
-**核心模块覆盖率（2026-04-19）：**
+**核心模块覆盖率（2026-04-19 晚间）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/claude/* | 100% | ✅ claude-strategy + claude-core |
@@ -110,17 +110,25 @@ Time:        ~39s
 | providers/grok/* | 100% | ✅ grok-strategy + grok-core |
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
-| providers/openai/* | 13-100% | ⚠️ strategy 95%, core 82%, responses 0% |
-| providers/forward | 79-88% | ✅ 良好 |
+| providers/forward | 79-92% | ✅ 良好 |
 | utils/provider-strategies | 100% | ✅ 完美 |
-| utils/provider-utils | 87% | ✅ 良好 |
 | utils/constants | 100% | ✅ 完美 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
+| services/usage-service | 91% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
 | providers/adapter | ✅ | ✅ LRU TTL 3小时 |
 | utils/logger.js | 67% | ⚠️ 需提升 |
+| ui-modules/config-api.js | 85% | ✅ 良好 |
+| ui-modules/system-api.js | 72% | ✅ 良好 |
+| ui-modules/system-monitor.js | 70% | ✅ 良好 |
+| ui-modules/config-scanner.js | 49% | ⚠️ 需提升 |
+| providers/openai/* | 13-97% | ⚠️ strategy 95%, core 82% |
+| providers/iflow-core.js | 7% | ⚠️ 极低 |
+| providers/gemini-core.js | 14% | ⚠️ 极低 |
+| providers/grok-core.js | 14% | ⚠️ 极低 |
+| utils/common.js | 20% | ⚠️ 极低 |
+| utils/tls-sidecar.js | 7% | ⚠️ 极低 |
 | ui-modules/* | 0-85% | ⚠️ 多个 0% 覆盖 |
-| services/usage-service | 58% | ⚠️ 已增强测试，待达80%+ |
 
 ---
 
