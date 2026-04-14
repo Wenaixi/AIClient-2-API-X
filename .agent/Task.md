@@ -15,22 +15,24 @@
 - [ ] ui-modules/* 整体覆盖率提升
 
 ### 🟢 低优先级
-- [ ] 清理临时测试文件 (custom-logs/, test-logs/, new-dir/)
+- [x] 清理临时测试文件 (custom-logs/, test-logs/, new-dir/) ✅ 2026-04-15
 
 ---
 
-## 测试覆盖率状态 (2026-04-15)
+## 测试覆盖率状态 (2026-04-15 上午)
 
-| 模块 | 当前 | 目标 |
-|------|------|------|
-| providers/kimi/* | 87-90% | - |
-| providers/selectors | 91% | - |
-| services/health-check-timer | 81% | - |
-| services/usage-service | 91% | - |
-| wsrelay/manager.js | 75% | 85%+ |
-| utils/common.js | 20% | 60%+ |
-| utils/logger.js | 67% | 85%+ |
-| ui-modules/* | 13-73% | 60%+ |
+| 模块 | 当前 | 目标 | 状态 |
+|------|------|------|------|
+| providers/kimi/* | 87-90% | - | ✅ |
+| providers/selectors | 91% | - | ✅ |
+| services/health-check-timer | 81% | - | ✅ |
+| services/usage-service | 91% | - | ✅ |
+| wsrelay/manager.js | 75% | 85%+ | 🟡 |
+| utils/common.js | 20% | 60%+ | 🔴 |
+| utils/logger.js | 67% | 85%+ | 🟡 |
+| ui-modules/* | 13-73% | 60%+ | 🟡 |
+
+**总测试数**: 2032 passed ✅
 
 ---
 
@@ -40,6 +42,7 @@
 **文件**: `src/utils/common.js`
 **当前覆盖**: 20%
 **目标覆盖**: 60%+
+**状态**: 进行中 - 测试文件已重构与源码逻辑对齐 ✅
 **待覆盖函数**:
 - escapeHtml / findByPrefix / hasByPrefix / getDeviceIdAsync / hashString
 - getRequestBody / safeCompare / isAuthorized / handleUnifiedResponse
@@ -85,4 +88,14 @@
 
 ---
 
-*最后更新: 2026-04-15 晨间*
+## 最近提交 (2026-04-15)
+
+| 提交 | 说明 |
+|------|------|
+| 88fac03 | docs: 更新 CLAUDE.md 测试状态 (2032 测试通过) |
+| 03ff308 | fix(tests): 修复 common.test.js 测试用例与源码逻辑对齐 |
+| f943d74 | refactor(tests): 重构 common.test.js 与源码逻辑完全对齐 |
+
+---
+
+*最后更新: 2026-04-15 上午*
