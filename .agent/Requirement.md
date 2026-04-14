@@ -91,32 +91,29 @@
 - [x] 异步操作正确处理
 - [x] 资源正确清理（teardown）
 
-### 当前测试状态
+### 当前测试状态（2026-04-16）
 ```
-Test Suites: 34 passed, 34 total
-Tests:       1391 passed, 1391 total
+Test Suites: 36 passed, 36 total
+Tests:       1471 passed, 1471 total
 Time:        ~35s
 ```
 
-**测试覆盖率分析（2026-04-15）：**
+**测试覆盖率分析（2026-04-16）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
+| providers/forward | 79-88% | ✅ 良好 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
-| utils/token-utils | 100% | ✅ 47 测试新增 |
+| utils/provider-utils | 87% | ✅ 良好 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
-| providers/adapter (LRUCache TTL) | 较好 | ✅ 近期新增测试 |
-| providers/claude-strategy | 0% | ⚠️ 待提升 |
-| providers/forward/* | 0% | ⚠️ 待提升 |
+| providers/adapter | 较好 | ✅ LRU TTL 3小时 |
 | providers/gemini/* | 0% | ⚠️ 待提升 |
 | providers/grok/* | 0% | ⚠️ 待提升 |
 | providers/openai/* | 0% | ⚠️ 待提升 |
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
-| utils/common.js | 已覆盖 | ✅ 700+ 测试 |
-| utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
 
 ---
 

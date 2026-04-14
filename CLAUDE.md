@@ -97,35 +97,30 @@ git merge main      # 合并上游到当前分支
 ## 当前测试状态（2026-04-16）
 
 ```
-Test Suites: 35 passed, 35 total
-Tests:       1438 passed, 1438 total
+Test Suites: 36 passed, 36 total
+Tests:       1471 passed, 1471 total
 Time:        ~35s
 ```
 
-**测试状态说明：**
-- ✅ 集成测试（api-integration.test.js）默认跳过，需设置 `RUN_INTEGRATION_TESTS=true` 环境变量
-- ✅ 安全测试（security-fixes.test.js）需特定环境，已正确排除
-- ✅ 所有单元测试稳定通过
-
-**测试覆盖率分析（2026-04-15）：**
+**测试覆盖率分析（2026-04-16）：**
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi/* | 87-91% | ✅ 良好 |
 | providers/selectors | 91% | ✅ 良好 |
+| providers/forward | 79-88% | ✅ 良好 |
 | utils/constants | 100% | ✅ 完美 |
 | utils/provider-strategies | 100% | ✅ 完美 |
-| utils/token-utils | 100% | ✅ 47 测试新增 |
+| utils/provider-utils | 87% | ✅ 良好 |
 | services/health-check-timer | 81-88% | ✅ 良好 |
 | wsrelay/manager.js | 76% | ✅ 良好 |
-| providers/adapter (LRUCache TTL) | 较好 | ✅ 近期新增测试 |
+| providers/adapter (LRUCache TTL) | 较好 | ✅ TTL 3小时 |
+| utils/common.js | ~1% | ⚠️ 需提升 |
+| utils/logger.js | 49% | ⚠️ 需提升 |
 | providers/claude-strategy | 0% | ⚠️ 待提升 |
-| providers/forward/* | 0% | ⚠️ 待提升 |
 | providers/gemini/* | 0% | ⚠️ 待提升 |
 | providers/grok/* | 0% | ⚠️ 待提升 |
 | providers/openai/* | 0% | ⚠️ 待提升 |
 | ui-modules/* | 0-75% | ⚠️ 待提升 |
-| utils/common.js | 已覆盖 | ✅ 700+ 测试 |
-| utils/proxy-utils.js | 已覆盖 | ✅ 33 测试新增 |
 
 ---
 
