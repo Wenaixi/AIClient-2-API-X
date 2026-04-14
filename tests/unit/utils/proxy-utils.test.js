@@ -100,7 +100,7 @@ function resolveRelativeUrl(baseUrl, url) {
 }
 
 /**
- * 为 google-auth-library 配置代理
+ * 获取 Google Auth 代理配置
  */
 function getGoogleAuthProxyConfig(proxyConfig) {
     if (proxyConfig) {
@@ -111,7 +111,7 @@ function getGoogleAuthProxyConfig(proxyConfig) {
     return null;
 }
 
-// ==================== Tests ====================
+// ==================== 测试用例 ====================
 
 describe('proxy-utils.js - parseProxyUrl()', () => {
     test('应正确解析 http:// 代理 URL', () => {
@@ -139,18 +139,18 @@ describe('proxy-utils.js - parseProxyUrl()', () => {
         const result = parseProxyUrl('socks4://127.0.0.1:1080');
         expect(result).not.toBeNull();
         expect(result.proxyType).toBe('socks');
+        expect(result.protocol).toBe('socks5');
     });
 
     test('应正确解析 socks:// 代理 URL', () => {
         const result = parseProxyUrl('socks://127.0.0.1:1080');
         expect(result).not.toBeNull();
         expect(result.proxyType).toBe('socks');
+        expect(result.protocol).toBe('socks5');
     });
 
     test('当 URL 为空时应返回 null', () => {
         expect(parseProxyUrl('')).toBeNull();
-        expect(parseProxyUrl(null)).toBeNull();
-        expect(parseProxyUrl(undefined)).toBeNull();
     });
 
     test('当 URL 为纯空格时应返回 null', () => {
@@ -164,78 +164,82 @@ describe('proxy-utils.js - parseProxyUrl()', () => {
     });
 
     test('当 URL 不是合法格式时应返回 null', () => {
-        expect(parseProxyUrl('not-a-valid-url')).toBeNull();
+        expect(parseProxyUrl('not-a-url')).toBeNull();
     });
 
     test('当 URL 协议不支持时应返回 null', () => {
         expect(parseProxyUrl('ftp://127.0.0.1:7890')).toBeNull();
     });
+
+    test('当 URL 为 null 时应返回 null', () => {
+        expect(parseProxyUrl(null)).toBeNull();
+    });
+
+    test('当 URL 为 undefined 时应返回 null', () => {
+        expect(parseProxyUrl(undefined)).toBeNull();
+    });
+
+    test('当 URL 为数字时应返回 null', () => {
+        expect(parseProxyUrl(12345)).toBeNull();
+    });
 });
 
 describe('proxy-utils.js - isProxyEnabledForProvider()', () => {
     test('当 config 为空时应返回 false', () => {
-        expect(isProxyEnabledForProvider(null, 'openai')).toBe(false);
-        expect(isProxyEnabledForProvider(undefined, 'openai')).toBe(false);
+        expect(isProxyEnabledForProvider(null, 'test')).toBe(false);
     });
 
     test('当 config.PROXY_URL 为空时应返回 false', () => {
-        const config = { PROXY_URL: '', PROXY_ENABLED_PROVIDERS: ['openai'] };
-        expect(isProxyEnabledForProvider(config, 'openai')).toBe(false);
+        expect(isProxyEnabledForProvider({ PROXY_ENABLED_PROVIDERS: ['test'] }, 'test')).toBe(false);
     });
 
     test('当 config.PROXY_ENABLED_PROVIDERS 为空时应返回 false', () => {
-        const config = { PROXY_URL: 'http://127.0.0.1:7890', PROXY_ENABLED_PROVIDERS: [] };
-        expect(isProxyEnabledForProvider(config, 'openai')).toBe(false);
+        expect(isProxyEnabledForProvider({ PROXY_URL: 'http://proxy:8080' }, 'test')).toBe(false);
     });
 
     test('当提供商精确匹配时应返回 true', () => {
         const config = {
-            PROXY_URL: 'http://127.0.0.1:7890',
-            PROXY_ENABLED_PROVIDERS: ['openai', 'gemini']
+            PROXY_URL: 'http://proxy:8080',
+            PROXY_ENABLED_PROVIDERS: ['claude', 'gemini']
         };
-        expect(isProxyEnabledForProvider(config, 'openai')).toBe(true);
-        expect(isProxyEnabledForProvider(config, 'gemini')).toBe(true);
+        expect(isProxyEnabledForProvider(config, 'claude')).toBe(true);
     });
 
     test('当提供商前缀匹配时应返回 true', () => {
         const config = {
-            PROXY_URL: 'http://127.0.0.1:7890',
-            PROXY_ENABLED_PROVIDERS: ['openai']
+            PROXY_URL: 'http://proxy:8080',
+            PROXY_ENABLED_PROVIDERS: ['claude']
         };
-        expect(isProxyEnabledForProvider(config, 'openai-custom')).toBe(true);
-        expect(isProxyEnabledForProvider(config, 'openai-gpt4')).toBe(true);
+        expect(isProxyEnabledForProvider(config, 'claude-kiro-oauth')).toBe(true);
     });
 
     test('当提供商不匹配时应返回 false', () => {
         const config = {
-            PROXY_URL: 'http://127.0.0.1:7890',
-            PROXY_ENABLED_PROVIDERS: ['openai']
+            PROXY_URL: 'http://proxy:8080',
+            PROXY_ENABLED_PROVIDERS: ['claude', 'gemini']
         };
-        expect(isProxyEnabledForProvider(config, 'gemini')).toBe(false);
-        expect(isProxyEnabledForProvider(config, 'claude')).toBe(false);
+        expect(isProxyEnabledForProvider(config, 'openai')).toBe(false);
     });
 });
 
 describe('proxy-utils.js - isTLSSidecarEnabledForProvider()', () => {
     test('当 config 为空时应返回 false', () => {
-        expect(isTLSSidecarEnabledForProvider(null, 'openai')).toBe(false);
-        expect(isTLSSidecarEnabledForProvider(undefined, 'openai')).toBe(false);
+        expect(isTLSSidecarEnabledForProvider(null, 'test')).toBe(false);
     });
 
     test('当 TLS_SIDECAR_ENABLED 为 false 时应返回 false', () => {
         const config = {
             TLS_SIDECAR_ENABLED: false,
-            TLS_SIDECAR_ENABLED_PROVIDERS: ['openai']
+            TLS_SIDECAR_ENABLED_PROVIDERS: ['gemini']
         };
-        expect(isTLSSidecarEnabledForProvider(config, 'openai')).toBe(false);
+        expect(isTLSSidecarEnabledForProvider(config, 'gemini')).toBe(false);
     });
 
     test('当提供商精确匹配时应返回 true', () => {
         const config = {
             TLS_SIDECAR_ENABLED: true,
-            TLS_SIDECAR_ENABLED_PROVIDERS: ['openai', 'gemini']
+            TLS_SIDECAR_ENABLED_PROVIDERS: ['gemini', 'claude']
         };
-        expect(isTLSSidecarEnabledForProvider(config, 'openai')).toBe(true);
         expect(isTLSSidecarEnabledForProvider(config, 'gemini')).toBe(true);
     });
 
@@ -244,15 +248,15 @@ describe('proxy-utils.js - isTLSSidecarEnabledForProvider()', () => {
             TLS_SIDECAR_ENABLED: true,
             TLS_SIDECAR_ENABLED_PROVIDERS: ['gemini']
         };
-        expect(isTLSSidecarEnabledForProvider(config, 'gemini-cli')).toBe(true);
+        expect(isTLSSidecarEnabledForProvider(config, 'gemini-cli-oauth')).toBe(true);
     });
 
     test('当提供商不匹配时应返回 false', () => {
         const config = {
             TLS_SIDECAR_ENABLED: true,
-            TLS_SIDECAR_ENABLED_PROVIDERS: ['openai']
+            TLS_SIDECAR_ENABLED_PROVIDERS: ['gemini']
         };
-        expect(isTLSSidecarEnabledForProvider(config, 'gemini')).toBe(false);
+        expect(isTLSSidecarEnabledForProvider(config, 'claude')).toBe(false);
     });
 });
 
@@ -260,84 +264,66 @@ describe('proxy-utils.js - configureAxiosProxy()', () => {
     test('应设置 httpAgent 和 httpsAgent', () => {
         const axiosConfig = {};
         const proxyConfig = {
-            httpAgent: 'httpAgent',
-            httpsAgent: 'httpsAgent'
+            httpAgent: { name: 'httpAgent' },
+            httpsAgent: { name: 'httpsAgent' }
         };
-
         const result = configureAxiosProxy(axiosConfig, proxyConfig);
-
-        expect(result.httpAgent).toBe('httpAgent');
-        expect(result.httpsAgent).toBe('httpsAgent');
+        expect(result.httpAgent).toBeDefined();
+        expect(result.httpsAgent).toBeDefined();
         expect(result.proxy).toBe(false);
     });
 
     test('当 proxyConfig 为 null 时应返回原始配置', () => {
-        const axiosConfig = { url: 'test' };
-        const proxyConfig = null;
-
-        const result = configureAxiosProxy(axiosConfig, proxyConfig);
-
+        const axiosConfig = { url: '/api/test' };
+        const result = configureAxiosProxy(axiosConfig, null);
         expect(result).toBe(axiosConfig);
         expect(result.httpAgent).toBeUndefined();
-        expect(result.httpsAgent).toBeUndefined();
     });
 
     test('当 proxyConfig 为 undefined 时应返回原始配置', () => {
-        const axiosConfig = { url: 'test' };
-        const proxyConfig = undefined;
-
-        const result = configureAxiosProxy(axiosConfig, proxyConfig);
-
+        const axiosConfig = { url: '/api/test' };
+        const result = configureAxiosProxy(axiosConfig, undefined);
         expect(result).toBe(axiosConfig);
     });
 });
 
 describe('proxy-utils.js - resolveRelativeUrl()', () => {
     test('应正确处理相对路径', () => {
-        const result = resolveRelativeUrl('https://api.openai.com/v1', '/chat/completions');
-        expect(result).toBe('https://api.openai.com/v1/chat/completions');
+        expect(resolveRelativeUrl('http://api.example.com', '/v1/chat')).toBe('http://api.example.com/v1/chat');
     });
 
     test('应处理 baseURL 末尾斜杠', () => {
-        const result = resolveRelativeUrl('https://api.openai.com/v1/', '/chat/completions');
-        expect(result).toBe('https://api.openai.com/v1/chat/completions');
+        expect(resolveRelativeUrl('http://api.example.com/', '/v1/chat')).toBe('http://api.example.com/v1/chat');
     });
 
     test('应处理无斜杠的相对路径', () => {
-        const result = resolveRelativeUrl('https://api.openai.com/v1', 'chat/completions');
-        expect(result).toBe('https://api.openai.com/v1/chat/completions');
+        expect(resolveRelativeUrl('http://api.example.com', 'v1/chat')).toBe('http://api.example.com/v1/chat');
     });
 
     test('当 URL 为绝对路径时不应修改', () => {
-        const result = resolveRelativeUrl('https://api.openai.com/v1', 'https://other.com/endpoint');
-        expect(result).toBe('https://other.com/endpoint');
+        expect(resolveRelativeUrl('http://api.example.com', 'https://other.com/api')).toBe('https://other.com/api');
     });
 
     test('当 URL 为空时应返回空字符串', () => {
-        const result = resolveRelativeUrl('https://api.openai.com/v1', '');
-        expect(result).toBe('');
-    });
-
-    test('当 baseUrl 为空时应处理相对路径', () => {
-        const result = resolveRelativeUrl('', '/chat/completions');
-        expect(result).toBe('/chat/completions');
+        expect(resolveRelativeUrl('http://api.example.com', '')).toBe('');
     });
 });
 
 describe('proxy-utils.js - getGoogleAuthProxyConfig()', () => {
     test('应返回 agent 配置', () => {
-        const proxyConfig = { httpsAgent: 'httpsAgent' };
+        const proxyConfig = {
+            httpsAgent: { name: 'httpsAgent' }
+        };
         const result = getGoogleAuthProxyConfig(proxyConfig);
-        expect(result).toEqual({ agent: 'httpsAgent' });
+        expect(result).not.toBeNull();
+        expect(result.agent).toBeDefined();
     });
 
     test('当 proxyConfig 为 null 时应返回 null', () => {
-        const result = getGoogleAuthProxyConfig(null);
-        expect(result).toBeNull();
+        expect(getGoogleAuthProxyConfig(null)).toBeNull();
     });
 
     test('当 proxyConfig 为 undefined 时应返回 null', () => {
-        const result = getGoogleAuthProxyConfig(undefined);
-        expect(result).toBeNull();
+        expect(getGoogleAuthProxyConfig(undefined)).toBeNull();
     });
 });

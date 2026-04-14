@@ -98,8 +98,8 @@ git merge main      # 合并上游到当前分支
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       1985 passed, 1985 total
-Time:        ~37s
+Tests:       2015 passed, 2015 total
+Time:        ~36s
 ```
 
 **核心模块覆盖率（2026-04-18 晚间）：**
@@ -246,7 +246,7 @@ Time:        ~37s
 |------|------|------|
 | wsrelay/index.js | wsrelay/index.js | WSRelay 导出模块 |
 | scripts/* | scripts/*.js | Token 刷新脚本 |
-| utils/proxy-utils.js | tests/unit/utils/proxy-utils.test.js 存在但未被 jest 收集 | ⚠️ 需排查 |
+| utils/proxy-utils.js | tests/unit/utils/proxy-utils.test.js 已收集 | ✅ 33 测试 |
 | ui-modules/oauth-api.js | OAuth API 界面 |
 | ui-modules/provider-api.js | Provider API 界面 |
 | ui-modules/update-api.js | Update API |

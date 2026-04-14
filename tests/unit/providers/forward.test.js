@@ -30,12 +30,31 @@ jest.mock('../../../src/utils/common.js', () => ({
         return ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND'].includes(err?.code);
     }),
     MODEL_PROVIDER: { FORWARD_API: 'forward' },
-    extractSystemPromptFromRequestBody: jest.fn(() => ''),
+    extractSystemPromptFromRequestBody: jest.fn((body) => {
+        // Return existing system message if present
+        if (body?.messages) {
+            const systemMsg = body.messages.find(m => m.role === 'system');
+            return systemMsg ? systemMsg.content : '';
+        }
+        return '';
+    }),
     MODEL_PROTOCOL_PREFIX: { OPENAI: 'openai' },
 }));
 
 jest.mock('../../../src/converters/utils.js', () => ({
-    applySystemPromptReplacements: jest.fn((text) => text),
+    applySystemPromptReplacements: jest.fn((text, replacements) => {
+        if (!replacements) return text;
+        let result = text;
+        // Handle array format: [{ old: 'x', new: 'y' }]
+        if (Array.isArray(replacements)) {
+            for (const { old, new: newVal } of replacements) {
+                if (old && newVal !== undefined) {
+                    result = result.split(old).join(newVal);
+                }
+            }
+        }
+        return result;
+    }),
 }));
 
 import axios from 'axios';
@@ -575,6 +594,118 @@ describe('ForwardStrategy', () => {
             await strategy.manageSystemPrompt(requestBody);
 
             // No errors should be thrown
+        });
+    });
+
+    describe('applySystemPromptFromFile', () => {
+        test('should return requestBody unchanged when SYSTEM_PROMPT_FILE_PATH is not set', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = { messages: [{ role: 'user', content: 'Hello' }] };
+            const config = {};
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result).toBe(requestBody);
+        });
+
+        test('should return requestBody unchanged when SYSTEM_PROMPT_CONTENT is null', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = { messages: [{ role: 'user', content: 'Hello' }] };
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: null,
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result).toBe(requestBody);
+        });
+
+        test('should prepend system message when no existing system message', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = { messages: [{ role: 'user', content: 'Hello' }] };
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: 'You are a helpful assistant',
+                SYSTEM_PROMPT_MODE: 'replace',
+                SYSTEM_PROMPT_REPLACEMENTS: {},
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result.messages[0].role).toBe('system');
+            expect(result.messages[0].content).toBe('You are a helpful assistant');
+        });
+
+        test('should append system prompt when mode is append and system message exists', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = {
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant' },
+                    { role: 'user', content: 'Hello' },
+                ],
+            };
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: 'Additional instructions',
+                SYSTEM_PROMPT_MODE: 'append',
+                SYSTEM_PROMPT_REPLACEMENTS: [],
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result.messages[0].content).toBe('You are a helpful assistant\nAdditional instructions');
+        });
+
+        test('should replace system message when mode is replace', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = {
+                messages: [
+                    { role: 'system', content: 'Old system prompt' },
+                    { role: 'user', content: 'Hello' },
+                ],
+            };
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: 'New system prompt',
+                SYSTEM_PROMPT_MODE: 'replace',
+                SYSTEM_PROMPT_REPLACEMENTS: [],
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result.messages[0].content).toBe('New system prompt');
+        });
+
+        test('should apply system prompt replacements', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = { messages: [{ role: 'user', content: 'Hello' }] };
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: 'Hello {{name}}',
+                SYSTEM_PROMPT_MODE: 'replace',
+                SYSTEM_PROMPT_REPLACEMENTS: [{ old: '{{name}}', new: 'World' }],
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result.messages[0].content).toBe('Hello World');
+        });
+
+        test('should create messages array if not present', async () => {
+            const strategy = new ForwardStrategy();
+            const requestBody = {};
+            const config = {
+                SYSTEM_PROMPT_FILE_PATH: '/path/to/file',
+                SYSTEM_PROMPT_CONTENT: 'System prompt',
+                SYSTEM_PROMPT_MODE: 'replace',
+                SYSTEM_PROMPT_REPLACEMENTS: {},
+            };
+
+            const result = await strategy.applySystemPromptFromFile(config, requestBody);
+
+            expect(result.messages).toBeDefined();
+            expect(result.messages[0].role).toBe('system');
         });
     });
 });

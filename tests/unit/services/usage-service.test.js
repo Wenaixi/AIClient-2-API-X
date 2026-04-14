@@ -37,18 +37,6 @@ jest.mock('../../../src/providers/adapter.js', () => ({
     }
 }));
 
-// Mock common utils
-jest.mock('../../../src/utils/common.js', () => ({
-    MODEL_PROVIDER: {
-        KIRO_API: 'claude-kiro-oauth',
-        GEMINI_CLI: 'gemini-cli-oauth',
-        ANTIGRAVITY: 'gemini-antigravity',
-        CODEX_API: 'openai-codex-oauth',
-        GROK_CUSTOM: 'grok-custom',
-        KIMI_API: 'kimi-oauth'
-    }
-}));
-
 // 导入被测试的模块
 const usageServiceModule = require('../../../src/services/usage-service.js');
 const {
@@ -727,5 +715,222 @@ describe('usageService singleton', () => {
         expect(providers).toContain('openai-codex-oauth');
         expect(providers).toContain('grok-custom');
         expect(providers).toContain('kimi-oauth');
+    });
+});
+
+// ============ getAllUsage 测试 ============
+
+describe('UsageService.getAllUsage', () => {
+    let service;
+    let mockPoolManager;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new UsageService();
+        mockPoolManager = {
+            providerPools: {}
+        };
+        const { getProviderPoolManager } = require('../../../src/services/service-manager.js');
+        getProviderPoolManager.mockReturnValue(mockPoolManager);
+    });
+
+    test('should return empty results when no pools configured', async () => {
+        const result = await service.getAllUsage();
+        expect(result).toBeDefined();
+        expect(typeof result).toBe('object');
+    });
+
+    test('should query each provider type', async () => {
+        mockPoolManager.providerPools = {
+            'claude-kiro-oauth': [{ uuid: 'pool-1' }],
+            'kimi-oauth': [{ uuid: 'pool-2' }]
+        };
+
+        const mockAdapter = {
+            getUsageLimits: jest.fn().mockResolvedValue({ used: 100, limit: 200 })
+        };
+
+        const { serviceInstances } = require('../../../src/providers/adapter.js');
+        serviceInstances['claude-kiro-oauthpool-1'] = mockAdapter;
+        serviceInstances['kimi-oauthpool-2'] = mockAdapter;
+
+        const result = await service.getAllUsage();
+        expect(result).toBeDefined();
+    });
+
+    test('should handle errors from individual providers', async () => {
+        mockPoolManager.providerPools = {
+            'claude-kiro-oauth': [{ uuid: 'pool-1' }]
+        };
+
+        const { serviceInstances } = require('../../../src/providers/adapter.js');
+        serviceInstances['claude-kiro-oauthpool-1'] = null; // Simulate missing adapter
+
+        const result = await service.getAllUsage();
+        expect(result['claude-kiro-oauth']).toBeDefined();
+    });
+});
+
+// ============ Individual Provider Usage Methods ============
+
+describe('UsageService provider methods', () => {
+    let service;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new UsageService();
+    });
+
+    describe('getKiroUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getKiroUsage('uuid-1')).rejects.toThrow('Kiro 服务实例未找到');
+        });
+
+        test('should throw when adapter has no getUsageLimits', async () => {
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['claude-kiro-oauthuuid-1'] = { someMethod: () => {} };
+            await expect(service.getKiroUsage('uuid-1')).rejects.toThrow('不支持用量查询');
+        });
+
+        test('should call adapter.getUsageLimits', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({ used: 50, limit: 100 })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['claude-kiro-oauthuuid-1'] = mockAdapter;
+
+            const result = await service.getKiroUsage('uuid-1');
+            expect(mockAdapter.getUsageLimits).toHaveBeenCalled();
+            expect(result).toEqual({ used: 50, limit: 100 });
+        });
+
+        test('should fallback to kiroApiService.getUsageLimits', async () => {
+            const mockService = { getUsageLimits: jest.fn().mockResolvedValue({ used: 75 }) };
+            const mockAdapter = { kiroApiService: mockService };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['claude-kiro-oauthuuid-1'] = mockAdapter;
+
+            const result = await service.getKiroUsage('uuid-1');
+            expect(mockService.getUsageLimits).toHaveBeenCalled();
+        });
+    });
+
+    describe('getGeminiUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getGeminiUsage('uuid-1')).rejects.toThrow('Gemini CLI 服务实例未找到');
+        });
+
+        test('should call adapter.getUsageLimits', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({ used: 30, limit: 100 })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['gemini-cli-oauthuuid-1'] = mockAdapter;
+
+            const result = await service.getGeminiUsage('uuid-1');
+            expect(result).toEqual({ used: 30, limit: 100 });
+        });
+    });
+
+    describe('getAntigravityUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getAntigravityUsage('uuid-1')).rejects.toThrow('Antigravity 服务实例未找到');
+        });
+
+        test('should call adapter.getUsageLimits', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({ used: 60, limit: 200 })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['gemini-antigravityuuid-1'] = mockAdapter;
+
+            const result = await service.getAntigravityUsage('uuid-1');
+            expect(result).toEqual({ used: 60, limit: 200 });
+        });
+    });
+
+    describe('getCodexUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getCodexUsage('uuid-1')).rejects.toThrow('Codex 服务实例未找到');
+        });
+
+        test('should call adapter.getUsageLimits', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({ used: 40, limit: 150 })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['openai-codex-oauthuuid-1'] = mockAdapter;
+
+            const result = await service.getCodexUsage('uuid-1');
+            expect(result).toEqual({ used: 40, limit: 150 });
+        });
+    });
+
+    describe('getGrokUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getGrokUsage('uuid-1')).rejects.toThrow('Grok 服务实例未找到');
+        });
+
+        test('should call adapter.getUsageLimits and format result', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({ totalLimit: 1000, usedQueries: 200 })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['grok-customuuid-1'] = mockAdapter;
+
+            const result = await service.getGrokUsage('uuid-1');
+            expect(mockAdapter.getUsageLimits).toHaveBeenCalled();
+            expect(result.usageBreakdown).toBeDefined();
+        });
+    });
+
+    describe('getKimiUsage', () => {
+        test('should throw when adapter not found', async () => {
+            await expect(service.getKimiUsage('uuid-1')).rejects.toThrow('Kimi 服务实例未找到');
+        });
+
+        test('should call adapter.getUsageLimits and format result', async () => {
+            const mockAdapter = {
+                getUsageLimits: jest.fn().mockResolvedValue({
+                    quota: { used: 50, total: 100 }
+                })
+            };
+            const { serviceInstances } = require('../../../src/providers/adapter.js');
+            serviceInstances['kimi-oauthuuid-1'] = mockAdapter;
+
+            const result = await service.getKimiUsage('uuid-1');
+            expect(mockAdapter.getUsageLimits).toHaveBeenCalled();
+            expect(result.usageBreakdown).toBeDefined();
+        });
+    });
+});
+
+// ============ formatKimiUsage Edge Cases ============
+
+describe('formatKimiUsage edge cases', () => {
+    test('should handle quota.usage as fallback for quota.quota', () => {
+        const result = formatKimiUsage({
+            usage: { used: 30, total: 100 }
+        });
+        expect(result.usageBreakdown[0].currentUsage).toBe(30);
+    });
+
+    test('should handle subscription without name or title', () => {
+        const result = formatKimiUsage({ subscription: { type: 'basic' } });
+        expect(result.subscription.title).toBe('Kimi OAuth');
+    });
+
+    test('should handle user without email or id', () => {
+        const result = formatKimiUsage({ user: { someField: 'value' } });
+        expect(result.user.email).toBeNull();
+        expect(result.user.userId).toBeNull();
+    });
+
+    test('should handle quota without breakdown and without used/total', () => {
+        const result = formatKimiUsage({
+            quota: { someData: 'value' }
+        });
+        // Should fall back to default ACCOUNT entry
+        expect(result.usageBreakdown.length).toBeGreaterThan(0);
     });
 });
