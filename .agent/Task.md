@@ -9,11 +9,10 @@
 ### 🟡 中优先级
 - [ ] utils/logger.js 覆盖率 67% → 85%+
 - [ ] wsrelay/manager.js 覆盖率 75% → 85%+
-- [ ] ui-modules/auth.js 覆盖率 0% → 60%+
-- [ ] ui-modules/oauth-api.js 覆盖率 0% → 60%+
 
 ### ✅ 已完成
-- [x] ui-modules/auth.js 测试新建 (auth.test.js) ✅ 2026-04-15
+- [x] ui-modules/auth.js 测试新建 (39 tests) ✅ 2026-04-15
+- [x] ui-modules/oauth-api.js 测试存在 (22 tests) ✅ 2026-04-15
 - [x] event-broadcast.js 覆盖率提升 4% → 47% ✅ 2026-04-15
 - [x] Timer 泄漏修复 - 21处 setInterval 添加 .unref() ✅ 2026-04-15
 - [x] 测试覆盖率分析 - 解释 common.js 低覆盖率原因 ✅ 2026-04-15
