@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-15 晨间 |
+| 最后更新 | 2026-04-15 下午 |
 
 ---
 
@@ -68,13 +68,15 @@ docker compose -f docker/docker-compose.build.yml down
 
 ---
 
-## 测试状态 (2026-04-15 上午)
+## 测试状态 (2026-04-15 下午)
 
 ```
 Test Suites: 51 passed, 51 total
 Tests:       2032 passed, 2032 total
-Time:        ~37s
+Time:        ~36s
 ```
+
+**注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是已知问题，不影响测试结果。
 
 ### 覆盖率概况
 

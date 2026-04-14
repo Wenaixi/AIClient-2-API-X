@@ -1,14 +1,12 @@
 services:
   aiclient-api:
-    # 方式二：从 Dockerfile 本地构建
-    # 使用方法: docker compose -f docker/docker-compose.build.yml -f docker/docker-compose.dev.yml up -d --build
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    # 方式一：使用预构建镜像（跳过构建，直接启动）
+    # 使用方法: docker compose -f docker/docker-compose.build.yml up -d
+    image: aiclient2api:local
     container_name: aiclient2api
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3033:3000"
       - "8085-8087:8085-8087"
       - "1455:1455"
       - "19876-19880:19876-19880"
