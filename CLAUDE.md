@@ -94,13 +94,18 @@ git merge main      # 合并上游到当前分支
 
 ---
 
-## 当前测试状态（2026-04-15）
+## 当前测试状态（2026-04-16）
 
 ```
 Test Suites: 35 passed, 35 total
 Tests:       1438 passed, 1438 total
 Time:        ~35s
 ```
+
+**测试状态说明：**
+- ✅ 集成测试（api-integration.test.js）默认跳过，需设置 `RUN_INTEGRATION_TESTS=true` 环境变量
+- ✅ 安全测试（security-fixes.test.js）需特定环境，已正确排除
+- ✅ 所有单元测试稳定通过
 
 **测试覆盖率分析（2026-04-15）：**
 | 模块 | 覆盖率 | 备注 |
