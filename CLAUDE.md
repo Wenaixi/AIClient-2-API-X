@@ -72,7 +72,7 @@ docker compose -f docker/docker-compose.build.yml down
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2171 passed, 2171 total
+Tests:       2175 passed, 2175 total
 Time:        ~39s
 ```
 
@@ -88,7 +88,7 @@ Time:        ~39s
 | wsrelay/* | 83% | manager.js 83.12% ✅ (75% → 83%) |
 | services/* | 81-91% | health-check-timer 81% / usage-service 91% |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% (集成级函数) |
-| ui-modules/* | 13-83% | config-api 74% / system-monitor 71% / event-broadcast 47% |
+| ui-modules/* | 13-83% | config-api 74% / system-monitor 71% / event-broadcast 55% ✅ |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ### 低覆盖率原因说明
@@ -197,7 +197,7 @@ Time:        ~39s
 |------|----------|------|------|
 | utils/common.js | 20% | 60%+ | 已覆盖 20 个核心工具函数 |
 | utils/logger.js | 78% | 85%+ | ✅ 已提升 67% → 78% (128 tests) |
-| ui-modules/* | 13-83% | 60%+ | auth.js 39 tests 已建立 |
+| ui-modules/event-broadcast | 47% | 60%+ | ✅ 已提升 47% → 55% (新增6个测试) |
 | wsrelay/manager.js | 75% | 85%+ | 错误处理分支未完全覆盖 |
 
 ---
