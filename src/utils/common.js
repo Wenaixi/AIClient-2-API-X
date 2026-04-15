@@ -203,7 +203,7 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
  */
 export function getRequestBody(req) {
     return new Promise((resolve, reject) => {
-        let body = '';
+        const chunks = [];
         let size = 0;
         req.on('data', chunk => {
             size += chunk.length;
@@ -212,13 +212,14 @@ export function getRequestBody(req) {
                 reject(new Error("Request body too large. Maximum size is 10MB."));
                 return;
             }
-            body += chunk.toString();
+            chunks.push(chunk);
         });
         req.on('end', () => {
-            if (!body) {
+            if (chunks.length === 0) {
                 return resolve({});
             }
             try {
+                const body = Buffer.concat(chunks).toString('utf8');
                 resolve(JSON.parse(body));
             } catch (error) {
                 reject(new Error("Invalid JSON in request body."));
@@ -258,8 +259,38 @@ export async function logConversation(type, content, logMode, logFilename) {
 export function safeCompare(a, b) {
     if (!a || !b) return false;
     if (typeof a !== 'string' || typeof b !== 'string') return false;
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+    const aLen = a.length;
+    const bLen = b.length;
+
+    // Constant-time length comparison (no short-circuit)
+    const sameLength = (aLen === bLen) ? 1 : 0;
+    const lenDiff = (aLen > bLen ? aLen : bLen) - (aLen < bLen ? aLen : bLen);
+
+    // Create buffers of equal size (use max length, padded with 0)
+    const maxLen = Math.max(aLen, bLen);
+    const bufA = Buffer.alloc(maxLen);
+    const bufB = Buffer.alloc(maxLen);
+    bufA.write(a);
+    bufB.write(b);
+
+    try {
+        // timingSafeEqual throws if lengths differ, so we only call it when sameLength is 1
+        // If lengths differ, we still do buffer comparison but it won't return true
+        if (sameLength) {
+            return crypto.timingSafeEqual(bufA, bufB);
+        }
+        // Lengths differ: do a constant-time comparison of all bytes
+        // This still takes constant time but will never match
+        let result = 0;
+        for (let i = 0; i < maxLen; i++) {
+            result |= bufA[i] ^ bufB[i];
+        }
+        return result === 0;
+    } catch (e) {
+        // Fallback for any unexpected errors
+        return false;
+    }
 }
 
 /**

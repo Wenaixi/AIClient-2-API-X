@@ -283,7 +283,11 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 startupRun: incoming?.startupRun !== false,
                 interval: newInterval,
                 providerTypes: Array.isArray(incoming?.providerTypes) ? incoming.providerTypes : [],
-                customIntervals: incoming?.customIntervals || {}
+                customIntervals: incoming?.customIntervals || {},
+                healthyCheckInterval: incoming?.healthyCheckInterval ??
+                    currentConfig.SCHEDULED_HEALTH_CHECK?.healthyCheckInterval,
+                healthyCustomIntervals: incoming?.healthyCustomIntervals ||
+                    currentConfig.SCHEDULED_HEALTH_CHECK?.healthyCustomIntervals || {}
             };
 
             // 处理 timer 状态变化
