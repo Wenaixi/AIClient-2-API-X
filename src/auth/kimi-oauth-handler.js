@@ -110,6 +110,24 @@ export async function completeKimiOAuth(config = {}, authInfo = {}) {
 
         logger.info(`[Kimi OAuth] Token saved to: ${filepath}`);
 
+        // 自动链接 Provider 配置（与其他 OAuth 流程保持一致）
+        try {
+            await autoLinkProviderConfigs(CONFIG, {
+                providerType: 'kimi',
+                deviceId: tokenStorage.device_id,
+                scope: tokenStorage.scope
+            });
+        } catch (err) {
+            logger.error('[Kimi OAuth] autoLinkProviderConfigs failed:', err.message);
+        }
+
+        // 广播授权成功事件
+        await broadcastEvent('oauth_success', {
+            provider: 'kimi',
+            deviceId: tokenStorage.device_id,
+            scope: tokenStorage.scope
+        });
+
         return {
             success: true,
             filepath: filename,
@@ -347,7 +365,7 @@ export async function batchImportKimiRefreshTokens(refreshTokens, outputDir, con
  * @returns {Promise<Object>} 导入结果
  */
 export async function batchImportKimiRefreshTokensStream(refreshTokens, progressCallback, config = {}) {
-    const outputDir = path.join(process.cwd(), 'configs', 'kimi');
+    const outputDir = path.join(projectRoot, getKimiConfigDir());
 
     await fsPromises.mkdir(outputDir, { recursive: true });
 

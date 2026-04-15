@@ -220,7 +220,6 @@ export class WSRelayManager extends EventEmitter {
 
         const sessions = Array.from(this.sessions.values());
         this.sessions.clear();
-        this.stats.activeSessions = 0;
 
         for (const session of sessions) {
             if (session) {
@@ -228,6 +227,7 @@ export class WSRelayManager extends EventEmitter {
             }
         }
 
+        this.stats.activeSessions = 0;
         this.emit('manager:stopped');
         logger.info('[WSRelay] Manager stopped');
     }
@@ -322,7 +322,6 @@ export class WSSession extends EventEmitter {
         this.provider = '';
         this.config = config || DEFAULT_CONFIG;
         this.closed = false;
-        this.closedCh = new EventEmitter();
 
         // 写入锁
         this.writeMutex = false;
@@ -409,26 +408,32 @@ export class WSSession extends EventEmitter {
      * 发送 Ping
      */
     async _sendPing() {
-        return new Promise((resolve, reject) => {
+        if (this.closed) {
+            throw new Error('session closed');
+        }
+
+        // 等待写入锁（使用 setTimeout 避免阻塞事件循环）
+        if (this.writeMutex) {
+            await new Promise(resolve => setTimeout(resolve, 1));
             if (this.closed) {
-                return reject(new Error('session closed'));
+                throw new Error('session closed');
             }
+        }
+        this.writeMutex = true;
 
-            // 获取写入锁
-            while (this.writeMutex) {
-                // 忙等待，实际应该用信号量
-            }
-            this.writeMutex = true;
-
-            this.ws.ping('ping', (err) => {
-                this.writeMutex = false;
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve();
-                }
+        try {
+            await new Promise((resolve, reject) => {
+                this.ws.ping('ping', (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
             });
-        });
+        } finally {
+            this.writeMutex = false;
+        }
     }
 
     /**
@@ -502,6 +507,10 @@ export class WSSession extends EventEmitter {
         return new Promise((resolve, reject) => {
             // 获取写入锁
             const acquireLock = () => {
+                if (this.closed) {
+                    reject(new Error('session closed'));
+                    return;
+                }
                 if (this.writeMutex) {
                     setTimeout(acquireLock, 1);
                     return;
@@ -591,6 +600,12 @@ export class WSSession extends EventEmitter {
             // 启动 context cancel 监听（参考 Go 版本）
         }).catch((err) => {
             this.pending.delete(msg.id);
+            // 向通道发送错误通知，让调用者知道发送失败
+            pendingReq.ch.push({
+                id: msg.id,
+                type: MessageType.Error,
+                payload: { error: err.message || 'send failed' }
+            });
             pendingReq.close();
         });
 
@@ -608,7 +623,9 @@ export class WSSession extends EventEmitter {
      * 清理会话
      */
     cleanup(cause) {
-        if (this.closed) return;
+        // 参考 Go 版本的 closeOnce 模式，防止重复清理
+        if (this.closed || this._cleanupOnce) return;
+        this._cleanupOnce = true;
         this.closed = true;
 
         // 停止心跳

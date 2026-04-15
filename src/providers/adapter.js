@@ -798,10 +798,10 @@ class LRUCache {
             return undefined;
         }
 
-        // 移动到末尾（最新使用）- O(1) 操作
+        // 移动到末尾（最新使用）并刷新时间戳（滑动过期）- O(1) 操作
         const value = entry.value;
         this.cache.delete(key);
-        this.cache.set(key, entry);
+        this.cache.set(key, { value, timestamp: Date.now() });
         return value;
     }
 
@@ -830,6 +830,10 @@ class LRUCache {
             this.cache.delete(key);
             return false;
         }
+
+        // 更新访问顺序和时间戳（滑动过期）
+        this.cache.delete(key);
+        this.cache.set(key, { value: entry.value, timestamp: Date.now() });
         return true;
     }
 
