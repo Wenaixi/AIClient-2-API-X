@@ -38,7 +38,7 @@ Time:        ~40s
 | wsrelay/* | 83% | manager.js 83% ✅ (75% → 83%) |
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
-| ui-modules/* | 13-83% | auth.js 39 tests 已建立 |
+| ui-modules/* | 13-83% | auth.js 39 tests / event-broadcast 55% ✅ |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ---

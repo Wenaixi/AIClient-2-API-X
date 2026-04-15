@@ -26,7 +26,7 @@
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2171 passed, 2171 total
+Tests:       2175 passed, 2175 total
 Time:        ~39s
 ```
 
@@ -47,6 +47,7 @@ Time:        ~39s
 | ui-modules/system-monitor | 71% | 🟢 |
 | utils/logger.js | 78% | 🟢 ✅ (67% → 78%) |
 | utils/common.js | 20% | 🟡 集成级函数不需单元测试 |
+| ui-modules/event-broadcast | 55% | 🟡 ✅ (47% → 55%) |
 | wsrelay/manager.js | 83% | 🟢 ✅ (75% → 83%) |
 | ui-modules/event-broadcast | 47% | 🟡 ✅ (4% → 47%) |
 
