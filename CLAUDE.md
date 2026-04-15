@@ -44,17 +44,20 @@ git merge main      # 合并上游到当前分支
 ## Docker 容器管理
 
 ```bash
-# 构建并启动（使用预构建镜像，跳过构建）
-docker compose -f docker/docker-compose.build.yml up -d --build
+# 构建并启动（本地构建，不拉取远程镜像）
+docker compose -f docker/docker-compose.yml up -d --build
 
 # 仅启动容器（代码未修改时）
-docker compose -f docker/docker-compose.build.yml up -d
+docker compose -f docker/docker-compose.yml up -d
+
+# 开发模式（热重载）
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
 
 # 查看日志
 docker logs -f aiclient2api
 
 # 停止容器
-docker compose -f docker/docker-compose.build.yml down
+docker compose -f docker/docker-compose.yml down
 ```
 
 ---
