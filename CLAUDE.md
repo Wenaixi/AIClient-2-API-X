@@ -68,24 +68,24 @@ docker compose -f docker/docker-compose.build.yml down
 
 ---
 
-## 测试状态 (2026-04-17)
+## 测试状态 (2026-04-19)
 
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2175 passed, 2175 total
-Time:        ~42s
+Time:        ~40s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
 
-### 覆盖率概况 (2026-04-16)
+### 覆盖率概况 (2026-04-19)
 
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 81-83% | manager.js 81.85% ✅ (75% → 81%) |
+| wsrelay/* | 80-83% | manager.js 80.53% ✅ |
 | services/* | 81-91% | health-check-timer 81% / usage-service 91% |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% (集成级函数) |
 | ui-modules/* | 13-83% | config-api 74% / system-monitor 71% / event-broadcast 55% ✅ |
@@ -206,12 +206,11 @@ Time:        ~42s
 
 | 提交 | 说明 |
 |------|------|
+| fb51051 | docs: 更新文档 - 修复 _sendPong unhandled rejection 说明 |
 | 21564fe | fix: 修复 _dispatch 中 _sendPong 未处理的 unhandled rejection |
 | 97081e9 | docs: 更新文档日期为 2026-04-17 |
-| 0e56e77 | docs: 更新文档 - 二次Review修复记录和测试状态 |
 | 77f614a | fix: 二次Review修复 - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 |
 | 791ac91 | fix: 修复多处关键 bug - LRU滑动过期/WSRelay竞态/Kimi OAuth |
-| 616fc9f | docs: 更新 .agent 文档 - 测试状态和覆盖率记录 |
 
 ---
 
@@ -301,4 +300,4 @@ const timer = setInterval(/* ... */);
 if (timer.unref) timer.unref();
 ```
 
-*最后更新: 2026-04-16*
+*最后更新: 2026-04-19*
