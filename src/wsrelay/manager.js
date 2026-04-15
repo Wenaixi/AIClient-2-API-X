@@ -456,7 +456,9 @@ export class WSSession extends EventEmitter {
 
         // Ping 处理
         if (messageType === MessageType.Ping || messageType === 'ping') {
-            this._sendPong();
+            this._sendPong().catch(err => {
+                logger.warn(`[WSRelay] _sendPong failed: ${err.message}`);
+            });
             return;
         }
 
