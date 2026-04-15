@@ -1290,8 +1290,8 @@ describe('WSRelayManager stop with sessions', () => {
     test('should stop all sessions', async () => {
         const manager = new WSRelayManager();
 
-        const mockSession1 = { cleanup: jest.fn() };
-        const mockSession2 = { cleanup: jest.fn() };
+        const mockSession1 = { provider: 'provider1', cleanup: jest.fn() };
+        const mockSession2 = { provider: 'provider2', cleanup: jest.fn() };
 
         manager._registerSession(mockSession1);
         manager._registerSession(mockSession2);

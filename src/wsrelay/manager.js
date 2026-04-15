@@ -113,7 +113,9 @@ export class WSRelayManager extends EventEmitter {
      * 注册新会话
      */
     _registerSession(session) {
-        const provider = session.provider;
+        if (!session || !session.provider) return;
+        // 统一使用小写存储，确保 _unregisterSession 能正确找到
+        const provider = session.provider.toLowerCase();
 
         // 检查是否已有该 provider 的会话
         const existingSession = this.sessions.get(provider);
@@ -412,11 +414,17 @@ export class WSSession extends EventEmitter {
             throw new Error('session closed');
         }
 
-        // 等待写入锁（使用 setTimeout 避免阻塞事件循环）
-        if (this.writeMutex) {
+        // 等待写入锁（循环重试直到获取，避免竞态条件）
+        let waited = 0;
+        while (this.writeMutex) {
             await new Promise(resolve => setTimeout(resolve, 1));
+            waited += 1;
             if (this.closed) {
                 throw new Error('session closed');
+            }
+            // 超时保护：等待超过 5 秒则放弃
+            if (waited > 5000) {
+                throw new Error('ping timeout: write mutex held too long');
             }
         }
         this.writeMutex = true;
@@ -488,8 +496,8 @@ export class WSSession extends EventEmitter {
     /**
      * 发送 Pong
      */
-    _sendPong() {
-        this.send({
+    async _sendPong() {
+        await this.send({
             type: MessageType.Pong,
             id: '',
             payload: {}
@@ -581,7 +589,13 @@ export class WSSession extends EventEmitter {
                 ch.buffer = [];
             },
             drain: () => {
+                // 限制消息数组大小，防止内存泄漏
+                const MAX_MESSAGES = 100;
                 ch.messages.push(...ch.buffer);
+                if (ch.messages.length > MAX_MESSAGES) {
+                    // 保留最新的消息
+                    ch.messages = ch.messages.slice(-MAX_MESSAGES);
+                }
                 ch.buffer = [];
             }
         };
