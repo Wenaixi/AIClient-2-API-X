@@ -10,6 +10,7 @@
 - [ ] utils/common.js 覆盖率 20% → 60%+ (补充更多边界条件测试)
 
 ### ✅ 已完成
+- [x] 深度 Review 修复 Bug - LRU滑动过期/WSRelay竞态/Kimi OAuth ✅ 2026-04-16 (791ac91)
 - [x] wsrelay/manager.js 测试覆盖率 75% → 83% ✅ 2026-04-16 (新增31个测试,64→95 tests)
 - [x] utils/logger.js 测试覆盖率 67% → 78% ✅ 2026-04-15 晚
 - [x] ui-modules/auth.js 测试新建 (39 tests) ✅ 2026-04-15

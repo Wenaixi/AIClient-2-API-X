@@ -18,12 +18,12 @@ AIClient-2-API 是一个 API 代理服务，支持 OpenAI/Claude/Gemini/Kimi/Gro
 
 ---
 
-## 测试状态 (2026-04-15 晚)
+## 测试状态 (2026-04-16)
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2140 passed, 2140 total
-Time:        ~40s
+Tests:       2175 passed, 2175 total
+Time:        ~38s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
@@ -43,7 +43,7 @@ Time:        ~40s
 
 ---
 
-## 代码质量 Review 总结 (pro vs main) - 2026-04-15 晚
+## 代码质量 Review 总结 (pro vs main) - 2026-04-16
 
 ### 已确认 ✅
 
@@ -112,19 +112,40 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ---
 
-## 提交历史 (2026-04-15)
+## 提交历史 (2026-04-16)
 
 | 提交 | 说明 |
 |------|------|
+| 791ac91 | fix: 修复多处关键 bug - LRU滑动过期/WSRelay竞态/Kimi OAuth |
+| 616fc9f | docs: 更新 .agent 文档 - 测试状态和覆盖率记录 |
+| eb14407 | docs: 更新 CLAUDE.md - event-broadcast 测试覆盖率提升记录 |
+| 130c6a5 | test: 提升 event-broadcast.js 测试覆盖率 47% → 55% |
+| 9d94f3a | docs: 更新文档 - 测试状态和覆盖率概况 (2026-04-16) |
+| 2f0bbff | test: 提升 wsrelay/manager.js 测试覆盖率 75% → 83% |
 | 4e04004 | docs: 更新文档 - logger.js 覆盖率提升记录 |
 | e9ded9c | test: 提升 utils/logger.js 测试覆盖率 67% → 78% |
-| cac7c5c | fix(docker): 修正 docker compose 配置文件路径为绝对路径 |
-| a9a77bb | docs: 更新 .agent 文档 - 测试状态和任务进度 |
-| a642591 | test: 新建 ui-modules/auth.js 单元测试 |
-| cbdbc3b | test: event-broadcast覆盖率提升 4% → 47% |
-| b7f0f8f | fix(timer): 修复 gemini-core 和 qwen-core 中 setInterval 未调用 .unref() |
-| 3827fea | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
 
 ---
 
-*最后更新: 2026-04-15 晚*
+## 深度 Review 发现并修复的 Bug (2026-04-16)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **LRUCache.get() 滑动过期失效** - 访问时未更新 timestamp | adapter.js:789-806 | ✅ 已修复 |
+| 2 | **cleanup() 竞态条件** - _cleanupOnce 未使用，可重复清理 | wsrelay/manager.js:610-612 | ✅ 已修复 |
+| 3 | **_sendPing() 阻塞事件循环** - while忙等锁 | wsrelay/manager.js:418-421 | ✅ 已修复 |
+| 4 | **request() send失败不通知调用者** - 错误被吞掉 | wsrelay/manager.js:592-595 | ✅ 已修复 |
+| 5 | **send() acquireLock未检查closed** - 可导致闭session等待 | wsrelay/manager.js:510-516 | ✅ 已修复 |
+
+### 🟡 中危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **LRUCache.has() 不更新访问时间** - 与 get() 行为不一致 | adapter.js:822-834 | ✅ 已修复 |
+| 2 | **batchImportKimiRefreshTokensStream 路径错误** - 使用 process.cwd() | kimi-oauth-handler.js:350 | ✅ 已修复 |
+| 3 | **completeKimiOAuth 缺少 autoLinkProviderConfigs** - 与 checkKimiAuthStatus 行为不一致 | kimi-oauth-handler.js:73-128 | ✅ 已修复 |
+| 4 | **stop() stats.activeSessions 过早清零** - cleanup 前就设为0 | wsrelay/manager.js:221-223 | ✅ 已修复 |
+
+*最后更新: 2026-04-16*

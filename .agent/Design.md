@@ -262,4 +262,24 @@ manager.js 75% 覆盖率，未覆盖行：
 
 ---
 
-*最后更新: 2026-04-15 晚*
+## WSRelay Manager 已修复 Bug (2026-04-16)
+
+| # | Bug | 修复方案 |
+|---|-----|----------|
+| 1 | cleanup() _cleanupOnce 未使用 | 添加 `if (this.closed \|\| this._cleanupOnce) return; this._cleanupOnce = true;` |
+| 2 | _sendPing() while 忙等阻塞事件循环 | 改用 `await new Promise(resolve => setTimeout(resolve, 1))` 异步等待 |
+| 3 | request() send失败不通知调用者 | catch 中向通道 push 错误消息再关闭 |
+| 4 | send() acquireLock 未检查 closed | 添加 `if (this.closed) reject()` 防止闭session等待 |
+| 5 | stop() activeSessions 过早清零 | 移到 cleanup 循环之后 |
+| 6 | closedCh 未使用 | 已移除 |
+
+## LRU Cache 已修复 Bug (2026-04-16)
+
+| # | Bug | 修复方案 |
+|---|-----|----------|
+| 1 | get() 访问时不更新 timestamp | 改为 `this.cache.set(key, { value, timestamp: Date.now() })` |
+| 2 | has() 不更新访问时间 | 添加相同的 timestamp 更新逻辑 |
+
+---
+
+*最后更新: 2026-04-16*
