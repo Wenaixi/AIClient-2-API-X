@@ -148,4 +148,4 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 | 3 | **completeKimiOAuth 缺少 autoLinkProviderConfigs** - 与 checkKimiAuthStatus 行为不一致 | kimi-oauth-handler.js:73-128 | ✅ 已修复 |
 | 4 | **stop() stats.activeSessions 过早清零** - cleanup 前就设为0 | wsrelay/manager.js:221-223 | ✅ 已修复 |
 
-*最后更新: 2026-04-17*
+*最后更新: 2026-04-18*

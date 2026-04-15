@@ -16,6 +16,7 @@
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
 | 最后更新 | 2026-04-17 Review |
+| 最后更新 | 2026-04-18 Review |
 
 ---
 
