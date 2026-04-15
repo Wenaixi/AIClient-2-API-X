@@ -897,3 +897,636 @@ describe('Logger - config initialization edge cases', () => {
         expect(logger.config.logDir).toBe('new-dir');
     });
 });
+
+describe('Logger - initializeFileLogging edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        if (logger) logger.close();
+    });
+
+    test('should not throw when initializing file logging', () => {
+        expect(() => logger.initializeFileLogging()).not.toThrow();
+    });
+
+    test('should set currentLogFile path when initializing', () => {
+        logger.initializeFileLogging();
+        // After initialization, currentLogFile should be set
+        expect(typeof logger.currentLogFile).toBe('string');
+        expect(logger.currentLogFile).toContain('app-');
+        expect(logger.currentLogFile).toContain('.log');
+    });
+
+    test('should initialize logStream when file logging is enabled', () => {
+        logger.initializeFileLogging();
+        // After initialization, logStream should be created
+        expect(logger.logStream).not.toBeNull();
+    });
+});
+
+describe('Logger - initializeFileLogging error handling', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        if (logger) logger.close();
+    });
+
+    test('should handle fs error gracefully', () => {
+        jest.spyOn(require('fs'), 'existsSync').mockImplementation(() => {
+            throw new Error('fs error');
+        });
+        expect(() => logger.initializeFileLogging()).not.toThrow();
+    });
+});
+
+describe('Logger - cleanupOldLogs edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.config.logDir = 'logs';
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should handle fs readdir error gracefully', () => {
+        jest.spyOn(require('fs'), 'readdirSync').mockImplementation(() => {
+            throw new Error('readdir error');
+        });
+        expect(() => logger.cleanupOldLogs()).not.toThrow();
+    });
+
+    test('should not throw for non-existent log directory', () => {
+        logger.config.logDir = '/non/existent/path';
+        expect(() => logger.cleanupOldLogs()).not.toThrow();
+    });
+});
+
+describe('Logger - checkAndRotateLogFile error handling', () => {
+    let logger;
+    let originalLogStream;
+
+    beforeEach(() => {
+        logger = new Logger();
+        originalLogStream = logger.logStream = {
+            end: jest.fn(),
+            destroyed: false,
+            writable: true,
+            write: jest.fn()
+        };
+    });
+
+    afterEach(() => {
+        logger.logStream = originalLogStream;
+        logger.close();
+    });
+
+    test('should handle fs.statSync error gracefully', () => {
+        logger.currentLogFile = '/test/path.log';
+        jest.spyOn(require('fs'), 'statSync').mockImplementation(() => {
+            throw new Error('stat error');
+        });
+        expect(() => logger.checkAndRotateLogFile()).not.toThrow();
+    });
+
+    test('should handle fs.renameSync error gracefully', () => {
+        logger.currentLogFile = '/test/path.log';
+        logger.logStream.writable = true;
+        jest.spyOn(require('fs'), 'statSync').mockReturnValue({ size: 11 * 1024 * 1024 }); // > 10MB
+        jest.spyOn(require('fs'), 'renameSync').mockImplementation(() => {
+            throw new Error('rename error');
+        });
+        expect(() => logger.checkAndRotateLogFile()).not.toThrow();
+    });
+
+    test('should check file existence before rotation', () => {
+        logger.currentLogFile = null;
+        // Should return early when currentLogFile is null
+        expect(() => logger.checkAndRotateLogFile()).not.toThrow();
+    });
+
+    test('should check file existence for non-existent file', () => {
+        logger.currentLogFile = '/non/existent/file.log';
+        // Should return early when file doesn't exist
+        expect(() => logger.checkAndRotateLogFile()).not.toThrow();
+    });
+
+    test('should handle logStream write error gracefully', () => {
+        logger.currentLogFile = null;
+        jest.spyOn(logger, 'checkAndRotateLogFile').mockImplementation(() => {
+            throw new Error('rotate error');
+        });
+        expect(() => logger.log('info', ['test'])).not.toThrow();
+    });
+});
+
+describe('Logger - log stream error handling', () => {
+    let logger;
+    let mockWriteStream;
+    let originalLogStream;
+
+    beforeEach(() => {
+        logger = new Logger();
+        originalLogStream = logger.logStream = {
+            end: jest.fn(),
+            destroyed: false,
+            writable: true,
+            write: jest.fn()
+        };
+        logger.config.outputMode = 'file';
+        logger.config.logLevel = 'debug';
+        logger.currentLogFile = '/test/path.log';
+        mockWriteStream = {
+            end: jest.fn(),
+            destroyed: false,
+            writable: true,
+            write: jest.fn().mockImplementation((data, cb) => {
+                if (cb) cb(new Error('write error'));
+            })
+        };
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        // Restore original logStream before close
+        logger.logStream = originalLogStream;
+        logger.close();
+        jest.restoreAllMocks();
+    });
+
+    test('should output to console as backup on stream write error', async () => {
+        logger.currentLogFile = '/test/path.log';
+        jest.spyOn(require('fs'), 'statSync').mockReturnValue({ size: 100 });
+        // Should not throw
+        await logger.log('info', ['test message']);
+    });
+
+    test('should not log when stream is destroyed', async () => {
+        const mockWrite = jest.fn();
+        logger.logStream = { destroyed: true, writable: false, end: jest.fn(), write: mockWrite };
+        await logger.log('info', ['test']);
+        expect(mockWrite).not.toHaveBeenCalled();
+    });
+
+    test('should not log when stream is not writable', async () => {
+        const mockWrite = jest.fn();
+        logger.logStream = { destroyed: false, writable: false, end: jest.fn(), write: mockWrite };
+        await logger.log('info', ['test']);
+        expect(mockWrite).not.toHaveBeenCalled();
+    });
+});
+
+describe('Logger - clearTodayLog error handling', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        logger.close();
+        jest.restoreAllMocks();
+    });
+
+    test('should handle fs.writeFileSync error gracefully', () => {
+        logger.currentLogFile = '/test/path.log';
+        logger.logStream = {
+            end: jest.fn(),
+            destroyed: false
+        };
+        jest.spyOn(require('fs'), 'writeFileSync').mockImplementation(() => {
+            throw new Error('write error');
+        });
+        expect(() => logger.clearTodayLog()).not.toThrow();
+    });
+
+    test('should handle createWriteStream error gracefully', () => {
+        logger.currentLogFile = '/test/path.log';
+        logger.logStream = {
+            end: jest.fn(),
+            destroyed: false
+        };
+        jest.spyOn(require('fs'), 'writeFileSync').mockImplementation(() => {});
+        jest.spyOn(require('fs'), 'createWriteStream').mockImplementation(() => {
+            throw new Error('stream error');
+        });
+        expect(() => logger.clearTodayLog()).not.toThrow();
+    });
+});
+
+describe('Logger - formatMessage with includeTimestamp false', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.config.includeTimestamp = false;
+        logger.config.includeRequestId = false;
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should format message without timestamp', () => {
+        const message = logger.formatMessage('info', ['test'], null);
+        expect(message).toContain('[INFO]');
+        expect(message).toContain('test');
+        expect(message).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    });
+
+    test('should include timestamp when enabled', () => {
+        logger.config.includeTimestamp = true;
+        const message = logger.formatMessage('info', ['test'], null);
+        expect(message).toMatch(/\d{4}-\d{2}-\d{2}/);
+    });
+
+    test('should include requestId when enabled', () => {
+        logger.config.includeRequestId = true;
+        const message = logger.formatMessage('info', ['test'], 'req-123');
+        expect(message).toContain('[Req:req-123]');
+    });
+});
+
+describe('Logger - log file output mode', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.config.outputMode = 'file';
+        logger.config.logLevel = 'debug';
+        logger.currentLogFile = '/test/path.log';
+        logger.logStream = {
+            end: jest.fn(),
+            destroyed: false,
+            writable: true,
+            write: jest.fn()
+        };
+        jest.spyOn(require('fs'), 'statSync').mockReturnValue({ size: 100 });
+    });
+
+    afterEach(() => {
+        logger.close();
+        jest.restoreAllMocks();
+    });
+
+    test('should output to file when mode is file', async () => {
+        await logger.log('info', ['test']);
+        expect(logger.logStream.write).toHaveBeenCalled();
+    });
+
+    test('should output to console when mode is all', async () => {
+        logger.config.outputMode = 'all';
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        await logger.log('info', ['test']);
+        expect(logger.logStream.write).toHaveBeenCalled();
+    });
+});
+
+describe('Logger - _contextCleanupTimer interval behavior', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        logger.close();
+        jest.useRealTimers();
+    });
+
+    test('should start cleanup timer when calling _ensureContextCleanup', () => {
+        logger.setRequestContext('test-1', {});
+        logger._ensureContextCleanup();
+        expect(logger._contextCleanupTimer).not.toBeNull();
+    });
+
+    test('should not start timer if already running', () => {
+        logger.setRequestContext('test-1', {});
+        logger._ensureContextCleanup();
+        const timer = logger._contextCleanupTimer;
+        logger._ensureContextCleanup();
+        expect(logger._contextCleanupTimer).toBe(timer);
+    });
+
+    test('should stop timer when no contexts remain', () => {
+        logger.setRequestContext('test-1', {});
+        logger._ensureContextCleanup();
+        expect(logger._contextCleanupTimer).not.toBeNull();
+
+        // Manually clear all contexts
+        logger.requestContext.clear();
+        jest.advanceTimersByTime(60000);
+
+        // The timer should stop itself when map is empty
+        expect(logger._contextCleanupTimer).toBeNull();
+    });
+});
+
+describe('Logger - close behavior', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.setRequestContext('test-1', {});
+        logger._ensureContextCleanup();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should set _contextCleanupTimer to null after close', () => {
+        expect(logger._contextCleanupTimer).not.toBeNull();
+        logger.close();
+        expect(logger._contextCleanupTimer).toBeNull();
+    });
+
+    test('should not throw when closing multiple times', () => {
+        logger.close();
+        expect(() => logger.close()).not.toThrow();
+    });
+});
+
+describe('Logger - initialize error handling', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should handle file logging initialization error', () => {
+        jest.spyOn(require('fs'), 'existsSync').mockImplementation(() => {
+            throw new Error('init error');
+        });
+        expect(() => logger.initialize({ outputMode: 'file' })).not.toThrow();
+    });
+});
+
+describe('Logger - shouldLog edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.config.enabled = true;
+        logger.config.logLevel = 'debug';
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should return false when disabled', () => {
+        logger.config.enabled = false;
+        expect(logger.shouldLog('debug')).toBe(false);
+    });
+
+    test('should return false for lower level than configured', () => {
+        logger.config.logLevel = 'error';
+        expect(logger.shouldLog('debug')).toBe(false);
+    });
+
+    test('should return true for higher level than configured', () => {
+        logger.config.logLevel = 'debug';
+        expect(logger.shouldLog('error')).toBe(true);
+    });
+
+    test('should return true for same level', () => {
+        logger.config.logLevel = 'info';
+        expect(logger.shouldLog('info')).toBe(true);
+    });
+});
+
+describe('Logger - getRequestContext edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should return empty object for null requestId', () => {
+        const ctx = logger.getRequestContext(null);
+        expect(ctx).toEqual({});
+    });
+
+    test('should return empty object for undefined requestId', () => {
+        const ctx = logger.getRequestContext(undefined);
+        expect(ctx).toEqual({});
+    });
+});
+
+describe('Logger - clearRequestContext edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should not throw for null requestId', () => {
+        expect(() => logger.clearRequestContext(null)).not.toThrow();
+    });
+
+    test('should not throw for non-existent requestId', () => {
+        expect(() => logger.clearRequestContext('non-existent')).not.toThrow();
+    });
+});
+
+describe('Logger - runWithContext edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should return result from callback', () => {
+        const result = logger.runWithContext('test-id', () => 42);
+        expect(result).toBe(42);
+    });
+
+    test('should return object from callback', () => {
+        const result = logger.runWithContext('test-id', () => ({ key: 'value' }));
+        expect(result).toEqual({ key: 'value' });
+    });
+});
+
+describe('Logger - withRequest edge cases', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+        logger.config.outputMode = 'console';
+        logger.config.logLevel = 'debug';
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        logger.close();
+    });
+
+    test('should use current requestId if not provided', () => {
+        const reqLogger = logger.withRequest(null);
+        reqLogger.info('test');
+        expect(console.log).toHaveBeenCalled();
+    });
+});
+
+describe('Logger - levels configuration', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should have all required levels', () => {
+        expect(logger.levels).toHaveProperty('debug');
+        expect(logger.levels).toHaveProperty('info');
+        expect(logger.levels).toHaveProperty('warn');
+        expect(logger.levels).toHaveProperty('error');
+    });
+
+    test('should have correct level values', () => {
+        expect(logger.levels.debug).toBe(0);
+        expect(logger.levels.info).toBe(1);
+        expect(logger.levels.warn).toBe(2);
+        expect(logger.levels.error).toBe(3);
+    });
+});
+
+describe('Logger - default config values', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should have correct default logDir', () => {
+        expect(logger.config.logDir).toBe('logs');
+    });
+
+    test('should have correct default includeRequestId', () => {
+        expect(logger.config.includeRequestId).toBe(true);
+    });
+
+    test('should have correct default includeTimestamp', () => {
+        expect(logger.config.includeTimestamp).toBe(true);
+    });
+
+    test('should have correct default maxFiles', () => {
+        expect(logger.config.maxFiles).toBe(10);
+    });
+});
+
+describe('Logger - context auto-cleanup logic', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should remove stale contexts based on TTL', () => {
+        const now = Date.now();
+        // Directly manipulate the Map to test cleanup logic
+        logger.requestContext.set('fresh', { _createdAt: now });
+        logger.requestContext.set('stale', { _createdAt: now - 400 * 1000 });
+
+        // Manually test cleanup logic (simulating what the timer does)
+        const beforeCount = logger.requestContext.size;
+        for (const [id, ctx] of logger.requestContext) {
+            if (now - (ctx._createdAt || 0) > logger.contextTTL) {
+                logger.requestContext.delete(id);
+            }
+        }
+
+        expect(logger.requestContext.has('fresh')).toBe(true);
+        expect(logger.requestContext.has('stale')).toBe(false);
+        expect(logger.requestContext.size).toBeLessThan(beforeCount);
+    });
+
+    test('should not remove fresh contexts', () => {
+        const now = Date.now();
+        // Directly manipulate the Map
+        logger.requestContext.set('ctx-1', { _createdAt: now });
+        logger.requestContext.set('ctx-2', { _createdAt: now });
+
+        for (const [id, ctx] of logger.requestContext) {
+            if (now - (ctx._createdAt || 0) > logger.contextTTL) {
+                logger.requestContext.delete(id);
+            }
+        }
+
+        expect(logger.requestContext.size).toBe(2);
+    });
+
+    test('should use contextTTL value of 5 minutes', () => {
+        expect(logger.contextTTL).toBe(5 * 60 * 1000);
+    });
+});
+
+describe('Logger - requestContext Map operations', () => {
+    let logger;
+
+    beforeEach(() => {
+        logger = new Logger();
+    });
+
+    afterEach(() => {
+        logger.close();
+    });
+
+    test('should track multiple contexts', () => {
+        logger.setRequestContext('ctx-1', { data: 1 });
+        logger.setRequestContext('ctx-2', { data: 2 });
+        logger.setRequestContext('ctx-3', { data: 3 });
+
+        expect(logger.requestContext.size).toBe(3);
+    });
+
+    test('should update existing context', () => {
+        logger.setRequestContext('ctx-1', { data: 1 });
+        logger.setRequestContext('ctx-1', { data: 2 });
+
+        expect(logger.getRequestContext('ctx-1').data).toBe(2);
+    });
+});

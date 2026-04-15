@@ -6,9 +6,9 @@
 
 ## 当前任务
 
-### 🟡 中优先级
-- [ ] utils/logger.js 覆盖率 67% → 85%+
-- [ ] wsrelay/manager.js 覆盖率 75% → 85%+
+### 🟡 进行中
+- [ ] utils/logger.js 覆盖率 67% → 85%+ (补充文件系统 mock 测试)
+- [ ] wsrelay/manager.js 覆盖率 75% → 85%+ (补充 _handleWebsocket 测试)
 
 ### ✅ 已完成
 - [x] ui-modules/auth.js 测试新建 (39 tests) ✅ 2026-04-15
