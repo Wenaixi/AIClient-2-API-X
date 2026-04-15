@@ -196,6 +196,94 @@ describe('event-broadcast', () => {
 
             expect(onMock).toHaveBeenCalledWith('close', expect.any(Function));
         });
+
+        test('should handle initial write error gracefully', async () => {
+            const mockReq = { on: jest.fn() };
+            const mockRes = {
+                writeHead: jest.fn(),
+                write: jest.fn(() => { throw new Error('Write error'); }),
+                writableEnded: false,
+                destroyed: false
+            };
+
+            const result = await handleEvents(mockReq, mockRes);
+
+            // Should return true even when initial write fails
+            expect(result).toBe(true);
+            // Should not add client to eventClients when write fails
+            expect(global.eventClients).not.toContain(mockRes);
+        });
+
+        test('should clear client on writableEnded in keepAlive', async () => {
+            jest.useFakeTimers();
+            const onMock = jest.fn();
+            const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+            const mockReq = { on: onMock };
+            const mockRes = {
+                writeHead: jest.fn(),
+                write: jest.fn(),
+                writableEnded: true,  // Already ended
+                destroyed: false
+            };
+
+            const eventPromise = handleEvents(mockReq, mockRes);
+
+            // Advance timers to trigger keepAlive check
+            jest.advanceTimersByTime(30000);
+
+            await eventPromise;
+
+            expect(clearIntervalSpy).toHaveBeenCalled();
+            jest.useRealTimers();
+        });
+
+        test('should clear client on destroyed in keepAlive', async () => {
+            jest.useFakeTimers();
+            const onMock = jest.fn();
+            const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+            const mockReq = { on: onMock };
+            const mockRes = {
+                writeHead: jest.fn(),
+                write: jest.fn(),
+                writableEnded: false,
+                destroyed: true  // Destroyed
+            };
+
+            const eventPromise = handleEvents(mockReq, mockRes);
+
+            // Advance timers to trigger keepAlive check
+            jest.advanceTimersByTime(30000);
+
+            await eventPromise;
+
+            expect(clearIntervalSpy).toHaveBeenCalled();
+            jest.useRealTimers();
+        });
+
+        test('should remove client from eventClients on close', async () => {
+            jest.useFakeTimers();
+            const onMock = jest.fn();
+            const mockReq = { on: onMock };
+            const mockRes = {
+                writeHead: jest.fn(),
+                write: jest.fn(),
+                writableEnded: false,
+                destroyed: false
+            };
+
+            await handleEvents(mockReq, mockRes);
+            expect(global.eventClients).toContain(mockRes);
+
+            // Simulate close event
+            const closeCalls = onMock.mock.calls.filter(call => call[0] === 'close');
+            expect(closeCalls.length).toBeGreaterThan(0);
+            const closeHandler = closeCalls[0][1];
+
+            closeHandler();
+
+            expect(global.eventClients).not.toContain(mockRes);
+            jest.useRealTimers();
+        });
     });
 
     describe('initializeUIManagement', () => {
