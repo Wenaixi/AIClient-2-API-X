@@ -150,7 +150,7 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ---
 
-## 三次 Review 发现并修复的 Bug (2026-04-18)
+## 三次 Review 发现并修复的 Bug (2026-04-19)
 
 ### 🔴 高危 Bug
 
@@ -166,4 +166,4 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 |---|-----|------|------|
 | 1 | **_dispatch 调用 drain 未检查方法存在** - 测试环境 mock 的 ch 没有 drain 方法会导致错误 | manager.js:483 | ✅ 添加 if (pendingReq.ch.drain) 检查 |
 
-*最后更新: 2026-04-18*
+*最后更新: 2026-04-19*

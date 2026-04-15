@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-18 Review |
+| 最后更新 | 2026-04-19 Review |
 
 ---
 
@@ -271,22 +271,22 @@ Time:        ~40s
 
 ---
 
-## 三次 Review 发现并修复的 Bug (2026-04-18)
+## 三次 Review 发现并修复的 Bug (2026-04-19)
 
 ### 🔴 高危 Bug
 
 | # | Bug | 文件 | 修复 | 提交 |
 |---|-----|------|------|------|
-| 1 | **request() 错误通知丢失** - catch 中先 push 错误再 close，但 close 后 push 被忽略，调用者收不到错误 | manager.js:620-625 | ✅ 调整顺序：先 push → drain → close | pending |
-| 2 | **ch.drain() 从未被调用** - 消息在 buffer 中积累，从不转移到 messages，导致 buffer 溢出和内存泄漏 | manager.js:593-602 | ✅ 在 close 前调用 drain | pending |
-| 3 | **cleanup() 未 drain 就 close** - 清理待处理请求时错误消息留在 buffer 未转移 | manager.js:670-672 | ✅ 添加 drain 调用 | pending |
+| 1 | **request() 错误通知丢失** - catch 中先 push 错误再 close，但 close 后 push 被忽略，调用者收不到错误 | manager.js:620-625 | ✅ 调整顺序：先 push → drain → close | 2cf35b8 |
+| 2 | **ch.drain() 从未被调用** - 消息在 buffer 中积累，从不转移到 messages，导致 buffer 溢出和内存泄漏 | manager.js:593-602 | ✅ 在 close 前调用 drain | 2cf35b8 |
+| 3 | **cleanup() 未 drain 就 close** - 清理待处理请求时错误消息留在 buffer 未转移 | manager.js:670-672 | ✅ 添加 drain 调用 | 2cf35b8 |
 
 ### 🟡 中危 Bug
 
 | # | Bug | 文件 | 修复 | 提交 |
 |---|-----|------|------|------|
-| 1 | **终端消息不触发 'message' 事件** - 有 pending ID 的终端消息直接返回，不触发 emit，破坏事件驱动调用 | manager.js:481-484 | ✅ 添加 emit('message', msg) | pending |
-| 2 | **_dispatch 调用 drain 未检查方法存在** - 测试环境 mock 的 ch 没有 drain 方法会导致错误 | manager.js:483 | ✅ 添加 if (pendingReq.ch.drain) 检查 | pending |
+| 1 | **终端消息不触发 'message' 事件** - 有 pending ID 的终端消息直接返回，不触发 emit，破坏事件驱动调用 | manager.js:481-484 | ✅ 添加 emit('message', msg) | 2cf35b8 |
+| 2 | **_dispatch 调用 drain 未检查方法存在** - 测试环境 mock 的 ch 没有 drain 方法会导致错误 | manager.js:483 | ✅ 添加 if (pendingReq.ch.drain) 检查 | 2cf35b8 |
 
 ### 📝 修复细节
 

@@ -125,6 +125,7 @@ REFRESH_LEAD_CONFIG = {
 | 12 | findByPrefix/hasByPrefix 前缀匹配测试 | ✅ 已修复 | 2026-04-15 |
 | 13-33 | Timer 泄漏 - 21处 setInterval 未调用 .unref() | ✅ 已全部修复 | 2026-04-15 |
 | 34-37 | _sendPing 锁竞态 / _registerSession 大小写 / _sendPong 异步 / ch.messages 泄漏 | ✅ 已修复 | 2026-04-17 |
+| 38-41 | ch.drain 未调用 / 终端消息不触发 event / 错误通知丢失 | ✅ 已修复 | 2026-04-19 |
 
 ### Timer 泄漏修复 (21处)
 
