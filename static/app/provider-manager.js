@@ -11,6 +11,7 @@ import { updateUsageProviderConfigs } from './usage-manager.js';
 import { updateConfigProviderConfigs } from './config-manager.js';
 import { loadConfigList, updateProviderFilterOptions } from './upload-config-manager.js';
 import { setServiceMode } from './event-handlers.js';
+import { showKimiAuthMethodSelector, showKimiBatchImportModal } from './kimi-oauth-modal.js';
 
 // 保存初始服务器时间和运行时间
 let initialServerTime = null;
@@ -772,6 +773,12 @@ async function handleGenerateAuthUrl(providerType) {
     // 如果是 Codex OAuth，显示认证方式选择对话框
     if (providerType === 'openai-codex-oauth') {
         showCodexAuthMethodSelector(providerType);
+        return;
+    }
+
+    // 如果是 Kimi OAuth，显示认证方式选择对话框
+    if (providerType === 'kimi-oauth') {
+        showKimiAuthMethodSelector(providerType);
         return;
     }
 
