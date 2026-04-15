@@ -8,8 +8,10 @@
 
 ### 🟡 进行中
 - [ ] utils/common.js 覆盖率 20% → 60%+ (补充更多边界条件测试)
+- [ ] ui-modules/event-broadcast 覆盖率 55% → 60%+
 
 ### ✅ 已完成
+- [x] 二次Review修复 Bug - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 ✅ 2026-04-17 (77f614a)
 - [x] 深度 Review 修复 Bug - LRU滑动过期/WSRelay竞态/Kimi OAuth ✅ 2026-04-16 (791ac91)
 - [x] wsrelay/manager.js 测试覆盖率 75% → 83% ✅ 2026-04-16 (新增31个测试,64→95 tests)
 - [x] utils/logger.js 测试覆盖率 67% → 78% ✅ 2026-04-15 晚
@@ -163,4 +165,4 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ---
 
-*最后更新: 2026-04-16 Review*
+*最后更新: 2026-04-17 Review*

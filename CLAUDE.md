@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-16 Review |
+| 最后更新 | 2026-04-17 Review |
 
 ---
 
@@ -206,6 +206,7 @@ Time:        ~38s
 
 | 提交 | 说明 |
 |------|------|
+| 77f614a | fix: 二次Review修复 - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 |
 | 791ac91 | fix: 修复多处关键 bug - LRU滑动过期/WSRelay竞态/Kimi OAuth |
 | 616fc9f | docs: 更新 .agent 文档 - 测试状态和覆盖率记录 |
 | eb14407 | docs: 更新 CLAUDE.md - event-broadcast 测试覆盖率提升记录 |
@@ -241,6 +242,31 @@ Time:        ~38s
 | # | 代码 | 文件 |
 |---|------|------|
 | 1 | `closedCh = new EventEmitter()` 未使用 | wsrelay/manager.js:325 |
+
+---
+
+## 二次 Review 发现并修复的 Bug (2026-04-17)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 | 提交 |
+|---|-----|------|------|------|
+| 1 | **_sendPing() 锁竞态** - 等待1ms后无条件获取锁，可能允许并发写入 | manager.js:416-422 | ✅ 改为循环重试+5秒超时保护 | 77f614a |
+| 2 | **_registerSession 大小写不一致** - 存储原始大小写但注销时用 toLowerCase()，导致无法注销 | manager.js:116 | ✅ 统一使用 toLowerCase() 存储 | 77f614a |
+
+### 🟡 中危 Bug
+
+| # | Bug | 文件 | 修复 | 提交 |
+|---|-----|------|------|------|
+| 1 | **_sendPong() 未 await send()** - async 函数返回值未处理，可能 unhandled rejection | manager.js:491-497 | ✅ 添加 await | 77f614a |
+| 2 | **ch.messages 无限增长** - drain() 时消息数组无上限，可导致内存泄漏 | manager.js:590-593 | ✅ 添加 MAX_MESSAGES=100 限制 | 77f614a |
+
+### 🟢 死代码清理
+
+| # | 代码 | 文件 | 修复 | 提交 |
+|---|------|------|------|------|
+| 1 | 注释掉的 initialize() 调用 (106-108, 358-360) | adapter.js | ✅ 已移除 | 77f614a |
+| 2 | 过时注释 "Node.js 使用 30 分钟" (889) | adapter.js | ✅ 已修正为 "与 Go 对齐 3 小时" | 77f614a |
 
 ---
 

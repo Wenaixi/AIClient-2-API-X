@@ -124,6 +124,7 @@ REFRESH_LEAD_CONFIG = {
 | 11 | getClientIp 测试空对象访问错误 | ✅ 已修复 | 2026-04-15 |
 | 12 | findByPrefix/hasByPrefix 前缀匹配测试 | ✅ 已修复 | 2026-04-15 |
 | 13-33 | Timer 泄漏 - 21处 setInterval 未调用 .unref() | ✅ 已全部修复 | 2026-04-15 |
+| 34-37 | _sendPing 锁竞态 / _registerSession 大小写 / _sendPong 异步 / ch.messages 泄漏 | ✅ 已修复 | 2026-04-17 |
 
 ### Timer 泄漏修复 (21处)
 
@@ -262,23 +263,29 @@ manager.js 75% 覆盖率，未覆盖行：
 
 ---
 
-## WSRelay Manager 已修复 Bug (2026-04-16)
+## WSRelay Manager 已修复 Bug (2026-04-16/17)
 
 | # | Bug | 修复方案 |
 |---|-----|----------|
 | 1 | cleanup() _cleanupOnce 未使用 | 添加 `if (this.closed \|\| this._cleanupOnce) return; this._cleanupOnce = true;` |
-| 2 | _sendPing() while 忙等阻塞事件循环 | 改用 `await new Promise(resolve => setTimeout(resolve, 1))` 异步等待 |
+| 2 | _sendPing() while 忙等阻塞事件循环 | 改用循环重试+5秒超时保护 |
 | 3 | request() send失败不通知调用者 | catch 中向通道 push 错误消息再关闭 |
 | 4 | send() acquireLock 未检查 closed | 添加 `if (this.closed) reject()` 防止闭session等待 |
 | 5 | stop() activeSessions 过早清零 | 移到 cleanup 循环之后 |
 | 6 | closedCh 未使用 | 已移除 |
+| 7 | _sendPing() 锁竞态 | 等待1ms后无条件获取锁，可能允许并发写入 |
+| 8 | _registerSession 大小写不一致 | 统一使用 toLowerCase() 存储 provider |
+| 9 | _sendPong() 未 await send() | async 函数返回值未处理 |
+| 10 | ch.messages 无限增长 | 添加 MAX_MESSAGES=100 限制 |
 
-## LRU Cache 已修复 Bug (2026-04-16)
+## LRU Cache 已修复 Bug (2026-04-16/17)
 
 | # | Bug | 修复方案 |
 |---|-----|----------|
 | 1 | get() 访问时不更新 timestamp | 改为 `this.cache.set(key, { value, timestamp: Date.now() })` |
 | 2 | has() 不更新访问时间 | 添加相同的 timestamp 更新逻辑 |
+| 3 | 注释掉的 initialize() 调用 | adapter.js 死代码已移除 |
+| 4 | 过时注释 "Node.js 使用 30 分钟" | 已修正为 "与 Go 对齐 3 小时" |
 
 ---
 
