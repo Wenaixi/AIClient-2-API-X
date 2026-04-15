@@ -27,7 +27,7 @@
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2171 passed, 2171 total
-Time:        ~38s
+Time:        ~39s
 ```
 
 ### 测试结果说明
@@ -43,9 +43,10 @@ Time:        ~38s
 | providers/selectors | 91% | 🟢 达标 |
 | services/usage-service | 91% | 🟢 达标 |
 | services/health-check-timer | 81% | 🟢 |
-| ui-modules/config-api | 73% | 🟡 |
+| ui-modules/config-api | 74% | 🟢 |
+| ui-modules/system-monitor | 71% | 🟢 |
 | utils/logger.js | 78% | 🟢 ✅ (67% → 78%) |
-| utils/common.js | 20% | 🟡 已覆盖 20 个工具函数 |
+| utils/common.js | 20% | 🟡 集成级函数不需单元测试 |
 | wsrelay/manager.js | 83% | 🟢 ✅ (75% → 83%) |
 | ui-modules/event-broadcast | 47% | 🟡 ✅ (4% → 47%) |
 

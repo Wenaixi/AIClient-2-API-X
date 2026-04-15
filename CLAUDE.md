@@ -68,27 +68,27 @@ docker compose -f docker/docker-compose.build.yml down
 
 ---
 
-## 测试状态 (2026-04-15 晚)
+## 测试状态 (2026-04-16)
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2140 passed, 2140 total
-Time:        ~39-53s
+Tests:       2171 passed, 2171 total
+Time:        ~39s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
 
-### 覆盖率概况
+### 覆盖率概况 (2026-04-16)
 
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 83% | manager.js 83%+ (75% → 83%) ✅ 接近目标 |
-| services/* | 81-91% | health-check-timer/usage-service |
-| utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
-| ui-modules/* | 13-83% | auth.js ✅ 已新建测试(39 tests) / event-broadcast 47% |
+| wsrelay/* | 83% | manager.js 83.12% ✅ (75% → 83%) |
+| services/* | 81-91% | health-check-timer 81% / usage-service 91% |
+| utils/* | 30-78% | logger.js 78% ✅ / common.js 20% (集成级函数) |
+| ui-modules/* | 13-83% | config-api 74% / system-monitor 71% / event-broadcast 47% |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ### 低覆盖率原因说明
