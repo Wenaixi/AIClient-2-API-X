@@ -342,3 +342,38 @@ if (timer.unref) timer.unref();
 ```
 
 *最后更新: 2026-04-19*
+
+---
+
+## 深度 Review 发现的问题 (2026-04-19)
+
+### 已修复 ✅
+
+| # | 问题 | 文件 | 风险 | 修复 |
+|---|-----|------|------|------|
+| 1 | **safeCompare 时序攻击漏洞** - 长度不同时直接返回false，攻击者可推断长度 | common.js:258-263 | 高 | ✅ 恒定时间比较，使用Buffer.fill保证等长 |
+| 2 | **getRequestBody 字符串拼接性能** - body += chunk 导致 O(n²) 内存重分配 | common.js:204-231 | 中 | ✅ 改用 chunks 数组 + Buffer.concat() |
+
+### 已确认/已知问题
+
+| # | 问题 | 文件 | 风险 | 状态 |
+|---|-----|------|------|------|
+| 1 | **Proxy getOwnPropertyDescriptor 误用 get()** - 每次访问描述符都更新LRU | adapter.js:943-947 | 高 | 已知技术债务 - 当前测试覆盖良好 |
+| 2 | **logger JSON.stringify 循环引用** - 有 try-catch 保护但仍可能丢失日志 | logger.js:214 | 中 | 已缓解 - String(arg) fallback |
+| 3 | **config API Key 不持久化** - 重启后丢失，需手动保存 | config-manager.js:210-213 | 中 | 设计问题 - 需用户手动保存 |
+| 4 | **_acquireGlobalSemaphoreSync 非原子** - 检查和递增之间有竞态窗口 | provider-pool-manager.js:865-870 | 中 | 已知问题 - async版本有保护 |
+
+### 未修复/高优先级
+
+| # | 问题 | 文件 | 风险 |
+|---|-----|------|------|
+| 1 | **默认密码 admin123** - ui-modules/auth.js 未强制更改 | auth.js:34 | 极高 |
+| 2 | **JWT 签名验证缺失** - codex-oauth.js 仅解析不验证 | codex-oauth.js:474-487 | 高 |
+| 3 | **硬编码 OAuth 凭证** - gemini/kimi/codex 多处硬编码 | auth/*.js | 高 |
+
+### 低优先级问题 (无需立即修复)
+
+- common.js MD5 使用不安全算法 (用于缓存key，可接受)
+- adapter maxSize 无边界检查 (通常传入有效值)
+- wsrelay manager ws.close() 异常静默忽略 (debug级别，可接受)
+- health-check-timer 启动延迟100ms可能导致竞态 (低风险)

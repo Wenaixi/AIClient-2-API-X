@@ -291,6 +291,31 @@ manager.js 75% 覆盖率，未覆盖行：
 | 3 | 注释掉的 initialize() 调用 | adapter.js 死代码已移除 |
 | 4 | 过时注释 "Node.js 使用 30 分钟" | 已修正为 "与 Go 对齐 3 小时" |
 
+## 深度 Review 发现的问题 (2026-04-19)
+
+### 已修复 ✅
+
+| # | 问题 | 文件 | 风险 | 修复 |
+|---|-----|------|------|------|
+| 1 | safeCompare 时序攻击漏洞 | common.js | 高 | 恒定时间比较，使用Buffer.fill保证等长 |
+| 2 | getRequestBody 字符串拼接性能 | common.js | 中 | chunks 数组 + Buffer.concat() |
+
+### 已确认/已知技术债务
+
+| # | 问题 | 文件 | 风险 | 说明 |
+|---|-----|------|------|------|
+| 1 | Proxy getOwnPropertyDescriptor 误用 | adapter.js:943 | 高 | get()会更新LRU顺序 |
+| 2 | config API Key 不持久化 | config-manager.js | 中 | 重启后丢失 |
+| 3 | _acquireGlobalSemaphoreSync 竞态 | provider-pool-manager.js | 中 | async版本有保护 |
+
+### 未修复/需关注
+
+| # | 问题 | 文件 | 风险 |
+|---|-----|------|------|
+| 1 | 默认密码 admin123 | auth.js:34 | 极高 |
+| 2 | JWT 签名验证缺失 | codex-oauth.js | 高 |
+| 3 | 硬编码 OAuth 凭证 | auth/*.js | 高 |
+
 ---
 
 *最后更新: 2026-04-19*

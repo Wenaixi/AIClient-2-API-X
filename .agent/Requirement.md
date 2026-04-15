@@ -166,4 +166,25 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 |---|-----|------|------|
 | 1 | **_dispatch 调用 drain 未检查方法存在** - 测试环境 mock 的 ch 没有 drain 方法会导致错误 | manager.js:483 | ✅ 添加 if (pendingReq.ch.drain) 检查 |
 
+---
+
+## 深度 Review 发现的问题 (2026-04-19)
+
+### 🔴 高危问题
+
+| # | 问题 | 文件 | 状态 |
+|---|-----|------|------|
+| 1 | **safeCompare 时序攻击漏洞** - 长度不同时直接返回false | common.js:258-263 | ✅ 已修复 |
+| 2 | **默认密码 admin123** - 未强制更改 | auth.js:34 | ⚠️ 待修复 |
+| 3 | **JWT 签名验证缺失** - 仅解析不验证 | codex-oauth.js:474-487 | ⚠️ 待修复 |
+| 4 | **硬编码 OAuth 凭证** | auth/*.js | ⚠️ 待修复 |
+
+### 🟡 中危问题
+
+| # | 问题 | 文件 | 状态 |
+|---|-----|------|------|
+| 1 | getRequestBody 字符串拼接性能 | common.js:204-231 | ✅ 已修复 |
+| 2 | Proxy getOwnPropertyDescriptor 误用 | adapter.js:943 | ⚠️ 已知技术债务 |
+| 3 | config API Key 不持久化 | config-manager.js | ⚠️ 设计问题 |
+
 *最后更新: 2026-04-19*
