@@ -162,69 +162,19 @@ export class ProviderPoolManager {
     }
 
     /**
-     * 验证配置参数，确保数值在合理范围内
-     * 验证失败时记录警告并使用默认值
+     * 强制刷新特定节点的令牌
+     * @param {string} providerType 
+     * @param {string} uuid 
+     * @param {boolean} force 
      */
-    validateConfig() {
-        const defaults = {
-            REFRESH_SEMAPHORE_GLOBAL: 16,
-            REFRESH_SEMAPHORE_PER_PROVIDER: 4,
-            QUOTA_BACKOFF_BASE: 1000,
-            QUOTA_BACKOFF_MAX: 1800000,
-            COOLDOWN_DEFAULT: 60000,
-            MAX_SEMAPHORE_WAIT_TIME: 60000
-        };
-
-        const cfg = this.globalConfig;
-
-        // REFRESH_SEMAPHORE_GLOBAL: 应为正整数
-        if (cfg.REFRESH_SEMAPHORE_GLOBAL !== undefined) {
-            if (!Number.isInteger(cfg.REFRESH_SEMAPHORE_GLOBAL) || cfg.REFRESH_SEMAPHORE_GLOBAL <= 0) {
-                this._log('warn', `Invalid REFRESH_SEMAPHORE_GLOBAL: ${cfg.REFRESH_SEMAPHORE_GLOBAL}, using default: ${defaults.REFRESH_SEMAPHORE_GLOBAL}`);
-                cfg.REFRESH_SEMAPHORE_GLOBAL = defaults.REFRESH_SEMAPHORE_GLOBAL;
-            }
+    async refreshNode(providerType, uuid, force = true) {
+        const provider = this._findProvider(providerType, uuid);
+        if (provider) {
+            this._log('info', `Manually triggering refresh for node ${uuid} (${providerType})`);
+            this._enqueueRefresh(providerType, provider, force);
+            return true;
         }
-
-        // REFRESH_SEMAPHORE_PER_PROVIDER: 应为正整数
-        if (cfg.REFRESH_SEMAPHORE_PER_PROVIDER !== undefined) {
-            if (!Number.isInteger(cfg.REFRESH_SEMAPHORE_PER_PROVIDER) || cfg.REFRESH_SEMAPHORE_PER_PROVIDER <= 0) {
-                this._log('warn', `Invalid REFRESH_SEMAPHORE_PER_PROVIDER: ${cfg.REFRESH_SEMAPHORE_PER_PROVIDER}, using default: ${defaults.REFRESH_SEMAPHORE_PER_PROVIDER}`);
-                cfg.REFRESH_SEMAPHORE_PER_PROVIDER = defaults.REFRESH_SEMAPHORE_PER_PROVIDER;
-            }
-        }
-
-        // QUOTA_BACKOFF_BASE: 应为正数
-        if (cfg.QUOTA_BACKOFF_BASE !== undefined) {
-            if (typeof cfg.QUOTA_BACKOFF_BASE !== 'number' || cfg.QUOTA_BACKOFF_BASE <= 0) {
-                this._log('warn', `Invalid QUOTA_BACKOFF_BASE: ${cfg.QUOTA_BACKOFF_BASE}, using default: ${defaults.QUOTA_BACKOFF_BASE}`);
-                cfg.QUOTA_BACKOFF_BASE = defaults.QUOTA_BACKOFF_BASE;
-            }
-        }
-
-        // QUOTA_BACKOFF_MAX: 应为正数且大于 BASE
-        if (cfg.QUOTA_BACKOFF_MAX !== undefined) {
-            const base = cfg.QUOTA_BACKOFF_BASE ?? defaults.QUOTA_BACKOFF_BASE;
-            if (typeof cfg.QUOTA_BACKOFF_MAX !== 'number' || cfg.QUOTA_BACKOFF_MAX <= 0 || cfg.QUOTA_BACKOFF_MAX <= base) {
-                this._log('warn', `Invalid QUOTA_BACKOFF_MAX: ${cfg.QUOTA_BACKOFF_MAX}, must be positive and > BASE (${base}), using default: ${defaults.QUOTA_BACKOFF_MAX}`);
-                cfg.QUOTA_BACKOFF_MAX = defaults.QUOTA_BACKOFF_MAX;
-            }
-        }
-
-        // COOLDOWN_DEFAULT: 应为正数
-        if (cfg.COOLDOWN_DEFAULT !== undefined) {
-            if (typeof cfg.COOLDOWN_DEFAULT !== 'number' || cfg.COOLDOWN_DEFAULT <= 0) {
-                this._log('warn', `Invalid COOLDOWN_DEFAULT: ${cfg.COOLDOWN_DEFAULT}, using default: ${defaults.COOLDOWN_DEFAULT}`);
-                cfg.COOLDOWN_DEFAULT = defaults.COOLDOWN_DEFAULT;
-            }
-        }
-
-        // MAX_SEMAPHORE_WAIT_TIME: 应为正数
-        if (cfg.MAX_SEMAPHORE_WAIT_TIME !== undefined) {
-            if (typeof cfg.MAX_SEMAPHORE_WAIT_TIME !== 'number' || cfg.MAX_SEMAPHORE_WAIT_TIME <= 0) {
-                this._log('warn', `Invalid MAX_SEMAPHORE_WAIT_TIME: ${cfg.MAX_SEMAPHORE_WAIT_TIME}, using default: ${defaults.MAX_SEMAPHORE_WAIT_TIME}`);
-                cfg.MAX_SEMAPHORE_WAIT_TIME = defaults.MAX_SEMAPHORE_WAIT_TIME;
-            }
-        }
+        return false;
     }
 
     /**
@@ -260,10 +210,16 @@ export class ProviderPoolManager {
                     try {
                         const fileContent = fs.readFileSync(configPath, 'utf-8');
                         const credData = JSON.parse(fileContent);
-                        const expiryTime = credData.expiry_date || credData.expiry || credData.expires_at;
-                        // 使用 per-provider 的刷新提前期
-                        const nearExpiryMs = ProviderPoolManager.getRefreshLead(providerType);
-                        if (!expiryTime) {
+                        const rawExpiryTime = credData.expiry_date ?? credData.expiry ?? credData.expires_at ?? credData.expiresAt;
+                        let expiryTime = null;
+                        if (typeof rawExpiryTime === 'number') {
+                            expiryTime = rawExpiryTime;
+                        } else if (typeof rawExpiryTime === 'string') {
+                            const parsedDate = Date.parse(rawExpiryTime);
+                            expiryTime = Number.isNaN(parsedDate) ? Number(rawExpiryTime) : parsedDate;
+                        }
+                        const nearExpiryMs = (this.globalConfig?.CRON_NEAR_MINUTES || 10) * 60 * 1000;
+                        if (!Number.isFinite(expiryTime)) {
                             // 凭据文件缺少 expiry 字段，无法判断是否快过期，作为安全措施强制刷新
                             this._log('warn', `Node ${providerStatus.uuid} (${providerType}) has no expiry field. Forcing refresh as safety measure...`);
                             this._enqueueRefresh(providerType, providerStatus);
@@ -513,7 +469,9 @@ export class ProviderPoolManager {
                     const nextTask = currentQueue.waitingTasks.shift();
                     currentQueue.activeCount++;
                     // 使用 Promise.resolve().then 避免过深的递归
-                    Promise.resolve().then(nextTask);
+                    Promise.resolve().then(nextTask).catch(err => {
+                        this._log('error', `Failed to execute next task for ${providerType}: ${err.message}`);
+                    });
                 } else if (currentQueue.activeCount === 0) {
                     // 只有持有全局槽位的任务才能释放信号量（先于队列删除）
                     if (ownsGlobalSlot) {
@@ -526,10 +484,17 @@ export class ProviderPoolManager {
                         delete this.refreshQueues[providerType];
                     }
 
-                    // 2. 尝试启动下一个等待中的提供商队列
-                    if (this.refreshSemaphore.globalWaitQueue.length > 0) {
-                        const resolve = this.refreshSemaphore.globalWaitQueue.shift();
-                        Promise.resolve().then(resolve);
+                    // 只有持有全局槽位的任务才能递减计数器
+                    if (ownsGlobalSlot) {
+                        this.activeProviderRefreshes--;
+                    }
+
+                    // 3. 尝试启动下一个等待中的提供商队列
+                    if (this.globalRefreshWaiters.length > 0) {
+                        const nextProviderStart = this.globalRefreshWaiters.shift();
+                        Promise.resolve().then(nextProviderStart).catch(err => {
+                            this._log('error', `Failed to start next provider queue: ${err.message}`);
+                        });
                     }
                 }
             }
@@ -538,7 +503,9 @@ export class ProviderPoolManager {
         const tryStartProviderQueue = () => {
             if (queue.activeCount < this.refreshConcurrency.perProvider) {
                 queue.activeCount++;
-                runTask();
+                runTask().catch(err => {
+                    this._log('error', `Critical error in runTask for ${providerType}: ${err.message}`);
+                });
             } else {
                 queue.waitingTasks.push(runTask);
             }
