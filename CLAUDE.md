@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-15 晚 |
+| 最后更新 | 2026-04-16 Review |
 
 ---
 
@@ -128,7 +128,7 @@ Time:        ~38s
 ### 安全修复
 1. XSS 防护 - escapeHtml 统一处理 ✅
 2. 时序安全比较 - safeCompare() 替代直接字符串比较 ✅
-3. 日志脱敏 - sanitizeLog() 覆盖 token/api_key 等敏感字段 ✅
+3. 日志脱敏 - maskKey() 覆盖 token/api_key 等敏感字段 ✅
 4. 请求体大小限制 - MAX_BODY_SIZE 10MB ✅
 5. 安全测试覆盖 - security-fixes.test.js 验证所有安全修复 ✅
 
@@ -149,7 +149,7 @@ Time:        ~38s
 | OAuth 流程 | ✅ 正确 | Kimi/Codex/Gemini/Qwen/Kiro 设备流 |
 | XSS 防护 | ✅ 统一 | escapeHtml() 全局使用 |
 | 时序安全比较 | ✅ 正确 | safeCompare() 使用 crypto.timingSafeEqual |
-| 日志脱敏 | ✅ 完整 | sanitizeLog() 覆盖敏感字段 |
+| 日志脱敏 | ✅ 完整 | maskKey() 覆盖敏感字段 |
 | 请求体限制 | ✅ 10MB | MAX_BODY_SIZE 防止内存耗尽 |
 
 ### 代码统计 (pro vs main)

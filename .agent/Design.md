@@ -48,7 +48,7 @@ kimi-oauth.js / kiro-oauth.js / gemini-oauth.js / codex-oauth.js / qwen-oauth.js
 
 ### 日志脱敏
 - 脱敏字段: `token`, `api_key`, `authorization`, `password`, `secret`
-- 实现: `src/utils/logger.js` → `sanitizeLog()` ✅
+- 实现: `src/utils/common.js` → `maskKey()` ✅ (isAuthorized 函数内联实现)
 
 ### XSS 防护
 - `escapeHtml()` 统一处理所有错误消息输出 ✅
