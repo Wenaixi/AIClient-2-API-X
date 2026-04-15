@@ -35,7 +35,7 @@ Time:        ~40s
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 75-76% | manager.js 75%（错误处理分支未完全覆盖）|
+| wsrelay/* | 83% | manager.js 83% ✅ (75% → 83%) |
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
 | ui-modules/* | 13-83% | auth.js 39 tests 已建立 |

@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-15 晚 |
+| 最后更新 | 2026-04-16 |
 
 ---
 
@@ -85,7 +85,7 @@ Time:        ~39-53s
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 75-76% | manager.js 75%（错误处理分支未完全覆盖）|
+| wsrelay/* | 83% | manager.js 83%+ (75% → 83%) ✅ 接近目标 |
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
 | ui-modules/* | 13-83% | auth.js ✅ 已新建测试(39 tests) / event-broadcast 47% |

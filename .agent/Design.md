@@ -224,13 +224,13 @@ REFRESH_LEAD_CONFIG = {
 | utils/logger.js | 78% | Logger 脱敏功能已覆盖 |
 | ui-modules/config-api | 73% | Config API 核心功能已覆盖 |
 | utils/provider-utils | 87% | Provider 工具函数高覆盖 |
+| wsrelay/manager.js | 83% | 错误处理分支已覆盖 ✅ |
 
 ### 低覆盖率模块 (<60%)
 | 模块 | 覆盖率 | 说明 |
 |------|--------|------|
 | utils/common.js | 20% | 20个核心函数已覆盖 |
 | ui-modules/event-broadcast | 47% | 需继续提升 |
-| wsrelay/manager.js | 75% | 错误处理分支未完全覆盖 |
 
 ### 未覆盖/最小覆盖模块 (0-15%)
 - auth/* OAuth 模块 - 通过集成测试覆盖
