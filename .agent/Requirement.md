@@ -18,11 +18,11 @@ AIClient-2-API 是一个 API 代理服务，支持 OpenAI/Claude/Gemini/Kimi/Gro
 
 ---
 
-## 测试状态 (2026-04-15 下午)
+## 测试状态 (2026-04-15 晚)
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2091 passed, 2091 total
+Tests:       2140 passed, 2140 total
 Time:        ~40s
 ```
 
@@ -35,15 +35,15 @@ Time:        ~40s
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 75-76% | manager.js 75% |
+| wsrelay/* | 75-76% | manager.js 75%（错误处理分支未完全覆盖）|
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
-| ui-modules/* | 13-83% | auth.js ✅ 已新建测试 / event-broadcast 47% |
+| ui-modules/* | 13-83% | auth.js 39 tests 已建立 |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ---
 
-## 代码质量 Review 总结 (pro vs main) - 2026-04-15 下午
+## 代码质量 Review 总结 (pro vs main) - 2026-04-15 晚
 
 ### 已确认 ✅
 
@@ -94,9 +94,9 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 | 模块 | 当前 | 目标 | 状态 |
 |------|------|------|------|
 | utils/common.js | 20% | 60%+ | 🟡 已覆盖 20 个核心函数 |
-| utils/logger.js | 67% | 85%+ | 🟡 中 |
-| wsrelay/manager.js | 75% | 85%+ | 🟡 中 |
-| ui-modules/* | 4-73% | 60%+ | 🟡 需整体提升 |
+| utils/logger.js | 78% | 85%+ | 🟡 ✅ 已提升 67% → 78% |
+| wsrelay/manager.js | 75% | 85%+ | 🟡 错误处理分支未完全覆盖 |
+| ui-modules/auth.js | 39 tests | 60 tests | 🟡 新建完成 |
 | providers/kimi | 87-91% | 90%+ | 🟢 已达标 |
 
 ---
@@ -116,12 +116,15 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 | 提交 | 说明 |
 |------|------|
-| 0e14dbe | docs: 更新 .agent 文档 - Timer 泄漏验证完成 |
-| 232448e | docs: 更新 Timer 泄漏修复统计 - 确认 21 处 .unref() 已全部添加 |
+| 4e04004 | docs: 更新文档 - logger.js 覆盖率提升记录 |
+| e9ded9c | test: 提升 utils/logger.js 测试覆盖率 67% → 78% |
+| cac7c5c | fix(docker): 修正 docker compose 配置文件路径为绝对路径 |
+| a9a77bb | docs: 更新 .agent 文档 - 测试状态和任务进度 |
+| a642591 | test: 新建 ui-modules/auth.js 单元测试 |
+| cbdbc3b | test: event-broadcast覆盖率提升 4% → 47% |
 | b7f0f8f | fix(timer): 修复 gemini-core 和 qwen-core 中 setInterval 未调用 .unref() |
 | 3827fea | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
-| 4eb5da0 | docs: 更新测试覆盖率分析 - 解释 common.js 低覆盖率原因 |
 
 ---
 
-*最后更新: 2026-04-15 下午*
+*最后更新: 2026-04-15 晚*

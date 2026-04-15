@@ -63,6 +63,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # 清除构建时代理变量，避免泄露到运行时
 ENV HTTP_PROXY=
 ENV HTTPS_PROXY=
+ENV NO_PROXY=
+ENV http_proxy=
+ENV https_proxy=
+ENV no_proxy=
 
 # 设置启动命令
 # 使用默认配置启动服务器，支持通过环境变量配置

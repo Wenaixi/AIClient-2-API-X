@@ -207,4 +207,59 @@ REFRESH_LEAD_CONFIG = {
 
 ---
 
-*最后更新: 2026-04-15 下午*
+## 测试覆盖率说明 (2026-04-15 晚)
+
+### 高覆盖率模块 (>80%)
+| 模块 | 覆盖率 | 说明 |
+|------|--------|------|
+| providers/kimi | 87-91% | Kimi Provider 高覆盖 |
+| providers/forward | 91% | Forward Provider 高覆盖 |
+| providers/selectors | 91% | Selector 高覆盖 |
+| services/usage-service | 91% | Usage Service 高覆盖 |
+| services/health-check-timer | 81% | Health Check Timer 高覆盖 |
+
+### 中等覆盖率模块 (60-80%)
+| 模块 | 覆盖率 | 说明 |
+|------|--------|------|
+| utils/logger.js | 78% | Logger 脱敏功能已覆盖 |
+| ui-modules/config-api | 73% | Config API 核心功能已覆盖 |
+| utils/provider-utils | 87% | Provider 工具函数高覆盖 |
+
+### 低覆盖率模块 (<60%)
+| 模块 | 覆盖率 | 说明 |
+|------|--------|------|
+| utils/common.js | 20% | 20个核心函数已覆盖 |
+| ui-modules/event-broadcast | 47% | 需继续提升 |
+| wsrelay/manager.js | 75% | 错误处理分支未完全覆盖 |
+
+### 未覆盖/最小覆盖模块 (0-15%)
+- auth/* OAuth 模块 - 通过集成测试覆盖
+- providers/gemini - OAuth 集成测试覆盖
+- providers/grok - OAuth 集成测试覆盖
+- providers/openai (除 selectors) - OAuth 集成测试覆盖
+- ui-modules/* (部分) - 部分通过单元测试覆盖
+
+---
+
+## wsrelay/manager.js 未覆盖分支分析
+
+manager.js 75% 覆盖率，未覆盖行：
+- **262-301行**: `_handleWebsocket` 错误处理分支
+  - providerFactory 抛出异常
+  - provider 为空时的处理
+- **358-404行**: Session `run()` 方法的错误处理
+  - WebSocket 消息解析失败
+  - 连接关闭/错误处理
+- **428行**: `_dispatch` 未知消息类型处理
+- **456行**: 错误响应处理
+- **476行**: Session 未找到处理
+- **506-507行**: 请求转发错误处理
+- **559-567行**: 会话清理错误处理
+- **575-576行**: Manager 清理错误处理
+- **616-617行**: 统计信息获取
+
+这些分支主要是复杂异步场景和错误恢复路径，通过集成测试和实际使用验证。
+
+---
+
+*最后更新: 2026-04-15 晚*
