@@ -277,6 +277,9 @@ manager.js 75% 覆盖率，未覆盖行：
 | 8 | _registerSession 大小写不一致 | 统一使用 toLowerCase() 存储 provider |
 | 9 | _sendPong() 未处理返回值 | _dispatch() 调用 _sendPong() 未处理返回值，导致 unhandled rejection |
 | 10 | ch.messages 无限增长 | 添加 MAX_MESSAGES=100 限制 |
+| 11 | ch.drain() 从未被调用 | 在 request().catch()、cleanup()、_dispatch() 终端消息处理中调用 drain |
+| 12 | 终端消息不触发 'message' 事件 | 终端消息处理后添加 emit('message', msg) |
+| 13 | request() 错误通知丢失 | 修复 push → drain → close 顺序 |
 
 ## LRU Cache 已修复 Bug (2026-04-16/17)
 

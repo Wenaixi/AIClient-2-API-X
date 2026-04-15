@@ -479,9 +479,15 @@ export class WSSession extends EventEmitter {
                 messageType === MessageType.StreamEnd ||
                 msg.type === 'http_resp' || msg.type === 'error' || msg.type === 'stream_end') {
                 this.pending.delete(msg.id);
+                // 在关闭前 drain 确保缓冲消息被转移（仅当 drain 方法存在时）
+                if (pendingReq.ch.drain) {
+                    pendingReq.ch.drain();
+                }
                 pendingReq.close();
+                // 终端消息也需要触发 'message' 事件，保证事件驱动的调用者能收到
+                this.emit('message', msg);
+                return;
             }
-            return;
         }
 
         // 未知 ID 的终端消息（参考 Go 版本的日志级别）
@@ -617,11 +623,14 @@ export class WSSession extends EventEmitter {
         }).catch((err) => {
             this.pending.delete(msg.id);
             // 向通道发送错误通知，让调用者知道发送失败
+            // 注意：必须先 push 再 close，否则 close 后 push 会被忽略
             pendingReq.ch.push({
                 id: msg.id,
                 type: MessageType.Error,
                 payload: { error: err.message || 'send failed' }
             });
+            // drain 确保错误消息被转移到 messages 数组
+            pendingReq.ch.drain();
             pendingReq.close();
         });
 
@@ -659,6 +668,10 @@ export class WSSession extends EventEmitter {
             };
             try {
                 pendingReq.ch.push(errMsg);
+                // drain 确保错误消息被转移到 messages 数组（仅当 drain 方法存在时）
+                if (pendingReq.ch.drain) {
+                    pendingReq.ch.drain();
+                }
             } catch (e) {
                 // ignore
             }

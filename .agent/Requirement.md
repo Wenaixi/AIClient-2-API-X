@@ -148,4 +148,22 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 | 3 | **completeKimiOAuth 缺少 autoLinkProviderConfigs** - 与 checkKimiAuthStatus 行为不一致 | kimi-oauth-handler.js:73-128 | ✅ 已修复 |
 | 4 | **stop() stats.activeSessions 过早清零** - cleanup 前就设为0 | wsrelay/manager.js:221-223 | ✅ 已修复 |
 
+---
+
+## 三次 Review 发现并修复的 Bug (2026-04-18)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **ch.drain() 从未被调用** - 消息在 buffer 中积累，从不转移到 messages，导致 buffer 溢出和内存泄漏 | manager.js:593-602 | ✅ 在 request().catch()、cleanup()、_dispatch() 终端消息处理中调用 drain |
+| 2 | **终端消息不触发 'message' 事件** - 有 pending ID 的终端消息直接返回，不触发 emit，破坏事件驱动调用 | manager.js:481-484 | ✅ 添加 emit('message', msg) |
+| 3 | **request() 错误通知丢失** - catch 中先 push 错误再 close，但 close 后 push 被忽略 | manager.js:620-625 | ✅ 调整顺序：先 push → drain → close |
+
+### 🟡 中危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **_dispatch 调用 drain 未检查方法存在** - 测试环境 mock 的 ch 没有 drain 方法会导致错误 | manager.js:483 | ✅ 添加 if (pendingReq.ch.drain) 检查 |
+
 *最后更新: 2026-04-18*
