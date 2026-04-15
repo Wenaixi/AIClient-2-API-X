@@ -87,7 +87,7 @@ Time:        ~39-53s
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
 | wsrelay/* | 75-76% | manager.js 75% |
 | services/* | 81-91% | health-check-timer/usage-service |
-| utils/* | 28-67% | common.js 20% / logger.js 67% |
+| utils/* | 30-78% | logger.js 78% ✅ / common.js 20% |
 | ui-modules/* | 13-83% | auth.js ✅ 已新建测试 / event-broadcast 47% |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
@@ -196,8 +196,8 @@ Time:        ~39-53s
 | 模块 | 当前覆盖 | 目标 | 备注 |
 |------|----------|------|------|
 | utils/common.js | 20% | 60%+ | 已覆盖 20 个核心工具函数 |
-| utils/logger.js | 67% | 85%+ | 中优先级 |
-| ui-modules/* | 13-73% | 60%+ | event-broadcast 4% 需提升 |
+| utils/logger.js | 78% | 85%+ | ✅ 已提升 67% → 78% (128 tests) |
+| ui-modules/* | 13-83% | 60%+ | event-broadcast 47% 需继续提升 |
 | wsrelay/manager.js | 75% | 85%+ | 中优先级 |
 
 ---
@@ -255,4 +255,4 @@ Time:        ~40s
 
 **已知问题**：`A worker process has failed to exit gracefully` 警告是 Jest 已知问题，不影响测试结果。原因可能是测试框架的 worker 管理与 Node.js 定时器的交互。
 
-*最后更新: 2026-04-15 下午*
+*最后更新: 2026-04-15 晚*
