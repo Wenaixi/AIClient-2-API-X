@@ -26,7 +26,7 @@
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2091 passed, 2091 total
-Time:        ~39s
+Time:        ~40s
 ```
 
 ### 测试结果说明

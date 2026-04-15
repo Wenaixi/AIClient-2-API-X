@@ -73,7 +73,7 @@ docker compose -f docker/docker-compose.build.yml down
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2091 passed, 2091 total
-Time:        ~39s
+Time:        ~40s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
@@ -88,7 +88,7 @@ Time:        ~39s
 | wsrelay/* | 75-76% | manager.js 75% |
 | services/* | 81-91% | health-check-timer/usage-service |
 | utils/* | 28-67% | common.js 20% / logger.js 67% |
-| ui-modules/* | 13-73% | auth.js 0% ✅ 已新建测试 / event-broadcast 47% |
+| ui-modules/* | 13-83% | auth.js ✅ 已新建测试 / event-broadcast 47% |
 | auth/* | 高 | OAuth模块覆盖良好 ✅ |
 
 ### 低覆盖率原因说明
@@ -206,11 +206,11 @@ Time:        ~39s
 
 | 提交 | 说明 |
 |------|------|
+| a9a77bb | docs: 更新 .agent 文档 - 测试状态和任务进度 |
+| a642591 | test: 新建 ui-modules/auth.js 单元测试 |
+| cfd207c | docs: 更新文档 - event-broadcast覆盖率提升记录 |
+| cbdbc3b | test: event-broadcast覆盖率提升 4% → 47% |
 | b7f0f8f | fix(timer): 修复 gemini-core 和 qwen-core 中 setInterval 未调用 .unref() |
-| 747e597 | docs: 更新 .agent 文档 - Timer 泄漏修复记录 |
-| 3827fea | fix(timer): 修复多处 setInterval 未调用 .unref() 导致的 Timer 泄漏 |
-| 4eb5da0 | docs: 更新测试覆盖率分析 - 解释 common.js 低覆盖率原因 |
-| 00d2135 | docs: 更新 .agent 文档 (Requirement.md/Design.md/Task.md) |
 
 ---
 
@@ -248,9 +248,9 @@ if (timer.unref) timer.unref();
 
 ### 测试状态
 ```
-Test Suites: 51 passed, 51 total
-Tests:       2032 passed, 2032 total
-Time:        ~35-42s
+Test Suites: 52 passed, 52 total
+Tests:       2091 passed, 2091 total
+Time:        ~40s
 ```
 
 **已知问题**：`A worker process has failed to exit gracefully` 警告是 Jest 已知问题，不影响测试结果。原因可能是测试框架的 worker 管理与 Node.js 定时器的交互。
