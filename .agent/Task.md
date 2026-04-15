@@ -20,6 +20,7 @@
 - [x] 测试覆盖率分析 - 解释 common.js 低覆盖率原因 ✅ 2026-04-15
 - [x] 深度Review代码质量 - 确认核心功能正常 ✅ 2026-04-15
 - [x] CLAUDE.md 和 .agent 文档更新 ✅ 2026-04-15 晚
+- [x] 深度Review (pro vs main) - 修正 sanitizeLog 文档错误 ✅ 2026-04-16 (d3df4c6)
 
 ---
 
@@ -162,4 +163,4 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ---
 
-*最后更新: 2026-04-16 早*
+*最后更新: 2026-04-16 Review*
