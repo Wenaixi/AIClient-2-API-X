@@ -275,7 +275,7 @@ manager.js 75% 覆盖率，未覆盖行：
 | 6 | closedCh 未使用 | 已移除 |
 | 7 | _sendPing() 锁竞态 | 等待1ms后无条件获取锁，可能允许并发写入 |
 | 8 | _registerSession 大小写不一致 | 统一使用 toLowerCase() 存储 provider |
-| 9 | _sendPong() 未 await send() | async 函数返回值未处理 |
+| 9 | _sendPong() 未处理返回值 | _dispatch() 调用 _sendPong() 未处理返回值，导致 unhandled rejection |
 | 10 | ch.messages 无限增长 | 添加 MAX_MESSAGES=100 限制 |
 
 ## LRU Cache 已修复 Bug (2026-04-16/17)

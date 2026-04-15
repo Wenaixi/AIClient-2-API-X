@@ -15,7 +15,6 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-17 Review |
 | 最后更新 | 2026-04-18 Review |
 
 ---
@@ -207,13 +206,12 @@ Time:        ~42s
 
 | 提交 | 说明 |
 |------|------|
+| 21564fe | fix: 修复 _dispatch 中 _sendPong 未处理的 unhandled rejection |
+| 97081e9 | docs: 更新文档日期为 2026-04-17 |
+| 0e56e77 | docs: 更新文档 - 二次Review修复记录和测试状态 |
 | 77f614a | fix: 二次Review修复 - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 |
 | 791ac91 | fix: 修复多处关键 bug - LRU滑动过期/WSRelay竞态/Kimi OAuth |
 | 616fc9f | docs: 更新 .agent 文档 - 测试状态和覆盖率记录 |
-| eb14407 | docs: 更新 CLAUDE.md - event-broadcast 测试覆盖率提升记录 |
-| 130c6a5 | test: 提升 event-broadcast.js 测试覆盖率 47% → 55% |
-| 9d94f3a | docs: 更新文档 - 测试状态和覆盖率概况 (2026-04-16) |
-| 2f0bbff | test: 提升 wsrelay/manager.js 测试覆盖率 75% → 83% |
 
 ---
 
@@ -259,7 +257,7 @@ Time:        ~42s
 
 | # | Bug | 文件 | 修复 | 提交 |
 |---|-----|------|------|------|
-| 1 | **_sendPong() 未 await send()** - async 函数返回值未处理，可能 unhandled rejection | manager.js:491-497 | ✅ 添加 await | 77f614a |
+| 1 | **_sendPong() 未 await** - _dispatch() 调用 _sendPong() 未处理返回值，导致 unhandled rejection | manager.js:459 | ✅ 添加 .catch() 处理 | 21564fe |
 | 2 | **ch.messages 无限增长** - drain() 时消息数组无上限，可导致内存泄漏 | manager.js:590-593 | ✅ 添加 MAX_MESSAGES=100 限制 | 77f614a |
 
 ### 🟢 死代码清理
