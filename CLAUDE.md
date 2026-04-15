@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-15 下午 |
+| 最后更新 | 2026-04-15 晚 |
 
 ---
 
@@ -73,7 +73,7 @@ docker compose -f docker/docker-compose.build.yml down
 ```
 Test Suites: 52 passed, 52 total
 Tests:       2091 passed, 2091 total
-Time:        ~40s
+Time:        ~39-53s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
