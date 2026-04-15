@@ -754,15 +754,16 @@ export class KimiApiServiceAdapter extends ApiServiceAdapter {
 // 注册所有内置适配器
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM, OpenAIApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.OPENAI_CUSTOM_RESPONSES, OpenAIResponsesApiServiceAdapter);
+registerAdapter(MODEL_PROVIDER.CLAUDE_CUSTOM, ClaudeApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.GEMINI_CLI, GeminiApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.ANTIGRAVITY, AntigravityApiServiceAdapter);
-registerAdapter(MODEL_PROVIDER.CLAUDE_CUSTOM, ClaudeApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIRO_API, KiroApiServiceAdapter);
-registerAdapter(MODEL_PROVIDER.QWEN_API, QwenApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.CODEX_API, CodexApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.GROK_CUSTOM, GrokApiServiceAdapter);
 registerAdapter(MODEL_PROVIDER.KIMI_API, KimiApiServiceAdapter);
 // registerAdapter(MODEL_PROVIDER.FORWARD_API, ForwardApiServiceAdapter);
+// registerAdapter(MODEL_PROVIDER.QWEN_API, QwenApiServiceAdapter);
+// registerAdapter(MODEL_PROVIDER.IFLOW_API, IFlowApiServiceAdapter);
 
 /**
  * LRU缓存类，用于管理服务适配器实例避免内存泄漏
