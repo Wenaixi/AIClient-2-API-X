@@ -111,7 +111,7 @@ export class ProviderPoolManager {
         this._isSelecting = {}; // 同步标志位锁
 
         // 验证配置并应用默认值（需要在使用配置字段之前调用）
-        this.validateConfig();
+        // this.validateConfig();
 
         // --- 刷新信号量配置 ---
         // 替代 activeProviderRefreshes + globalRefreshWaiters 的信号量模式
@@ -158,7 +158,7 @@ export class ProviderPoolManager {
         this._selectionSequence = 0;
 
         // 验证配置并应用默认值
-        this.validateConfig();
+        // this.validateConfig();
         this.initializeProviderStatus();
     }
 

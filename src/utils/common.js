@@ -9,7 +9,11 @@ import { getPluginManager } from '../core/plugin-manager.js';
 import { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
 import {
     usesManagedModelList,
-    getConfiguredSupportedModels
+    getConfiguredSupportedModels,
+    getCustomModelConfig,
+    getCustomModelActualProvider,
+    getCustomModelListProvider,
+    normalizeModelIds
 } from '../providers/provider-models.js';
 
 export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
@@ -55,15 +59,6 @@ export const API_ACTIONS = {
     GENERATE_CONTENT: 'generateContent',
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
-
-import {
-    usesManagedModelList,
-    getConfiguredSupportedModels,
-    getCustomModelConfig,
-    getCustomModelActualProvider,
-    getCustomModelListProvider,
-    normalizeModelIds
-} from '../providers/provider-models.js';
 
 /**
  * 获取指定提供商类型下，所有节点配置的已选模型列表（去重聚合）

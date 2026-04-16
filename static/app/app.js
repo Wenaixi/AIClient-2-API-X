@@ -110,6 +110,8 @@ function loadInitialData() {
 /**
  * 初始化应用
  */
+let _appInitialized = false;
+
 function initApp() {
     // 防止重复初始化
     if (_appInitialized) {
@@ -159,7 +161,7 @@ function initApp() {
     }, 5000);
 
     // 定期刷新系统信息
-    _systemInfoIntervalId = setInterval(() => {
+    let _systemInfoIntervalId = setInterval(() => {
         loadProviders();
 
         if (providerStats.activeProviders > 0) {
