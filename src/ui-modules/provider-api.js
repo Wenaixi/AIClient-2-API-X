@@ -10,7 +10,7 @@ import {
 } from '../providers/provider-models.js';
 import { generateUUID, createProviderConfig, formatSystemPath, detectProviderFromPath, addToUsedPaths, isPathUsed, pathsEqual } from '../utils/provider-utils.js';
 import { broadcastEvent } from './event-broadcast.js';
-import { getRegisteredProviders, getServiceAdapter, serviceInstances } from '../providers/adapter.js';
+import { getRegisteredProviders, getServiceAdapter, invalidateServiceAdapter, serviceInstances } from '../providers/adapter.js';
 
 // 文件级互斥锁：防止并发读写导致数据丢失
 // 安全净化：移除用户输入字段中的危险内容，并可选地过滤敏感 API 密钥
@@ -644,6 +644,7 @@ async function _handleUpdateProvider(req, res, currentConfig, providerPoolManage
         // Save to file
         writeFileSync(filePath, JSON.stringify(providerPools, null, 2), 'utf-8');
         logger.info(`[UI API] Updated provider ${providerUuid} in ${providerType}`);
+        invalidateServiceAdapter(providerType, providerUuid);
 
         // Update provider pool manager if available
         if (providerPoolManager) {
@@ -722,6 +723,7 @@ async function _handleDeleteProvider(req, res, currentConfig, providerPoolManage
         // Save to file
         writeFileSync(filePath, JSON.stringify(providerPools, null, 2), 'utf-8');
         logger.info(`[UI API] Deleted provider ${providerUuid} from ${providerType}`);
+        invalidateServiceAdapter(providerType, providerUuid);
 
         // Update provider pool manager if available
         if (providerPoolManager) {
@@ -1527,6 +1529,8 @@ export async function handleRefreshProviderUuid(req, res, currentConfig, provide
         // Save to file
         writeFileSync(filePath, JSON.stringify(providerPools, null, 2), 'utf-8');
         logger.info(`[UI API] Refreshed UUID for provider in ${providerType}: ${oldUuid} -> ${newUuid}`);
+        invalidateServiceAdapter(providerType, oldUuid);
+        invalidateServiceAdapter(providerType, newUuid);
 
         // Update provider pool manager if available
         if (providerPoolManager) {

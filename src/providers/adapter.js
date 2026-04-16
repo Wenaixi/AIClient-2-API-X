@@ -949,6 +949,20 @@ export const serviceInstances = new Proxy({}, {
     }
 });
 
+export function getServiceInstanceKey(provider, uuid = null) {
+    return uuid ? provider + uuid : provider;
+}
+
+export function invalidateServiceAdapter(provider, uuid = null) {
+    const providerKey = getServiceInstanceKey(provider, uuid);
+    if (serviceInstances[providerKey]) {
+        delete serviceInstances[providerKey];
+        logger.info(`[Adapter] Invalidated service adapter, provider: ${provider}, uuid: ${uuid || 'default'}`);
+        return true;
+    }
+    return false;
+}
+
 /**
  * 检查提供商是否已注册（支持前缀匹配）
  * @param {string} provider - 提供商名称
@@ -963,21 +977,26 @@ export function getServiceAdapter(config) {
     const customNameDisplay = config.customName ? ` (${config.customName})` : '';
     logger.info(`[Adapter] getServiceAdapter, provider: ${config.MODEL_PROVIDER}, uuid: ${config.uuid}${customNameDisplay}`);
     const provider = config.MODEL_PROVIDER;
-    const providerKey = config.uuid ? provider + config.uuid : provider;
-
-    const cachedInstance = serviceInstancesCache.get(providerKey);
-    if (cachedInstance) {
-        return cachedInstance;
-    }
-
-    const AdapterClass = findByPrefix(adapterRegistry, provider);
-
-    if (AdapterClass) {
-        const newInstance = new AdapterClass(config);
-        serviceInstancesCache.set(providerKey, newInstance);
-        return newInstance;
-    } else {
-        throw new Error(`Unsupported model provider: ${provider}`);
+    const providerKey = getServiceInstanceKey(provider, config.uuid);
+    
+    if (!serviceInstances[providerKey]) {
+        let AdapterClass = adapterRegistry.get(provider);
+        
+        // 如果没找到精确匹配，尝试通过前缀查找 (例如 openai-custom-1 -> openai-custom)
+        if (!AdapterClass) {
+            for (const [key, value] of adapterRegistry.entries()) {
+                if (provider === key || provider.startsWith(key + '-')) {
+                    AdapterClass = value;
+                    break;
+                }
+            }
+        }
+        
+        if (AdapterClass) {
+            serviceInstances[providerKey] = new AdapterClass(config);
+        } else {
+            throw new Error(`Unsupported model provider: ${provider}`);
+        }
     }
 }
 
