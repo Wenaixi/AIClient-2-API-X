@@ -335,8 +335,8 @@ export class WSSession extends EventEmitter {
         // 关闭保护（参考 Go 版本的 closeOnce）
         this._cleanupOnce = false;
 
-        // 设置连接参数
-        this.ws.on('error', (err) => this._handleError(err));
+        // 错误处理在 run() 方法中统一设置，避免重复绑定
+        // this.ws.on('error', (err) => this._handleError(err));
 
         logger.debug(`[WSRelay] Session created: id=${id}`);
     }
@@ -536,19 +536,24 @@ export class WSSession extends EventEmitter {
             };
 
             const doSend = () => {
+                let settled = false;
+                const settle = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    this.writeMutex = false;
+                    if (err) {
+                        reject(err);
+                    } else {
+                        this.manager.stats.messagesSent++;
+                        resolve();
+                    }
+                };
                 try {
                     this.ws.send(JSON.stringify(msg), (err) => {
-                        this.writeMutex = false;
-                        if (err) {
-                            reject(err);
-                        } else {
-                            this.manager.stats.messagesSent++;
-                            resolve();
-                        }
+                        settle(err);
                     });
                 } catch (err) {
-                    this.writeMutex = false;
-                    reject(err);
+                    settle(err);
                 }
             };
 

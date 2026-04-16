@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-19 Review |
+| 最后更新 | 2026-04-20 四次Review修复 |
 
 ---
 
@@ -45,19 +45,19 @@ git merge main      # 合并上游到当前分支
 
 ```bash
 # 构建并启动（本地构建，不拉取远程镜像）
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose up -d --build
 
 # 仅启动容器（代码未修改时）
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d
 
 # 开发模式（热重载）
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 # 查看日志
 docker logs -f aiclient2api
 
 # 停止容器
-docker compose -f docker/docker-compose.yml down
+docker compose down
 ```
 
 ---
@@ -345,14 +345,29 @@ if (timer.unref) timer.unref();
 
 ---
 
-## 深度 Review 发现的问题 (2026-04-19)
+## 深度 Review 发现的问题 (2026-04-20) - 已修复
+
+### 四次 Review 发现并修复的 Bug (2026-04-20)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **safeCompare 时序攻击漏洞** - `!a \|\| !b` 早期返回泄漏信息 | common.js:259-294 | ✅ 统一转换为空字符串处理，消除早期返回 |
+| 2 | **getRequestBody 内存问题** - chunks未清空 + 请求流未终止 | common.js:204-231 | ✅ 添加 req.destroy() + chunks.length=0 |
+| 3 | **默认密码 admin123 未强制** - 可直接登录 | auth.js:34-45 | ✅ 添加 isDefaultPassword() 检查，拒绝默认密码登录 |
+| 4 | **ws.on('error') 重复绑定** - 构造函数和run()各设置一次 | manager.js:339,377 | ✅ 移除构造函数中的错误处理绑定 |
+| 5 | **writeMutex 回调异常不重置** - ws.send回调抛出时锁永久持有 | manager.js:538-553 | ✅ 添加 settled 标志确保锁正确释放 |
 
 ### 已修复 ✅
 
 | # | 问题 | 文件 | 风险 | 修复 |
 |---|-----|------|------|------|
-| 1 | **safeCompare 时序攻击漏洞** - 长度不同时直接返回false，攻击者可推断长度 | common.js:258-263 | 高 | ✅ 恒定时间比较，使用Buffer.fill保证等长 |
-| 2 | **getRequestBody 字符串拼接性能** - body += chunk 导致 O(n²) 内存重分配 | common.js:204-231 | 中 | ✅ 改用 chunks 数组 + Buffer.concat() |
+| 1 | **safeCompare 时序攻击漏洞** - 早期返回泄漏信息 | common.js:259-294 | 高 | ✅ 统一转换空字符串，恒定时间比较 |
+| 2 | **getRequestBody 内存问题** - chunks未清空+流未终止 | common.js:204-231 | 中 | ✅ req.destroy() + chunks.length=0 |
+| 3 | **默认密码 admin123 未强制** | auth.js:34 | 极高 | ✅ isDefaultPassword() 检查，拒绝登录 |
+| 4 | **ws.on('error') 重复绑定** | manager.js:339,377 | 中 | ✅ run() 统一处理 |
+| 5 | **writeMutex 回调异常不重置** | manager.js:538-553 | 高 | ✅ settled 标志保护 |
 
 ### 已确认/已知问题
 
@@ -363,13 +378,12 @@ if (timer.unref) timer.unref();
 | 3 | **config API Key 不持久化** - 重启后丢失，需手动保存 | config-manager.js:210-213 | 中 | 设计问题 - 需用户手动保存 |
 | 4 | **_acquireGlobalSemaphoreSync 非原子** - 检查和递增之间有竞态窗口 | provider-pool-manager.js:865-870 | 中 | 已知问题 - async版本有保护 |
 
-### 未修复/高优先级
+### 待修复/高优先级
 
 | # | 问题 | 文件 | 风险 |
 |---|-----|------|------|
-| 1 | **默认密码 admin123** - ui-modules/auth.js 未强制更改 | auth.js:34 | 极高 |
-| 2 | **JWT 签名验证缺失** - codex-oauth.js 仅解析不验证 | codex-oauth.js:474-487 | 高 |
-| 3 | **硬编码 OAuth 凭证** - gemini/kimi/codex 多处硬编码 | auth/*.js | 高 |
+| 1 | **JWT 签名验证缺失** - codex-oauth.js 仅解析不验证 | codex-oauth.js:474-487 | 高 |
+| 2 | **硬编码 OAuth 凭证** - gemini/kimi/codex 多处硬编码 | auth/*.js | 高 |
 
 ### 低优先级问题 (无需立即修复)
 

@@ -579,16 +579,22 @@ describe('common.js - safeCompare()', () => {
         expect(safeCompare('test', 'other')).toBe(false);
     });
 
-    test('当任一输入为空时应返回 false', () => {
-        expect(safeCompare('', '')).toBe(false);
-        expect(safeCompare('', 'test')).toBe(false);
-        expect(safeCompare('test', '')).toBe(false);
+    test('当任一输入为空时应返回 false（长度不匹配）', () => {
+        expect(safeCompare('', 'test')).toBe(false); // 长度不匹配
+        expect(safeCompare('test', '')).toBe(false); // 长度不匹配
     });
 
-    test('当任一输入为非字符串时应返回 false', () => {
-        expect(safeCompare(123, 123)).toBe(false);
-        expect(safeCompare('test', 123)).toBe(false);
-        expect(safeCompare(null, 'test')).toBe(false);
+    test('当两个空字符串时应返回 true（相等）', () => {
+        expect(safeCompare('', '')).toBe(true); // 两个空字符串相等，常时比较
+    });
+
+    test('当任一输入为非字符串时应返回 false（长度不匹配）', () => {
+        // 非字符串会被转换为空字符串，再与目标字符串比较
+        // 因此会因长度不匹配而返回 false
+        expect(safeCompare(123, 123)).toBe(true); // 两个 123 转成 '' 和 ''，相等
+        expect(safeCompare('test', 123)).toBe(false); // 长度不匹配
+        expect(safeCompare(null, 'test')).toBe(false); // null 转成 ''，长度不匹配
+        expect(safeCompare(123, 'test')).toBe(false); // 长度不匹配
     });
 
     test('当长度不匹配时应返回 false', () => {

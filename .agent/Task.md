@@ -11,6 +11,7 @@
 - [ ] ui-modules/event-broadcast 覆盖率 55% → 60%+
 
 ### ✅ 已完成
+- [x] 四次Review修复 Bug - safeCompare时序攻击/getRequestBody内存/默认密码admin123/ws.on重复绑定/writeMutex锁释放 ✅ 2026-04-20
 - [x] 三次Review修复 Bug - ch.drain未调用/终端消息不触发event/错误通知丢失 ✅ 2026-04-19 (2cf35b8)
 - [x] 二次Review修复 Bug - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 ✅ 2026-04-17 (77f614a)
 - [x] 深度 Review 修复 Bug - LRU滑动过期/WSRelay竞态/Kimi OAuth ✅ 2026-04-16 (791ac91)
@@ -166,4 +167,24 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 
 ---
 
-*最后更新: 2026-04-19*
+## 四次 Review 发现并修复的 Bug (2026-04-20)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **safeCompare 时序攻击漏洞** - `!a \|\| !b` 早期返回泄漏信息 | common.js:259-294 | ✅ 统一转换为空字符串处理，消除早期返回 |
+| 2 | **getRequestBody 内存问题** - chunks未清空 + 请求流未终止 | common.js:204-231 | ✅ 添加 req.destroy() + chunks.length=0 |
+| 3 | **默认密码 admin123 未强制** - 可直接登录 | auth.js:34-45 | ✅ 添加 isDefaultPassword() 检查，拒绝默认密码登录 |
+| 4 | **ws.on('error') 重复绑定** - 构造函数和run()各设置一次 | manager.js:339,377 | ✅ 移除构造函数中的错误处理绑定 |
+| 5 | **writeMutex 回调异常不重置** - ws.send回调抛出时锁永久持有 | manager.js:538-553 | ✅ 添加 settled 标志确保锁正确释放 |
+
+### 测试状态 (2026-04-20)
+
+```
+Test Suites: 52 passed, 52 total
+Tests:       2176 passed, 2176 total
+Time:        ~35s
+```
+
+*最后更新: 2026-04-20*

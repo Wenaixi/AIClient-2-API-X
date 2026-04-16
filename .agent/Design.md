@@ -291,14 +291,29 @@ manager.js 75% 覆盖率，未覆盖行：
 | 3 | 注释掉的 initialize() 调用 | adapter.js 死代码已移除 |
 | 4 | 过时注释 "Node.js 使用 30 分钟" | 已修正为 "与 Go 对齐 3 小时" |
 
-## 深度 Review 发现的问题 (2026-04-19)
+## 四次 Review 发现并修复的 Bug (2026-04-20)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **safeCompare 时序攻击漏洞** - `!a \|\| !b` 早期返回泄漏信息 | common.js:259-294 | ✅ 统一转换为空字符串处理，消除早期返回 |
+| 2 | **getRequestBody 内存问题** - chunks未清空 + 请求流未终止 | common.js:204-231 | ✅ 添加 req.destroy() + chunks.length=0 |
+| 3 | **默认密码 admin123 未强制** - 可直接登录 | auth.js:34-45 | ✅ 添加 isDefaultPassword() 检查，拒绝默认密码登录 |
+| 4 | **ws.on('error') 重复绑定** - 构造函数和run()各设置一次 | manager.js:339,377 | ✅ 移除构造函数中的错误处理绑定 |
+| 5 | **writeMutex 回调异常不重置** - ws.send回调抛出时锁永久持有 | manager.js:538-553 | ✅ 添加 settled 标志确保锁正确释放 |
+
+## 深度 Review 发现的问题 (2026-04-20)
 
 ### 已修复 ✅
 
 | # | 问题 | 文件 | 风险 | 修复 |
 |---|-----|------|------|------|
-| 1 | safeCompare 时序攻击漏洞 | common.js | 高 | 恒定时间比较，使用Buffer.fill保证等长 |
-| 2 | getRequestBody 字符串拼接性能 | common.js | 中 | chunks 数组 + Buffer.concat() |
+| 1 | safeCompare 时序攻击漏洞 | common.js | 高 | 统一转换空字符串，恒定时间比较 |
+| 2 | getRequestBody 内存问题 | common.js | 中 | req.destroy() + chunks.length=0 |
+| 3 | 默认密码 admin123 未强制 | auth.js | 极高 | isDefaultPassword() 检查，拒绝登录 |
+| 4 | ws.on('error') 重复绑定 | manager.js | 中 | run() 统一处理 |
+| 5 | writeMutex 回调异常不重置 | manager.js | 高 | settled 标志保护 |
 
 ### 已确认/已知技术债务
 
@@ -308,13 +323,12 @@ manager.js 75% 覆盖率，未覆盖行：
 | 2 | config API Key 不持久化 | config-manager.js | 中 | 重启后丢失 |
 | 3 | _acquireGlobalSemaphoreSync 竞态 | provider-pool-manager.js | 中 | async版本有保护 |
 
-### 未修复/需关注
+### 待修复/需关注
 
 | # | 问题 | 文件 | 风险 |
 |---|-----|------|------|
-| 1 | 默认密码 admin123 | auth.js:34 | 极高 |
-| 2 | JWT 签名验证缺失 | codex-oauth.js | 高 |
-| 3 | 硬编码 OAuth 凭证 | auth/*.js | 高 |
+| 1 | JWT 签名验证缺失 | codex-oauth.js | 高 |
+| 2 | 硬编码 OAuth 凭证 | auth/*.js | 高 |
 
 ---
 

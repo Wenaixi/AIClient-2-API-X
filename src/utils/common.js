@@ -205,10 +205,15 @@ export function getRequestBody(req) {
     return new Promise((resolve, reject) => {
         const chunks = [];
         let size = 0;
+        let rejected = false;
         req.on('data', chunk => {
+            if (rejected) return;
             size += chunk.length;
             // 防止内存耗尽：拒绝超过限制的请求体
             if (size > MAX_BODY_SIZE) {
+                rejected = true;
+                // 必须销毁请求流以停止接收后续数据
+                req.destroy();
                 reject(new Error("Request body too large. Maximum size is 10MB."));
                 return;
             }
@@ -216,16 +221,20 @@ export function getRequestBody(req) {
         });
         req.on('end', () => {
             if (chunks.length === 0) {
+                chunks.length = 0; // 清空数组引用
                 return resolve({});
             }
             try {
                 const body = Buffer.concat(chunks).toString('utf8');
+                chunks.length = 0; // 清空数组引用，协助 GC
                 resolve(JSON.parse(body));
             } catch (error) {
+                chunks.length = 0; // 清空数组引用
                 reject(new Error("Invalid JSON in request body."));
             }
         });
         req.on('error', err => {
+            chunks.length = 0; // 清空数组引用
             reject(err);
         });
     });
@@ -257,15 +266,16 @@ export async function logConversation(type, content, logMode, logFilename) {
  * @returns {boolean}
  */
 export function safeCompare(a, b) {
-    if (!a || !b) return false;
-    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    // 统一转换为空字符串处理，避免早期返回导致时序攻击
+    if (typeof a !== 'string') a = '';
+    if (typeof b !== 'string') b = '';
 
     const aLen = a.length;
     const bLen = b.length;
 
     // Constant-time length comparison (no short-circuit)
-    const sameLength = (aLen === bLen) ? 1 : 0;
-    const lenDiff = (aLen > bLen ? aLen : bLen) - (aLen < bLen ? aLen : bLen);
+    // 使用位运算避免短路口
+    const lenDiff = aLen ^ bLen;
 
     // Create buffers of equal size (use max length, padded with 0)
     const maxLen = Math.max(aLen, bLen);
@@ -275,21 +285,24 @@ export function safeCompare(a, b) {
     bufB.write(b);
 
     try {
-        // timingSafeEqual throws if lengths differ, so we only call it when sameLength is 1
-        // If lengths differ, we still do buffer comparison but it won't return true
-        if (sameLength) {
+        // crypto.timingSafeEqual 在长度不同时会抛出异常
+        // 先用恒定时间方式比较长度，再用 timingSafeEqual 比较内容
+        if (lenDiff === 0) {
             return crypto.timingSafeEqual(bufA, bufB);
         }
-        // Lengths differ: do a constant-time comparison of all bytes
-        // This still takes constant time but will never match
+        // 长度不同：执行恒定时间比较（永远不会匹配，但仍需保持常量时间）
         let result = 0;
         for (let i = 0; i < maxLen; i++) {
             result |= bufA[i] ^ bufB[i];
         }
         return result === 0;
     } catch (e) {
-        // Fallback for any unexpected errors
-        return false;
+        // Fallback for any unexpected errors - 仍然保持常量时间
+        let result = 0;
+        for (let i = 0; i < maxLen; i++) {
+            result |= bufA[i] ^ bufB[i];
+        }
+        return result === 0;
     }
 }
 

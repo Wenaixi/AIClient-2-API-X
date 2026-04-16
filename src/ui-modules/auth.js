@@ -29,9 +29,24 @@ function withTokenStoreLock(fn) {
 
 /**
  * 默认密码（当pwd文件不存在时使用）
- * 注意：首次部署后应立即通过 UI 更改此密码
+ * 注意：此密码极度不安全，强烈建议首次部署后立即通过 UI 更改
+ * 登录时如果检测到使用默认密码，将拒绝登录并要求更改
  */
 const DEFAULT_PASSWORD = 'admin123';
+
+/**
+ * 检查是否使用默认密码
+ * @param {string} storedPassword - 存储的密码
+ * @returns {boolean} true 如果使用的是默认密码
+ */
+function isDefaultPassword(storedPassword) {
+    if (!storedPassword) return false;
+    // 检查明文默认密码
+    if (storedPassword === DEFAULT_PASSWORD) return true;
+    // 检查是否未设置密码（空文件）
+    if (storedPassword.trim() === '') return true;
+    return false;
+}
 
 /**
  * 读取密码文件内容
@@ -390,7 +405,21 @@ export async function handleLoginRequest(req, res) {
         }
 
         const isValid = await validateCredentials(password);
-        
+
+        // 安全检查：如果使用的是默认密码，拒绝登录并要求更改
+        const storedPassword = await readPasswordFile();
+        if (isDefaultPassword(storedPassword)) {
+            logger.warn(`[Auth] Login denied: using default password, IP: ${ip}`);
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: false,
+                message: 'Default password must be changed before use. Please set a new password via UI.',
+                messageCode: 'login.error.defaultPassword',
+                requirePasswordChange: true
+            }));
+            return true;
+        }
+
         if (isValid) {
             logger.info(`[Auth] Login successful from IP: ${ip}`);
             // 登录成功，重置计数
