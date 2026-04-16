@@ -622,6 +622,11 @@ export class QwenApiService {
                 endpoint: this.getCurrentEndpoint(credentials.resource_url),
             };
         } catch (error) {
+            // TokenManagerError (刷新失败) 应该直接抛出，让调用方能识别是认证问题
+            if (error.name === 'TokenManagerError' || error.name === 'CredentialsClearRequiredError') {
+                error.skipAuthErrorWrap = true;
+                throw error;
+            }
             if (this.isAuthError(error)) throw error;
             logger.warn('Failed to get token from shared manager:', error);
             throw new Error('Failed to obtain valid Qwen access token. Please re-authenticate.');
@@ -1146,6 +1151,9 @@ class QwenOAuth2Client {
         const oauthBaseUrl = config.QWEN_OAUTH_BASE_URL || DEFAULT_QWEN_OAUTH_BASE_URL;
         this.oauthDeviceCodeEndpoint = `${oauthBaseUrl}/api/v1/oauth2/device/code`;
         this.oauthTokenEndpoint = `${oauthBaseUrl}/api/v1/oauth2/token`;
+
+        // 优先使用 config 中的 client_id，其次使用默认常量
+        this.clientId = config.QWEN_OAUTH_CLIENT_ID || QWEN_OAUTH_CLIENT_ID;
     }
 
     setCredentials(credentials) { this.credentials = credentials; }
@@ -1156,7 +1164,7 @@ class QwenOAuth2Client {
         const bodyData = {
             grant_type: 'refresh_token',
             refresh_token: this.credentials.refresh_token,
-            client_id: QWEN_OAUTH_CLIENT_ID,
+            client_id: this.clientId,
         };
         try {
             const endpoint = this.oauthTokenEndpoint;
@@ -1184,7 +1192,7 @@ class QwenOAuth2Client {
 
     async requestDeviceAuthorization(options) {
         const bodyData = {
-            client_id: QWEN_OAUTH_CLIENT_ID,
+            client_id: this.clientId,
             scope: options.scope,
             code_challenge: options.code_challenge,
             code_challenge_method: options.code_challenge_method,
@@ -1205,7 +1213,7 @@ class QwenOAuth2Client {
     async pollDeviceToken(options) {
         const bodyData = {
             grant_type: QWEN_OAUTH_GRANT_TYPE,
-            client_id: QWEN_OAUTH_CLIENT_ID,
+            client_id: this.clientId,
             device_code: options.device_code,
             code_verifier: options.code_verifier,
         };

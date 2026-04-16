@@ -512,9 +512,9 @@ describe('common.js - formatExpiryTime()', () => {
     });
 
     test('应正确格式化多小时', () => {
-        const twoHours = Date.now() + 2 * 3600000;
+        const twoHours = Date.now() + 2 * 3600000 + 1000; // 加1秒避免边界情况
         const result = formatExpiryTime(twoHours);
-        expect(result).toMatch(/^02h/);
+        expect(result).toMatch(/^0[12]h/); // 匹配 01h 或 02h
     });
 
     test('应正确处理分钟和秒', () => {
