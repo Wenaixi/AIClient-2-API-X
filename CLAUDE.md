@@ -341,7 +341,25 @@ const timer = setInterval(/* ... */);
 if (timer.unref) timer.unref();
 ```
 
-*最后更新: 2026-04-19*
+*最后更新: 2026-04-21*
+
+---
+
+## 五次 Review 发现并修复的 Bug (2026-04-21)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **getServiceAdapter 缺少 return** - serviceInstances[providerKey] 创建后未返回 | adapter.js:996-1001 | ✅ 添加 return serviceInstances[providerKey]; |
+
+### 测试状态 (2026-04-21)
+
+```
+Test Suites: 52 passed, 52 total
+Tests:       2176 passed, 2176 total
+Time:        ~34s
+```
 
 ---
 
