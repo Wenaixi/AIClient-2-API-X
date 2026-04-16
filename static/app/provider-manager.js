@@ -663,7 +663,7 @@ async function openProviderManager(providerType, searchTerm = '') {
  */
 function generateAuthButton(providerType) {
     // 只为支持OAuth的提供商显示授权按钮
-    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-codex-oauth'];
+    const oauthProviders = ['gemini-cli-oauth', 'gemini-antigravity', 'openai-qwen-oauth', 'claude-kiro-oauth', 'openai-codex-oauth', 'kimi-oauth'];
 
     if (!oauthProviders.includes(providerType)) {
         return '';
@@ -2815,7 +2815,7 @@ function showAuthModal(authUrl, authInfo) {
     
     // 获取需要开放的端口号（从 authInfo 或当前页面 URL）
     const requiredPort = authInfo.callbackPort || authInfo.port || window.location.port || '3000';
-    const isDeviceFlow = authInfo.provider === 'openai-qwen-oauth' || (authInfo.provider === 'claude-kiro-oauth' && authInfo.authMethod === 'builder-id');
+    const isDeviceFlow = authInfo.provider === 'openai-qwen-oauth' || authInfo.provider === 'kimi-oauth' || (authInfo.provider === 'claude-kiro-oauth' && authInfo.authMethod === 'builder-id');
 
     let instructionsHtml = '';
     if (authInfo.provider === 'openai-qwen-oauth') {
@@ -2843,6 +2843,31 @@ function showAuthModal(authUrl, authInfo) {
                     <li data-i18n="oauth.kiro.step3">${t('oauth.kiro.step3')}</li>
                     <li data-i18n="oauth.kiro.step4">${t('oauth.kiro.step4')}</li>
                 </ol>
+            </div>
+        `;
+    } else if (authInfo.provider === 'kimi-oauth') {
+        const maskedUserCode = authInfo.userCode || '';
+        const verificationUri = authInfo.verificationUriComplete || authInfo.verificationUri || '';
+        instructionsHtml = `
+            <div class="auth-instructions">
+                <h4 data-i18n="oauth.modal.steps">${t('oauth.modal.steps')}</h4>
+                <ol>
+                    <li data-i18n="oauth.kimi.step1">${t('oauth.kimi.step1')}</li>
+                    <li data-i18n="oauth.kimi.step2">${t('oauth.kimi.step2')}</li>
+                    <li data-i18n="oauth.kimi.step3">${t('oauth.kimi.step3')}</li>
+                    <li data-i18n="oauth.kimi.step4">${t('oauth.kimi.step4')}</li>
+                </ol>
+                ${maskedUserCode ? `
+                <div class="kimi-user-code-section" style="margin-top: 16px; padding: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
+                    <p style="margin: 0 0 8px 0; font-size: 14px; color: #166534;" data-i18n="oauth.kimi.enterCode">${t('oauth.kimi.enterCode')}</p>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <code style="font-size: 18px; font-weight: bold; color: #15803d; letter-spacing: 2px; padding: 8px 16px; background: white; border-radius: 4px; border: 1px solid #d1d5db;" id="kimiUserCodeDisplay">${maskedUserCode}</code>
+                        <button class="copy-user-code-btn" style="padding: 8px 12px; background: #22c55e; color: white; border: none; border-radius: 4px; cursor: pointer;" title="${t('oauth.kimi.clickToCopy')}">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
             </div>
         `;
     } else {
@@ -3004,8 +3029,30 @@ function showAuthModal(authUrl, authInfo) {
         document.execCommand('copy');
         showToast(t('common.success'), t('oauth.success.msg'), 'success');
     });
-    
-    // 在浏览器中打开按钮
+
+    // Kimi user code 复制按钮
+    const copyUserCodeBtn = modal.querySelector('.copy-user-code-btn');
+    if (copyUserCodeBtn) {
+        copyUserCodeBtn.addEventListener('click', () => {
+            const userCode = authInfo.userCode || '';
+            if (userCode) {
+                navigator.clipboard.writeText(userCode).then(() => {
+                    showToast(t('common.success'), t('oauth.success.msg'), 'success');
+                }).catch(() => {
+                    // Fallback
+                    const input = document.createElement('input');
+                    input.value = userCode;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    showToast(t('common.success'), t('oauth.success.msg'), 'success');
+                });
+            }
+        });
+    }
+
+    // Kimi 设备流需要特殊处理：添加轮询检查
     const openBtn = modal.querySelector('.open-auth-btn');
     openBtn.addEventListener('click', () => {
         // 使用子窗口打开，以便监听 URL 变化
@@ -3183,7 +3230,57 @@ function showAuthModal(authUrl, authInfo) {
             showToast(t('common.error'), t('oauth.window.blocked'), 'error');
         }
     });
-    
+
+    // Kimi 设备流特殊处理：添加轮询检查授权状态
+    if (authInfo.provider === 'kimi-oauth' && authInfo.deviceCode) {
+        const kimiPollInterval = (authInfo.interval || 5) * 1000; // 默认5秒
+        const kimiExpiresIn = (authInfo.expiresIn || 300) * 1000; // 默认5分钟过期
+
+        let kimiPollTimer = null;
+        const kimiStartTime = Date.now();
+
+        const startKimiPolling = () => {
+            if (kimiPollTimer) return;
+
+            kimiPollTimer = setInterval(async () => {
+                // 检查是否过期
+                if (Date.now() - kimiStartTime > kimiExpiresIn) {
+                    clearInterval(kimiPollTimer);
+                    kimiPollTimer = null;
+                    showToast(t('common.error'), t('oauth.kimi.expired') || 'Authorization expired', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await window.apiClient.post('/oauth/kimi/check-status', {
+                        deviceCode: authInfo.deviceCode
+                    });
+
+                    if (response.success && response.authorized) {
+                        clearInterval(kimiPollTimer);
+                        kimiPollTimer = null;
+                        showToast(t('common.success'), t('oauth.kimi.complete') || 'Authorization complete', 'success');
+                        handleOAuthSuccess();
+                    }
+                    // else: 继续等待，interval后会再次检查
+                } catch (error) {
+                    console.error('Kimi auth status check failed:', error);
+                }
+            }, kimiPollInterval);
+        };
+
+        // 延迟一下再开始轮询，让用户先看到界面
+        setTimeout(startKimiPolling, 2000);
+
+        // 模态框关闭时清理
+        const closeBtn = modal.querySelector('.modal-close');
+        closeBtn?.addEventListener('click', () => {
+            if (kimiPollTimer) {
+                clearInterval(kimiPollTimer);
+                kimiPollTimer = null;
+            }
+        });
+    }
 }
 
 /**

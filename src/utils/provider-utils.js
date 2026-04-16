@@ -40,7 +40,7 @@ export const PROVIDER_MAPPINGS = [
         patterns: ['configs/qwen/', '/qwen/'],
         providerType: 'openai-qwen-oauth',
         credPathKey: 'QWEN_OAUTH_CREDS_FILE_PATH',
-        defaultCheckModel: 'qwen3-coder-plus',
+        defaultCheckModel: 'qwen3.6-plus',
         defaultCheckHealth: true,
         displayName: 'Qwen OAuth',
         needsProjectId: false,

@@ -5,6 +5,8 @@ ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
+ENV http_proxy=$HTTP_PROXY
+ENV https_proxy=$HTTPS_PROXY
 
 RUN apk add --no-cache git
 
@@ -40,11 +42,15 @@ COPY package*.json ./
 # 安装依赖（使用代理设置如果提供的话）
 RUN npm install
 
-# 复制源代码
-COPY . .
+# 精确复制源代码和必要文件（避免复制 configs/、logs/ 等本地状态）
+COPY src/ ./src/
+COPY static/ ./static/
+COPY healthcheck.js ./
+COPY tls-sidecar/ ./tls-sidecar/
+COPY VERSION ./
 
 # 从 sidecar 构建阶段复制二进制
-# 放在 COPY . . 之后是为了确保不会被本地的空目录或旧二进制文件覆盖
+# 确保不会被本地的空目录或旧二进制文件覆盖
 COPY --from=sidecar-builder /build/tls-sidecar /app/tls-sidecar/tls-sidecar
 RUN chmod +x /app/tls-sidecar/tls-sidecar
 

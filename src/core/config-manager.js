@@ -107,11 +107,17 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
 
     /**
      * 从快照恢复配置（用于主配置文件损坏时）
+     * 仅当快照包含关键字段时才恢复，避免使用被污染的快照
      */
     const recoverFromSnapshot = (snapshotPath) => {
         try {
             const snapshotData = fs.readFileSync(snapshotPath, 'utf8');
             const snapshot = JSON.parse(snapshotData);
+            // 校验快照有效性：必须包含 REQUIRED_API_KEY 且不是默认/空值
+            if (!snapshot.REQUIRED_API_KEY || snapshot.REQUIRED_API_KEY === 'new-key-value') {
+                logger.warn('[Config] Snapshot appears to be a default/empty config, refusing to recover from it.');
+                return false;
+            }
             // 删除快照元数据字段
             delete snapshot._snapshotTime;
             Object.assign(currentConfig, snapshot);
@@ -128,6 +134,11 @@ export async function initializeConfig(args = process.argv.slice(2), configFileP
         const loadedConfig = JSON.parse(configData);
         Object.assign(currentConfig, loadedConfig);
         logger.info('[Config] Loaded configuration from configs/config.json');
+
+        // 检测配置是否被重置为明显默认值并发出警告
+        if (!loadedConfig.REQUIRED_API_KEY || loadedConfig.REQUIRED_API_KEY === 'new-key-value') {
+            logger.warn('[Config Warning] config.json appears to have been reset to default values (missing or default REQUIRED_API_KEY).');
+        }
     } catch (error) {
         if (error.code === 'ENOENT') {
             logger.info('[Config] configs/config.json not found, using default configuration.');

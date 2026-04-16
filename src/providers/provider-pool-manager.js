@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import crypto from 'crypto';
 import { getServiceAdapter, getRegisteredProviders, invalidateServiceAdapter } from './adapter.js';
 import logger from '../utils/logger.js';
 import { MODEL_PROVIDER, getProtocolPrefix } from '../utils/common.js';
@@ -51,7 +52,7 @@ export class ProviderPoolManager {
         'openai-custom': 'gpt-4o-mini',
         'claude-custom': 'claude-3-7-sonnet-20250219',
         'claude-kiro-oauth': 'claude-haiku-4-5',
-        'openai-qwen-oauth': 'qwen3-coder-flash',
+        'openai-qwen-oauth': 'qwen3.6-plus',
         'openai-codex-oauth': 'gpt-5-codex-mini',
         'openaiResponses-custom': 'gpt-4o-mini',
         'forward-api': 'gpt-4o-mini',
@@ -603,6 +604,15 @@ export class ProviderPoolManager {
 
         } catch (error) {
             this._log('error', `Token refresh failed for node ${providerStatus.uuid}: ${error.message}`);
+
+            // 检查是否是凭据无效的错误（NO_REFRESH_TOKEN 或 CREDENTIALS_CLEARED）
+            // 凭据文件不存在或无 refresh token 都意味着需要删除节点
+            if (error.type === 'NO_REFRESH_TOKEN') {
+                this._log('warn', `Credentials cleared for node ${providerStatus.uuid}, removing from pool`);
+                this._removeProvider(providerType, providerStatus.uuid);
+                return; // 不再标记为不健康，因为节点已被移除
+            }
+
             this.markProviderUnhealthyImmediately(providerType, config, `Refresh failed: ${error.message}`);
             throw error;
         }
@@ -1092,6 +1102,32 @@ export class ProviderPoolManager {
         }
         const pool = this.providerStatus[providerType];
         return pool?.find(p => p.uuid === uuid) || null;
+    }
+
+    /**
+     * 从池中移除指定的 provider
+     * @param {string} providerType - 提供商类型
+     * @param {string} uuid - 提供商 UUID
+     * @private
+     */
+    _removeProvider(providerType, uuid) {
+        if (!providerType || !uuid) {
+            this._log('error', `Invalid parameters: providerType=${providerType}, uuid=${uuid}`);
+            return;
+        }
+        const pool = this.providerStatus[providerType];
+        if (!pool) {
+            this._log('warn', `Provider pool not found for type: ${providerType}`);
+            return;
+        }
+        const index = pool.findIndex(p => p.uuid === uuid);
+        if (index === -1) {
+            this._log('warn', `Provider not found: ${uuid} in pool ${providerType}`);
+            return;
+        }
+        pool.splice(index, 1);
+        this._log('info', `Removed provider ${uuid} from pool ${providerType}`);
+        this._debouncedSave(providerType);
     }
 
     /**
@@ -2220,6 +2256,18 @@ export class ProviderPoolManager {
     }
 
     /**
+     * 清除所有 providerType 的选择锁
+     * 用于在配置重新加载时重置锁状态，避免旧锁残留导致并发问题
+     */
+    clearSelectionLocks() {
+        this._log('debug', 'Clearing all selection locks');
+        this._isSelecting = {};
+        for (const providerType in this._selectionLocks) {
+            this._selectionLocks[providerType] = Promise.resolve();
+        }
+    }
+
+    /**
      * 启用指定提供商
      * @param {string} providerType - 提供商类型
      * @param {object} providerConfig - 提供商配置
@@ -2846,9 +2894,16 @@ export class ProviderPoolManager {
                 }
             }
             
-            // 一次性写入文件
-            await fs.promises.writeFile(filePath, JSON.stringify(currentPools, null, 2), 'utf8');
-            this._log('info', `configs/provider_pools.json updated successfully for types: ${typesToSave.join(', ')}`);
+            // 原子写入文件（临时文件+重命名，防止进程崩溃导致文件损坏）
+            const tempPath = filePath + '.tmp.' + Date.now() + '.' + crypto.randomBytes(4).toString('hex');
+            try {
+                await fs.promises.writeFile(tempPath, JSON.stringify(currentPools, null, 2), 'utf8');
+                await fs.promises.rename(tempPath, filePath);
+                this._log('info', `configs/provider_pools.json updated successfully for types: ${typesToSave.join(', ')}`);
+            } catch (writeError) {
+                try { await fs.promises.unlink(tempPath); } catch (_) {}
+                throw writeError;
+            }
         } catch (error) {
             this._log('error', `Failed to write provider_pools.json: ${error.message}`);
         }

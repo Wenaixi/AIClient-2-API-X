@@ -16,7 +16,7 @@ import { isRetryableNetworkError, MODEL_PROVIDER, formatExpiryLog } from '../../
 import { getProviderPoolManager } from '../../services/service-manager.js';
 
 // --- Constants ---
-const QWEN_DIR = '.qwen';
+const QWEN_DIR = 'configs/qwen';
 const QWEN_CREDENTIAL_FILENAME = 'oauth_creds.json';
 // 从 provider-models.js 获取支持的模型列表
 const QWEN_MODELS = getProviderModels(MODEL_PROVIDER.QWEN_API);
@@ -960,6 +960,8 @@ class SharedTokenManager {
 
     async getValidCredentials(qwenClient, forceRefresh = false, options = {}) {
         const context = this.getContext(options);
+        // 将 uuid 存入 context，供 performTokenRefresh 错误时返回
+        context.uuid = options.uuid || this.uuid;
         try {
             await this.checkAndReloadIfNeeded(context);
             if (!forceRefresh && context.memoryCache.credentials && this.isTokenValid(context.memoryCache.credentials)) {
@@ -997,6 +999,16 @@ class SharedTokenManager {
                 context.memoryCache.fileModTime = stats.mtimeMs;
             }
         } catch (error) {
+            // 文件不存在也是一种无效凭据，抛出 NO_REFRESH_TOKEN 以便删除节点
+            if (error.code === 'ENOENT') {
+                context.memoryCache.credentials = null;
+                context.memoryCache.fileModTime = 0;
+                throw new TokenManagerError(
+                    TokenError.NO_REFRESH_TOKEN,
+                    `Credentials file not found: ${context.credentialFilePath}`,
+                    error,
+                );
+            }
             if (error.code !== 'ENOENT') {
                 context.memoryCache.credentials = null;
                 context.memoryCache.fileModTime = 0;
@@ -1006,8 +1018,6 @@ class SharedTokenManager {
                     error,
                 );
             }
-            context.memoryCache.credentials = null;
-            context.memoryCache.fileModTime = 0;
         }
     }
 
@@ -1062,18 +1072,14 @@ class SharedTokenManager {
         } catch (error) {
             if (error instanceof TokenManagerError) throw error;
 
-            // 处理 CredentialsClearRequiredError - 清除凭证文件
+            // 处理 CredentialsClearRequiredError - 不再删除凭据文件，保留以便后续排查
             if (error instanceof CredentialsClearRequiredError) {
-                try {
-                    await fs.unlink(context.credentialFilePath);
-                    logger.info('[Qwen Auth] Credentials cleared due to refresh token expiry');
-                } catch (_) { /* ignore */ }
-                throw error; // 重新抛出以便上层处理
+                logger.warn('[Qwen Auth] Credentials require clearing but preserving file');
             }
 
-            // 如果刷新令牌无效/过期,删除此上下文对应的凭证文件
+            // 如果刷新令牌无效/过期,不再删除凭据文件
             if (error && (error.status === 400 || /expired|invalid/i.test(error.message || ''))) {
-                try { await fs.unlink(context.credentialFilePath); } catch (_) { /* ignore */ }
+                logger.warn('[Qwen Auth] Token refresh failed but preserving credentials file');
             }
             throw new TokenManagerError(
                 TokenError.REFRESH_FAILED,

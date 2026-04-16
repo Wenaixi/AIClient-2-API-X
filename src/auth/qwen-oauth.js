@@ -18,7 +18,7 @@ const QWEN_OAUTH_CONFIG = {
     deviceCodeEndpoint: 'https://chat.qwen.ai/api/v1/oauth2/device/code',
     tokenEndpoint: 'https://chat.qwen.ai/api/v1/oauth2/token',
     grantType: 'urn:ietf:params:oauth:grant-type:device_code',
-    credentialsDir: '.qwen',
+    credentialsDir: 'configs/qwen',
     credentialsFile: 'oauth_creds.json',
     logPrefix: '[Qwen Auth]'
 };

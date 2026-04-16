@@ -29,6 +29,31 @@ function atomicWriteConfig(targetPath, data) {
 }
 
 /**
+ * 备份现有配置文件，保留最近 MAX_BACKUPS 个备份
+ */
+const MAX_CONFIG_BACKUPS = 5;
+function backupConfigFile(configPath) {
+    if (!existsSync(configPath)) return;
+    const backupPath = configPath + '.backup.' + Date.now();
+    try {
+        writeFileSync(backupPath, readFileSync(configPath, 'utf-8'), 'utf-8');
+        // 清理旧备份
+        const dir = path.dirname(configPath);
+        const base = path.basename(configPath);
+        const backups = fs.readdirSync(dir)
+            .filter(f => f.startsWith(base + '.backup.'))
+            .map(f => ({ name: f, time: Number(f.split('.backup.')[1]) || 0 }))
+            .sort((a, b) => a.time - b.time);
+        while (backups.length > MAX_CONFIG_BACKUPS) {
+            const oldest = backups.shift();
+            try { fs.unlinkSync(path.join(dir, oldest.name)); } catch (_) {}
+        }
+    } catch (e) {
+        logger.warn('[UI API] Failed to create config backup:', e.message);
+    }
+}
+
+/**
  * 重载配置文件
  * 动态导入config-manager并重新初始化配置
  * @returns {Promise<Object>} 返回重载后的配置对象
@@ -276,19 +301,16 @@ export async function handleUpdateConfig(req, res, currentConfig) {
             const currentStatus = getHealthCheckTimerStatus();
             const oldInterval = currentStatus.interval;
 
-            // 更新配置 - 使用深度合并避免丢失其他字段
-            currentConfig.SCHEDULED_HEALTH_CHECK = {
-                ...currentConfig.SCHEDULED_HEALTH_CHECK,
-                enabled: nowEnabled,
-                startupRun: incoming?.startupRun !== false,
-                interval: newInterval,
-                providerTypes: Array.isArray(incoming?.providerTypes) ? incoming.providerTypes : [],
-                customIntervals: incoming?.customIntervals || {},
-                healthyCheckInterval: incoming?.healthyCheckInterval ??
-                    currentConfig.SCHEDULED_HEALTH_CHECK?.healthyCheckInterval,
-                healthyCustomIntervals: incoming?.healthyCustomIntervals ||
-                    currentConfig.SCHEDULED_HEALTH_CHECK?.healthyCustomIntervals || {}
-            };
+            // 更新配置 - 使用条件字段覆盖，避免未传入的字段被清空
+            const merged = { ...currentConfig.SCHEDULED_HEALTH_CHECK };
+            if (incoming?.enabled !== undefined) merged.enabled = nowEnabled;
+            if (incoming?.startupRun !== undefined) merged.startupRun = incoming.startupRun !== false;
+            if (incoming?.interval !== undefined) merged.interval = newInterval;
+            if (incoming?.providerTypes !== undefined) merged.providerTypes = Array.isArray(incoming.providerTypes) ? incoming.providerTypes : [];
+            if (incoming?.customIntervals !== undefined) merged.customIntervals = incoming.customIntervals || {};
+            if (incoming?.healthyCheckInterval !== undefined) merged.healthyCheckInterval = incoming.healthyCheckInterval;
+            if (incoming?.healthyCustomIntervals !== undefined) merged.healthyCustomIntervals = incoming.healthyCustomIntervals || {};
+            currentConfig.SCHEDULED_HEALTH_CHECK = merged;
 
             // 处理 timer 状态变化
             // 当 enabled 从 true -> false 时，清除 timer
@@ -371,13 +393,22 @@ export async function handleUpdateConfig(req, res, currentConfig) {
                 SCHEDULED_HEALTH_CHECK: currentConfig.SCHEDULED_HEALTH_CHECK
             };
 
+            // 0. 备份现有配置
+            backupConfigFile(configPath);
+
             // 1. 原子写入主配置文件
             atomicWriteConfig(configPath, JSON.stringify(configToSave, null, 2));
 
-            // 2. 保存完整快照（用于恢复）
+            // 2. 保存完整快照（用于恢复）- 仅当快照不存在或当前配置有效时才覆盖
             const fullSnapshot = { ...configToSave, _snapshotTime: Date.now() };
             try {
-                atomicWriteConfig(snapshotPath, JSON.stringify(fullSnapshot, null, 2));
+                // 如果快照已存在且当前配置缺少关键字段（如 REQUIRED_API_KEY），则保留旧快照
+                const shouldPreserveOldSnapshot = existsSync(snapshotPath) && (!configToSave.REQUIRED_API_KEY || configToSave.REQUIRED_API_KEY === 'new-key-value');
+                if (!shouldPreserveOldSnapshot) {
+                    atomicWriteConfig(snapshotPath, JSON.stringify(fullSnapshot, null, 2));
+                } else {
+                    logger.warn('[UI API] Skipped overwriting config snapshot because current config appears to be a fresh default.');
+                }
             } catch (snapshotError) {
                 logger.warn('[UI API] Failed to save config snapshot:', snapshotError.message);
             }
