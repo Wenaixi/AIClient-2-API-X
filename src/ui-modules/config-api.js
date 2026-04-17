@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync, openSync, closeSync, readdirSync } from 'fs';
 import logger from '../utils/logger.js';
-import { promises as fs } from 'fs';
+import { promises as fsPromises } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { CONFIG } from '../core/config-manager.js';
@@ -18,11 +18,17 @@ import { reloadHealthCheckTimer, stopHealthCheckTimer, getHealthCheckTimerStatus
  */
 function atomicWriteConfig(targetPath, data) {
     const tempPath = targetPath + '.tmp.' + Date.now() + '.' + crypto.randomBytes(4).toString('hex');
+    let tempFd = null;
     try {
-        writeFileSync(tempPath, data, 'utf-8');
+        // 使用 open/write/close 组合，close 时自动 flush，更可靠
+        tempFd = openSync(tempPath, 'w');
+        writeFileSync(tempFd, data, 'utf-8');
+        closeSync(tempFd);
+        tempFd = null;
         renameSync(tempPath, targetPath);  // POSIX 原子操作
     } catch (error) {
-        // 清理临时文件（如果存在）
+        // 清理临时文件和 fd（如果存在）
+        if (tempFd !== null) { try { closeSync(tempFd); } catch (_) {} }
         try { unlinkSync(tempPath); } catch (_) {}
         throw error;
     }
@@ -31,7 +37,7 @@ function atomicWriteConfig(targetPath, data) {
 /**
  * 备份现有配置文件，保留最近 MAX_BACKUPS 个备份
  */
-const MAX_CONFIG_BACKUPS = 5;
+const MAX_CONFIG_BACKUPS = 3;
 function backupConfigFile(configPath) {
     if (!existsSync(configPath)) return;
     const backupPath = configPath + '.backup.' + Date.now();
@@ -40,13 +46,13 @@ function backupConfigFile(configPath) {
         // 清理旧备份
         const dir = path.dirname(configPath);
         const base = path.basename(configPath);
-        const backups = fs.readdirSync(dir)
+        const backups = readdirSync(dir)
             .filter(f => f.startsWith(base + '.backup.'))
             .map(f => ({ name: f, time: Number(f.split('.backup.')[1]) || 0 }))
             .sort((a, b) => a.time - b.time);
         while (backups.length > MAX_CONFIG_BACKUPS) {
             const oldest = backups.shift();
-            try { fs.unlinkSync(path.join(dir, oldest.name)); } catch (_) {}
+            try { unlinkSync(path.join(dir, oldest.name)); } catch (_) {}
         }
     } catch (e) {
         logger.warn('[UI API] Failed to create config backup:', e.message);
@@ -530,7 +536,7 @@ export async function handleUpdateAdminPassword(req, res) {
         const stored = `pbkdf2:${salt}:${hash}`;
 
         const pwdFilePath = path.join(process.cwd(), 'configs', 'pwd');
-        await fs.writeFile(pwdFilePath, stored, 'utf-8');
+        await fsPromises.writeFile(pwdFilePath, stored, 'utf-8');
         
         logger.info('[UI API] Admin password updated successfully');
 

@@ -131,6 +131,7 @@ export class ProviderPoolManager {
         this.refreshingUuids = new Set(); // 正在刷新的节点 UUID 集合
         
         this.refreshQueues = {}; // 按 providerType 分组的队列
+        this.globalRefreshWaiters = []; // 等待全局并发槽位的任务
         // 缓冲队列机制：延迟5秒，去重后再执行刷新
         this.refreshBufferQueues = {}; // 按 providerType 分组的缓冲队列
         this.refreshBufferTimers = {}; // 按 providerType 分组的定时器
@@ -485,12 +486,7 @@ export class ProviderPoolManager {
                         delete this.refreshQueues[providerType];
                     }
 
-                    // 只有持有全局槽位的任务才能递减计数器
-                    if (ownsGlobalSlot) {
-                        this.activeProviderRefreshes--;
-                    }
-
-                    // 3. 尝试启动下一个等待中的提供商队列
+                    // 3. 尝试启动下一个等待中的提供商队列（已由 _releaseGlobalSemaphore 唤醒，此处仅作 fallback）
                     if (this.globalRefreshWaiters.length > 0) {
                         const nextProviderStart = this.globalRefreshWaiters.shift();
                         Promise.resolve().then(nextProviderStart).catch(err => {
