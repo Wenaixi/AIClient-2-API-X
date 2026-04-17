@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-20 四次Review修复 |
+| 最后更新 | 2026-04-18 六次Review修复 |
 
 ---
 
@@ -209,11 +209,11 @@ Time:        ~40s
 
 | 提交 | 说明 |
 |------|------|
+| 1ee5efb | fix: 六次Review修复 - config-api同步fs方法/activeProviderRefreshes残留引用 |
 | fb51051 | docs: 更新文档 - 修复 _sendPong unhandled rejection 说明 |
 | 21564fe | fix: 修复 _dispatch 中 _sendPong 未处理的 unhandled rejection |
 | 97081e9 | docs: 更新文档日期为 2026-04-17 |
 | 77f614a | fix: 二次Review修复 - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 |
-| 791ac91 | fix: 修复多处关键 bug - LRU滑动过期/WSRelay竞态/Kimi OAuth |
 
 ---
 
@@ -409,3 +409,22 @@ Time:        ~34s
 - adapter maxSize 无边界检查 (通常传入有效值)
 - wsrelay manager ws.close() 异常静默忽略 (debug级别，可接受)
 - health-check-timer 启动延迟100ms可能导致竞态 (低风险)
+
+---
+
+## 六次 Review 发现并修复的 Bug (2026-04-18)
+
+### 🔴 高危 Bug
+
+| # | Bug | 文件 | 修复 |
+|---|-----|------|------|
+| 1 | **config-api.js 使用 fs.promises 调用同步方法** - `import { promises as fs }` 后使用 `fs.readdirSync / fs.unlinkSync`，Promise 对象不存在同步方法，运行时 TypeError | config-api.js:49,55 | ✅ 改用同步 readdirSync/unlinkSync，promises 重命名为 fsPromises |
+| 2 | **provider-pool-manager.js 引用不存在属性 activeProviderRefreshes** - 重构信号量后该属性已删除，残留的 `this.activeProviderRefreshes--` 操作 undefined，导致计数器 NaN | provider-pool-manager.js:491 | ✅ 移除残留引用，由 _releaseGlobalSemaphore 统一管理计数 |
+
+### 测试状态 (2026-04-18)
+
+```
+Test Suites: 52 passed, 52 total
+Tests:       2176 passed, 2176 total
+Time:        ~34s
+```
