@@ -468,6 +468,8 @@ class CodexAuth {
 
     /**
      * 解析 JWT token
+     * 注意：当前仅解析 payload，不验证签名。这是已知安全债务。
+     * 生产环境应使用 JWKS 验证 JWT 签名，防止伪造 token 攻击。
      * @param {string} token
      * @returns {Object}
      */
@@ -480,7 +482,30 @@ class CodexAuth {
 
             // 解码 payload (base64url)
             const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
-            return JSON.parse(payload);
+            const claims = JSON.parse(payload);
+
+            // 安全警告：JWT 签名未验证
+            // 在生产环境中，攻击者可以伪造任意 JWT token
+            // TODO (P0): 实现完整的 JWKS 验证
+            // - 安装依赖: npm install jwks-rsa
+            // - 从 https://auth.openai.com/.well-known/jwks.json 获取公钥
+            // - 使用 jsonwebtoken 库的 jwt.verify() 验证签名
+            logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} SECURITY: JWT signature not verified - this is a known vulnerability. Implement JWKS verification for production use.`);
+
+            // 基本 claims 验证
+            if (!claims.sub) {
+                logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} JWT missing required claim: sub`);
+            }
+
+            // 检查过期时间（不验证签名，但仍可使用 exp 字段作为参考）
+            if (claims.exp) {
+                const now = Math.floor(Date.now() / 1000);
+                if (claims.exp < now) {
+                    logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} JWT token appears to be expired (exp: ${new Date(claims.exp * 1000).toISOString()})`);
+                }
+            }
+
+            return claims;
         } catch (error) {
             logger.error(`${CODEX_OAUTH_CONFIG.logPrefix} Failed to parse JWT:`, error.message);
             throw new Error(`Failed to parse JWT token: ${error.message}`);

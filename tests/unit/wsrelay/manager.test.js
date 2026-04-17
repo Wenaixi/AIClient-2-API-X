@@ -1126,6 +1126,90 @@ describe('WSSession.cleanup', () => {
     });
 });
 
+describe('WSSession.run - WebSocket error handling', () => {
+    test('should call cleanup on WebSocket error event', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        session.run();
+
+        // Find the error handler
+        const errorHandler = mockWs.on.mock.calls.find(call => call[0] === 'error')[1];
+
+        // Create a mock error
+        const testError = new Error('WebSocket connection error');
+
+        // Call error handler - should trigger cleanup
+        errorHandler(testError);
+
+        // Verify that ws.close was called (part of cleanup)
+        expect(mockWs.close).toHaveBeenCalled();
+        mockManager._unregisterSession.mockRestore();
+    });
+
+    test('should pass error to cleanup on WebSocket error', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        session.run();
+
+        // Find the error handler
+        const errorHandler = mockWs.on.mock.calls.find(call => call[0] === 'error')[1];
+
+        // Create a mock error with specific message
+        const testError = new Error('Connection reset by peer');
+
+        // Track if cleanup was called
+        const originalCleanup = session.cleanup.bind(session);
+        session.cleanup = jest.fn(originalCleanup);
+
+        // Call error handler
+        errorHandler(testError);
+
+        // Verify cleanup was called with the error
+        expect(session.cleanup).toHaveBeenCalledWith(testError);
+
+        // Restore
+        mockManager._unregisterSession.mockRestore();
+    });
+
+    test('should not throw on WebSocket error when already closed', () => {
+        const mockWs = {
+            on: jest.fn(),
+            close: jest.fn()
+        };
+        const mockManager = {
+            _unregisterSession: jest.fn()
+        };
+        const session = new WSSession(mockWs, mockManager, 'test-id', {});
+
+        session.run();
+
+        // Find the error handler
+        const errorHandler = mockWs.on.mock.calls.find(call => call[0] === 'error')[1];
+
+        // Close the session first
+        session.cleanup();
+
+        // Error handler should not throw even if session already closed
+        expect(() => errorHandler(new Error('late error'))).not.toThrow();
+
+        mockManager._unregisterSession.mockRestore();
+    });
+});
+
 describe('WSRelayManager.getStats', () => {
     test('should include messagesSent and messagesReceived', () => {
         const manager = new WSRelayManager();

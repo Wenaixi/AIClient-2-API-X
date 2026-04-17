@@ -11,6 +11,7 @@
 - [ ] ui-modules/event-broadcast 覆盖率 55% → 60%+
 
 ### ✅ 已完成
+- [x] 六次Review修复 - JWT签名验证警告/OAuth硬编码凭证检查/WebSocket error测试 ✅ 2026-04-18
 - [x] 四次Review修复 Bug - safeCompare时序攻击/getRequestBody内存/默认密码admin123/ws.on重复绑定/writeMutex锁释放 ✅ 2026-04-20
 - [x] 三次Review修复 Bug - ch.drain未调用/终端消息不触发event/错误通知丢失 ✅ 2026-04-19 (2cf35b8)
 - [x] 二次Review修复 Bug - _sendPing锁竞态/_registerSession大小写/_sendPong异步/ch.messages内存泄漏 ✅ 2026-04-17 (77f614a)
@@ -28,12 +29,12 @@
 
 ---
 
-## 测试状态 (2026-04-16)
+## 测试状态 (2026-04-18)
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2175 passed, 2175 total
-Time:        ~39s
+Tests:       2179 passed, 2179 total
+Time:        ~34s
 ```
 
 ### 测试结果说明

@@ -12,6 +12,10 @@ import { escapeHtml } from '../utils/common.js';
 
 /**
  * OAuth 提供商配置
+ * 警告：以下配置包含硬编码的 OAuth 客户端凭据！
+ * 生产环境应通过环境变量覆盖：
+ *   - GEMINI_CLI_OAUTH_CLIENT_ID / GEMINI_CLI_OAUTH_CLIENT_SECRET
+ *   - GEMINI_ANTIGRAVITY_OAUTH_CLIENT_ID / GEMINI_ANTIGRAVITY_OAUTH_CLIENT_SECRET
  */
 const OAUTH_PROVIDERS = {
     'gemini-cli-oauth': {
@@ -33,6 +37,37 @@ const OAUTH_PROVIDERS = {
         logPrefix: '[Antigravity Auth]'
     }
 };
+
+// 启动时检查是否使用内置凭据（生产环境警告）
+(function checkHardcodedCredentials() {
+    const warnings = [];
+    for (const [provider, config] of Object.entries(OAUTH_PROVIDERS)) {
+        // 检查 CLIENT_ID 是否使用内置值
+        if (config.clientId.includes('apps.googleusercontent.com') && !process.env.GEMINI_CLI_OAUTH_CLIENT_ID && !process.env.GEMINI_ANTIGRAVITY_OAUTH_CLIENT_ID) {
+            const envVar = provider === 'gemini-cli-oauth' ? 'GEMINI_CLI_OAUTH_CLIENT_ID' : 'GEMINI_ANTIGRAVITY_OAUTH_CLIENT_ID';
+            warnings.push(`${envVar} not set, using built-in client ID for ${provider}`);
+        }
+        // 检查 CLIENT_SECRET 是否使用内置值（GOCSPX- 开头）
+        if (config.clientSecret.startsWith('GOCSPX-')) {
+            const envVar = provider === 'gemini-cli-oauth' ? 'GEMINI_CLI_OAUTH_CLIENT_SECRET' : 'GEMINI_ANTIGRAVITY_OAUTH_CLIENT_SECRET';
+            warnings.push(`SECURITY WARNING: ${envVar} not set, using built-in client SECRET for ${provider} - NOT SAFE FOR PRODUCTION`);
+        }
+    }
+    if (warnings.length > 0) {
+        if (process.env.NODE_ENV === 'production') {
+            // 生产环境：使用 error 级别
+            for (const msg of warnings) {
+                logger.error(`[Gemini OAuth] CRITICAL: ${msg}`);
+            }
+            logger.error('[Gemini OAuth] CRITICAL: Production environment detected with hardcoded OAuth credentials. Set environment variables to use your own credentials.');
+        } else {
+            // 非生产环境：使用 warn 级别
+            for (const msg of warnings) {
+                logger.warn(`[Gemini OAuth] ${msg}`);
+            }
+        }
+    }
+})();
 
 /**
  * 活动的服务器实例管理

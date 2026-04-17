@@ -71,24 +71,24 @@ docker compose down
 
 ---
 
-## 测试状态 (2026-04-19)
+## 测试状态 (2026-04-18)
 
 ```
 Test Suites: 52 passed, 52 total
-Tests:       2175 passed, 2175 total
-Time:        ~40s
+Tests:       2179 passed, 2179 total
+Time:        ~34s
 ```
 
 **注意**：测试运行时可能出现 "A worker process has failed to exit gracefully" 警告，这是 Jest 已知问题（Node.js v24 + Jest 组合），不影响测试结果。
 
-### 覆盖率概况 (2026-04-19)
+### 覆盖率概况 (2026-04-18)
 
 | 模块 | 覆盖率 | 备注 |
 |------|--------|------|
 | providers/kimi | 87-91% | Kimi 高覆盖 ✅ |
 | providers/forward | 91% | Forward 高覆盖 ✅ |
 | providers/selectors | 91% | Selector 高覆盖 ✅ |
-| wsrelay/* | 80-83% | manager.js 80.53% ✅ |
+| wsrelay/* | 83% | manager.js 83% ✅ (新增 WebSocket error 测试) |
 | services/* | 81-91% | health-check-timer 81% / usage-service 91% |
 | utils/* | 30-78% | logger.js 78% ✅ / common.js 20% (集成级函数) |
 | ui-modules/* | 13-83% | config-api 74% / system-monitor 71% / event-broadcast 55% ✅ |
@@ -411,20 +411,3 @@ Time:        ~34s
 - health-check-timer 启动延迟100ms可能导致竞态 (低风险)
 
 ---
-
-## 六次 Review 发现并修复的 Bug (2026-04-18)
-
-### 🔴 高危 Bug
-
-| # | Bug | 文件 | 修复 |
-|---|-----|------|------|
-| 1 | **config-api.js 使用 fs.promises 调用同步方法** - `import { promises as fs }` 后使用 `fs.readdirSync / fs.unlinkSync`，Promise 对象不存在同步方法，运行时 TypeError | config-api.js:49,55 | ✅ 改用同步 readdirSync/unlinkSync，promises 重命名为 fsPromises |
-| 2 | **provider-pool-manager.js 引用不存在属性 activeProviderRefreshes** - 重构信号量后该属性已删除，残留的 `this.activeProviderRefreshes--` 操作 undefined，导致计数器 NaN | provider-pool-manager.js:491 | ✅ 移除残留引用，由 _releaseGlobalSemaphore 统一管理计数 |
-
-### 测试状态 (2026-04-18)
-
-```
-Test Suites: 52 passed, 52 total
-Tests:       2176 passed, 2176 total
-Time:        ~34s
-```
