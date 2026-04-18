@@ -10,6 +10,7 @@ import { autoLinkProviderConfigs } from '../services/service-manager.js';
 import { CONFIG } from '../core/config-manager.js';
 import { getProxyConfigForProvider } from '../utils/proxy-utils.js';
 import { escapeHtml } from '../utils/common.js';
+import * as jose from 'jose';
 
 /**
  * Codex OAuth 配置
@@ -160,8 +161,8 @@ class CodexAuth {
         // 用 code 换取 tokens
         const tokens = await this.exchangeCodeForTokens(code, pkce.verifier);
 
-        // 解析 JWT 提取账户信息
-        const claims = this.parseJWT(tokens.id_token);
+        // 验证 JWT 并提取账户信息
+        const claims = await this.verifyJWT(tokens.id_token);
 
         // 保存凭据（遵循 CLIProxyAPI 格式）
         const credentials = {
@@ -238,8 +239,8 @@ class CodexAuth {
         // 用 code 换取 tokens
         const tokens = await this.exchangeCodeForTokens(result.code, pkce.verifier);
 
-        // 解析 JWT 提取账户信息
-        const claims = this.parseJWT(tokens.id_token);
+        // 验证 JWT 并提取账户信息
+        const claims = await this.verifyJWT(tokens.id_token);
 
         // 保存凭据（遵循 CLIProxyAPI 格式）
         const credentials = {
@@ -448,7 +449,7 @@ class CodexAuth {
             );
 
             const tokens = response.data;
-            const claims = this.parseJWT(tokens.id_token);
+            const claims = await this.verifyJWT(tokens.id_token);
 
             return {
                 id_token: tokens.id_token,
@@ -467,9 +468,91 @@ class CodexAuth {
     }
 
     /**
-     * 解析 JWT token
-     * 注意：当前仅解析 payload，不验证签名。这是已知安全债务。
-     * 生产环境应使用 JWKS 验证 JWT 签名，防止伪造 token 攻击。
+     * JWKS 缓存（避免每次请求都获取）
+     */
+    static _jwksCache = null;
+    static _jwksCacheTime = 0;
+    static _jwksCacheTTL = 3600000; // 1小时缓存
+
+    /**
+     * 获取 JWKS（带缓存）
+     * @returns {Promise<jose.JWTVerifyGetKey>}
+     */
+    static async _getJWKS() {
+        const now = Date.now();
+        if (codexAuth._jwksCache && (now - codexAuth._jwksCacheTime) < codexAuth._jwksCacheTTL) {
+            return codexAuth._jwksCache;
+        }
+
+        try {
+            // 从 OpenAI 的 JWKS 端点获取公钥
+            const JWKS_URL = 'https://auth.openai.com/.well-known/jwks.json';
+            const response = await axios.get(JWKS_URL, { timeout: 10000 });
+            codexAuth._jwksCache = jose.createRemoteJWKSet(new URL(JWKS_URL), {
+                cacheMaxAge: codexAuth._jwksCacheTTL,
+                jwksAlgorithms: ['RS256']
+            });
+            codexAuth._jwksCacheTime = now;
+            logger.info(`${CODEX_OAUTH_CONFIG.logPrefix} JWKS cache refreshed`);
+            return codexAuth._jwksCache;
+        } catch (error) {
+            logger.error(`${CODEX_OAUTH_CONFIG.logPrefix} Failed to fetch JWKS:`, error.message);
+            throw new Error(`Failed to fetch JWKS: ${error.message}`);
+        }
+    }
+
+    /**
+     * 验证并解析 JWT token（使用 JWKS 验证签名）
+     * @param {string} token
+     * @returns {Promise<Object>}
+     */
+    async verifyJWT(token) {
+        try {
+            // 1. 基本格式检查
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                throw new Error('Invalid JWT token format');
+            }
+
+            // 2. 获取 JWKS（带缓存）
+            const jwks = await codexAuth._getJWKS();
+
+            // 3. 验证 JWT 签名并解码 payload
+            const { payload } = await jose.jwtVerify(token, jwks, {
+                issuer: 'https://auth.openai.com',
+                audience: CODEX_OAUTH_CONFIG.clientId,
+                algorithms: ['RS256']
+            });
+
+            logger.debug(`${CODEX_OAUTH_CONFIG.logPrefix} JWT signature verified successfully`);
+
+            // 4. 基本 claims 验证（jose 已经验证了 iss 和 aud）
+            if (!payload.sub) {
+                logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} JWT missing required claim: sub`);
+            }
+
+            return payload;
+        } catch (error) {
+            // jose 验证失败
+            if (error.code === 'ERR_JWT_EXPIRED') {
+                logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} JWT token expired`);
+                throw new Error('JWT token expired');
+            } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+                logger.error(`${CODEX_OAUTH_CONFIG.logPrefix} JWT signature verification failed - token may be forged`);
+                throw new Error('Invalid JWT token: signature verification failed');
+            } else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
+                logger.error(`${CODEX_OAUTH_CONFIG.logPrefix} JWT claim validation failed:`, error.message);
+                throw new Error(`JWT validation failed: ${error.message}`);
+            }
+
+            logger.error(`${CODEX_OAUTH_CONFIG.logPrefix} JWT verification error:`, error.message);
+            throw new Error(`JWT verification failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * 解析 JWT token（兼容模式 - 仅解析不验证签名）
+     * 注意：仅在 JWKS 验证失败时作为降级方案使用
      * @param {string} token
      * @returns {Object}
      */
@@ -484,20 +567,15 @@ class CodexAuth {
             const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
             const claims = JSON.parse(payload);
 
-            // 安全警告：JWT 签名未验证
-            // 在生产环境中，攻击者可以伪造任意 JWT token
-            // TODO (P0): 实现完整的 JWKS 验证
-            // - 安装依赖: npm install jwks-rsa
-            // - 从 https://auth.openai.com/.well-known/jwks.json 获取公钥
-            // - 使用 jsonwebtoken 库的 jwt.verify() 验证签名
-            logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} SECURITY: JWT signature not verified - this is a known vulnerability. Implement JWKS verification for production use.`);
+            // 警告：这是降级模式，仅解析不验证
+            logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} Using fallback JWT parsing (no signature verification)`);
 
             // 基本 claims 验证
             if (!claims.sub) {
                 logger.warn(`${CODEX_OAUTH_CONFIG.logPrefix} JWT missing required claim: sub`);
             }
 
-            // 检查过期时间（不验证签名，但仍可使用 exp 字段作为参考）
+            // 检查过期时间
             if (claims.exp) {
                 const now = Math.floor(Date.now() / 1000);
                 if (claims.exp < now) {
@@ -705,8 +783,8 @@ export async function batchImportCodexTokensStream(tokens, onProgress = null, sk
                 throw new Error('Token 缺少必需字段 (access_token 或 id_token)');
             }
 
-            // 解析 JWT 提取账户信息
-            const claims = auth.parseJWT(tokenData.id_token);
+            // 验证 JWT 并提取账户信息
+            const claims = await auth.verifyJWT(tokenData.id_token);
             const accountId = claims['https://api.openai.com/auth']?.chatgpt_account_id || claims.sub;
             const email = claims.email;
 

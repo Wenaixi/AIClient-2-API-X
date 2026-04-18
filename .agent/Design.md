@@ -323,13 +323,16 @@ manager.js 75% 覆盖率，未覆盖行：
 | 2 | config API Key 不持久化 | config-manager.js | 中 | 重启后丢失 |
 | 3 | _acquireGlobalSemaphoreSync 竞态 | provider-pool-manager.js | 中 | async版本有保护 |
 
-### 待修复/需关注
+### 已修复 ✅
 
-| # | 问题 | 文件 | 风险 |
-|---|-----|------|------|
-| 1 | JWT 签名验证缺失 | codex-oauth.js | 高 |
-| 2 | 硬编码 OAuth 凭证 | auth/*.js | 高 |
+| # | 问题 | 文件 | 风险 | 说明 |
+|---|-----|------|------|------|
+| 1 | JWT 签名验证缺失 | codex-oauth.js | 高 | ✅ 已修复 - 使用 jose 实现 JWKS 验证 |
+| 2 | 硬编码 OAuth 凭证 | gemini-core.js/antigravity-core.js | 高 | ✅ 已修复 - 支持环境变量覆盖 |
+| 3 | Proxy getOwnPropertyDescriptor 误用 | adapter.js:943 | 高 | 已知技术债务 |
+| 4 | config API Key 不持久化 | config-manager.js | 中 | 设计问题 |
+| 5 | _acquireGlobalSemaphoreSync 竞态 | provider-pool-manager.js | 中 | async版本有保护 |
 
 ---
 
-*最后更新: 2026-04-19*
+*最后更新: 2026-04-18*

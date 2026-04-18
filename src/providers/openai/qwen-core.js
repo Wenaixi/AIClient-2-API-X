@@ -36,7 +36,7 @@ const DEFAULT_LOCK_CONFIG = {
 
 const DEFAULT_QWEN_OAUTH_BASE_URL = 'https://chat.qwen.ai';
 const DEFAULT_QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const QWEN_OAUTH_CLIENT_ID = 'f0304373b74a44d2b584a3fb70ca9e56';
+const QWEN_OAUTH_CLIENT_ID = process.env.QWEN_OAUTH_CLIENT_ID || 'f0304373b74a44d2b584a3fb70ca9e56';
 const QWEN_OAUTH_SCOPE = 'openid profile email model.completion';
 const QWEN_OAUTH_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 

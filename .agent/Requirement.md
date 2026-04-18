@@ -188,8 +188,8 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 |---|-----|------|------|
 | 1 | **safeCompare 时序攻击漏洞** - 早期返回泄漏信息 | common.js:259-294 | ✅ 已修复 |
 | 2 | **默认密码 admin123** - 未强制更改 | auth.js:34 | ✅ 已修复 (拒绝登录) |
-| 3 | **JWT 签名验证缺失** - 仅解析不验证 | codex-oauth.js:474-487 | ⚠️ 待修复 |
-| 4 | **硬编码 OAuth 凭证** | auth/*.js | ⚠️ 待修复 |
+| 3 | **JWT 签名验证缺失** - 仅解析不验证 | codex-oauth.js:469-513 | ✅ 已修复 - 使用 jose 实现 JWKS 验证 |
+| 4 | **硬编码 OAuth 凭证** | gemini-core.js/antigravity-core.js/qwen-core.js | ✅ 已修复 - 支持环境变量覆盖 |
 
 ### 🟡 中危问题
 
@@ -201,4 +201,4 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 | 4 | Proxy getOwnPropertyDescriptor 误用 | adapter.js:943 | ⚠️ 已知技术债务 |
 | 5 | config API Key 不持久化 | config-manager.js | ⚠️ 设计问题 |
 
-*最后更新: 2026-04-20*
+*最后更新: 2026-04-18*

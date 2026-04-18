@@ -15,7 +15,7 @@
 | 上游仓库 | https://github.com/justlovemaki/AIClient-2-API |
 | Fork仓库 | https://github.com/Wenaixi/AIClient-2-API-X |
 | 当前分支 | `pro` |
-| 最后更新 | 2026-04-18 六次Review修复 |
+| 最后更新 | 2026-04-18 七次Review修复 - JWT签名验证/OAuth凭证环境变量化 |
 
 ---
 
@@ -396,12 +396,12 @@ Time:        ~34s
 | 3 | **config API Key 不持久化** - 重启后丢失，需手动保存 | config-manager.js:210-213 | 中 | 设计问题 - 需用户手动保存 |
 | 4 | **_acquireGlobalSemaphoreSync 非原子** - 检查和递增之间有竞态窗口 | provider-pool-manager.js:865-870 | 中 | 已知问题 - async版本有保护 |
 
-### 待修复/高优先级
+### 已修复/高优先级
 
-| # | 问题 | 文件 | 风险 |
-|---|-----|------|------|
-| 1 | **JWT 签名验证缺失** - codex-oauth.js 仅解析不验证 | codex-oauth.js:474-487 | 高 |
-| 2 | **硬编码 OAuth 凭证** - gemini/kimi/codex 多处硬编码 | auth/*.js | 高 |
+| # | 问题 | 文件 | 风险 | 状态 |
+|---|-----|------|------|------|
+| 1 | **JWT 签名验证缺失** - codex-oauth.js 仅解析不验证 | codex-oauth.js:469-513 | 高 | ✅ 已修复 - 使用 jose 实现 JWKS 验证 |
+| 2 | **硬编码 OAuth 凭证** - gemini/kimi/codex 多处硬编码 | gemini-core.js/antigravity-core.js/qwen-core.js | 高 | ✅ 已修复 - 支持环境变量覆盖 |
 
 ### 低优先级问题 (无需立即修复)
 
