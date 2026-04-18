@@ -202,3 +202,64 @@ RETRYABLE_NETWORK_ERRORS / isRetryableNetworkError / getProtocolPrefix / formatE
 | 5 | config API Key 不持久化 | config-manager.js | ⚠️ 设计问题 |
 
 *最后更新: 2026-04-18*
+
+---
+
+## 八次Review深度分析 (2026-04-18)
+
+### Review 执行情况
+
+| Review | 发现高危 | 发现中危 | 发现低危 | 状态 |
+|--------|----------|----------|----------|------|
+| 一次Review | 5 | 4 | 1 | ✅ 全部修复 |
+| 二次Review | 2 | 2 | 2 | ✅ 全部修复 |
+| 三次Review | 3 | 2 | 0 | ✅ 全部修复 |
+| 四次Review | 5 | 5 | 0 | ✅ 全部修复 |
+| 五次Review | 1 | 0 | 0 | ✅ 全部修复 |
+| 六次Review | 0 | 0 | 0 | ✅ 确认无新增 |
+| 七次Review | 0 | 0 | 0 | ✅ 确认无新增 |
+| **八次Review** | 0 | 0 | 0 | ✅ 确认无新增 |
+
+### 八次Review 审查范围
+
+**代码审查**：pro 分支对比 main (172 个变更文件，+41,047/-5,678 行)
+
+核心模块审查：
+- `src/wsrelay/manager.js` (721 行) - Manager-Session 双层架构 ✅
+- `src/providers/adapter.js` (1004 行) - LRU Cache + 滑动过期 ✅
+- `src/auth/kimi-oauth.js` (561 行) - Device Flow 实现 ✅
+- `src/providers/provider-pool-manager.js` (1600+ 行) - 信号量模式 + 429 退避 ✅
+- `src/services/health-check-timer.js` (326 行) - 独立健康检查模块 ✅
+- `src/auth/codex-oauth.js` (800+ 行) - JWT JWKS 验证 ✅
+
+### 八次Review 安全审查结论
+
+**安全审查**: ✅ 通过
+- JWT 签名验证: ✅ 完整 JWKS 验证（jose 库）✅
+- OAuth 凭证: ✅ 支持环境变量覆盖（Kimi/Codex）✅
+- XSS 防护: ✅ escapeHtml 统一使用 ✅
+- 时序安全: ✅ safeCompare() 使用 timingSafeEqual ✅
+- 日志脱敏: ✅ maskKey() 覆盖敏感字段 ✅
+
+**架构审查**: ✅ 确认
+- LRU Cache: ✅ 滑动过期正确实现（adapter.js:796-799）✅
+- 信号量模式: ✅ refreshSemaphore 全局/per-provider 控制 ✅
+- 429 退避: ✅ 指数退避 + 冷却队列 + retry-after ✅
+- writeMutex: ✅ settled 标志保护正确 ✅
+
+### 测试状态 (2026-04-18)
+
+```
+Test Suites: 52 passed, 52 total
+Tests:       2179 passed, 2179 total
+Time:        ~36s
+```
+
+### 已知技术债务 (无需立即修复)
+
+| # | 问题 | 文件 | 风险 | 说明 |
+|---|-----|------|------|------|
+| 1 | Proxy getOwnPropertyDescriptor | adapter.js:944 | 中 | 每次访问更新LRU，设计已知 |
+| 2 | config API Key 不持久化 | config-manager.js | 低 | 需用户手动保存 |
+| 3 | _acquireGlobalSemaphoreSync 非原子 | provider-pool-manager.js:866 | 低 | 异步版本有保护 |
+| 4 | 设备ID存储相对路径 | kimi-oauth.js:88 | 低 | 建议使用绝对路径 |

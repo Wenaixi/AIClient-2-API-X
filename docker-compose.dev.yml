@@ -1,0 +1,6 @@
+services:
+  aiclient-api:
+    volumes:
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+    command: ["sh", "-c", "node --watch src/core/master.js $ARGS"]
